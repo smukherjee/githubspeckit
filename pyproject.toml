@@ -20,7 +20,7 @@ dependencies = [
   "pydantic>=2.6,<3",
   "sqlalchemy>=2.0,<3",
   "alembic>=1.13,<2",
-  "argon2-cffi>=25.1",
+  "argon2-cffi>=25.1,<26",
   "python-jose[cryptography]>=3.3.0,<4",
   "opentelemetry-api>=1.25,<2",
   "opentelemetry-sdk>=1.25,<2",
@@ -90,7 +90,8 @@ where = ["src"]
 package-dir = {"" = "src"}
 
 [project.scripts]
-app-bootstrap = "scripts.bootstrap:main"
+# Point to actual bootstrap module under src/cli
+app-bootstrap = "cli.bootstrap:main"
 
 # Documentation for dependency workflow
 [tool.project-notes]

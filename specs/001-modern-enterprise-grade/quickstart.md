@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-- Python 3.12 installed (validate with `python3 --version`)
+- Python 3.13.x installed (validate with `python3 --version`)
 - `uv` installed (`pip install uv` or follow upstream instructions)
 - PostgreSQL 15+ accessible locally OR rely on ephemeral SQLite fallback (dev mode only)
 

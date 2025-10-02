@@ -17,6 +17,8 @@ class PromClientAdapter:
         "rate_limit_hits_total": "counter",
         "config_drift_events_total": "counter",
         "performance_regressions_total": "counter",
+        # Added instrumentation metrics per C-044
+        "policy_evaluations_total": "counter",
     }
 
     def __init__(self, registry: CollectorRegistry | None = None):
@@ -31,6 +33,11 @@ class PromClientAdapter:
                 self._ensure_counter(name)
             elif mtype == "gauge":
                 self._ensure_gauge(name)
+        # Pre-create policy evaluation latency histogram (seconds) with spec buckets
+        self._ensure_histogram(
+            "policy_evaluation_latency_seconds",
+            buckets=(0.001,0.005,0.01,0.02,0.05,0.1,0.25,0.5,1,2)
+        )
 
     def _ensure_counter(self, name: str) -> Counter:
         if name in self._counters:

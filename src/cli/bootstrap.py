@@ -5,7 +5,7 @@ invocations are idempotent (no duplicates). Uses in-memory repositories for Phas
 """
 from __future__ import annotations
 
-import uuid
+import uuid, time, json, sys
 from dataclasses import dataclass
 from typing import Optional
 
@@ -28,6 +28,7 @@ def deterministic_uuid(name: str) -> str:
 
 
 def bootstrap(tenant_slug: str = "primary", admin_email: str = "admin@example.com") -> BootstrapResult:
+    start = time.perf_counter()
     t_repo = TenantRepository()
     u_repo = UserRepository()
     tenant_id = deterministic_uuid(f"tenant:{tenant_slug}")
@@ -53,6 +54,19 @@ def bootstrap(tenant_slug: str = "primary", admin_email: str = "admin@example.co
         "conflicts": [c for c, present in conflict_pairs if present],
         "counts": {"tenants": len(t_repo.list()), "users": len(u_repo.list_by_tenant(tenant_id))},
     }
+    duration_ms = (time.perf_counter() - start) * 1000.0
+    # infra.bootstrap structured log (stdout for now)
+    log_record = {
+        "category": "infra.bootstrap",
+        "tenant_id": tenant_id,
+        "duration_ms": round(duration_ms, 2),
+        "success": True,
+        "service_count": 1,  # placeholder until services enumerated
+    }
+    try:
+        print(json.dumps(log_record))
+    except Exception:
+        pass
     return BootstrapResult(tenant_id=tenant_id, admin_user_id=user_id, created=created, summary=summary)
 
 

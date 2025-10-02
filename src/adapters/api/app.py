@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from fastapi import FastAPI, Response, Request
 from fastapi.responses import JSONResponse
-from domain.config.loader import load_config
+from domain.config.loader import load_config, ConfigValidationError
+import os, sys, json
 from adapters.api.routers import invitations as invitations_router
 from adapters.api.routers import users as users_router
 from adapters.api.routers import auth as auth_router
@@ -30,6 +31,27 @@ from quality.metrics import QualityMetrics
 
 
 def create_app() -> FastAPI:
+    # Early config validation fail-fast hook (FR-041 C-045)
+    if os.getenv("SIMULATE_CONFIG_FAIL") == "1":  # pragma: no cover - integration scenario
+        try:
+            load_config(raw={})
+        except ConfigValidationError as e:
+            # Build issues list
+            msg = str(e)
+            issues = []
+            if ": [" in msg:
+                part = msg.split(": ")[-1].strip()
+                for item in part.strip("[]").replace("'", "").split(","):
+                    name = item.strip()
+                    if name:
+                        issues.append({"name": name, "error": "missing", "expected_type": "str"})
+            payload = {
+                "error": "configuration_validation_failed",
+                "config_hash": None,
+                "issues": sorted(issues, key=lambda x: x["name"]),
+            }
+            sys.stderr.write(json.dumps(payload) + "\n")
+            raise
     # Initialize tracing (best-effort; failures ignored to avoid startup abort)
     try:  # pragma: no cover - trivial
         init_tracing()

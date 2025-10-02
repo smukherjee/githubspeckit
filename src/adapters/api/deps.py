@@ -14,6 +14,22 @@ from auth_core.auth_service import AuthenticationService
 from auth_core.jwt import JWTService, JWTKeySet
 
 
+class InMemoryAuditService:
+    """Minimal audit service placeholder for Phase 2.
+
+    Real implementation will append to an audit repository & structured log.
+    """
+    def __init__(self):
+        self.events = []
+
+    def log(self, *, action_type: str, tenant_id: str | None, metadata: dict | None = None):  # pragma: no cover simple storage
+        self.events.append({
+            "action_type": action_type,
+            "tenant_id": tenant_id,
+            "metadata": metadata or {},
+        })
+
+
 @lru_cache
 def get_user_repo() -> UserRepository:
     return UserRepository()
@@ -49,3 +65,14 @@ def get_jwt_service() -> JWTService:
 @lru_cache
 def get_auth_service() -> AuthenticationService:
     return AuthenticationService(registry=get_auth_registry())
+
+
+_audit_singleton = None
+
+
+def get_audit_service() -> InMemoryAuditService:
+    global _audit_singleton
+    if _audit_singleton is None:
+        _audit_singleton = InMemoryAuditService()
+    return _audit_singleton
+

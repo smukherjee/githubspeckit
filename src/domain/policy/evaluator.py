@@ -82,7 +82,8 @@ class PolicyEvaluator:
                 elapsed_ms = (time.perf_counter() - start) * 1000.0
                 try:
                     if self._metrics:
-                        self._metrics.histogram_observe("policy_eval_latency_ms", elapsed_ms, tenant_id=context.get("tenant_id"))
+                        self._metrics.histogram_observe("policy_evaluation_latency_seconds", elapsed_ms / 1000.0, tenant_id=context.get("tenant_id"), buckets=(0.001,0.005,0.01,0.02,0.05,0.1,0.25,0.5,1,2))
+                        self._metrics.counter_inc("policy_evaluations_total", tenant_id=context.get("tenant_id"), amount=1)
                 except Exception:
                     pass
                 span.set_attribute("policy.decision", "DENY")
@@ -97,7 +98,8 @@ class PolicyEvaluator:
                 elapsed_ms = (time.perf_counter() - start) * 1000.0
                 try:
                     if self._metrics:
-                        self._metrics.histogram_observe("policy_eval_latency_ms", elapsed_ms, tenant_id=context.get("tenant_id"))
+                        self._metrics.histogram_observe("policy_evaluation_latency_seconds", elapsed_ms / 1000.0, tenant_id=context.get("tenant_id"), buckets=(0.001,0.005,0.01,0.02,0.05,0.1,0.25,0.5,1,2))
+                        self._metrics.counter_inc("policy_evaluations_total", tenant_id=context.get("tenant_id"), amount=1)
                 except Exception:
                     pass
                 span.set_attribute("policy.decision", "ALLOW")
@@ -110,7 +112,8 @@ class PolicyEvaluator:
                 elapsed_ms = (time.perf_counter() - start) * 1000.0
                 try:
                     if self._metrics:
-                        self._metrics.histogram_observe("policy_eval_latency_ms", elapsed_ms, tenant_id=context.get("tenant_id"))
+                        self._metrics.histogram_observe("policy_evaluation_latency_seconds", elapsed_ms / 1000.0, tenant_id=context.get("tenant_id"), buckets=(0.001,0.005,0.01,0.02,0.05,0.1,0.25,0.5,1,2))
+                        self._metrics.counter_inc("policy_evaluations_total", tenant_id=context.get("tenant_id"), amount=1)
                 except Exception:
                     pass
                 span.set_attribute("policy.decision", "ABSTAIN")
@@ -131,7 +134,8 @@ class PolicyEvaluator:
                         elapsed_ms = (time.perf_counter() - start) * 1000.0
                         try:
                             if self._metrics:
-                                self._metrics.histogram_observe("policy_eval_latency_ms", elapsed_ms, tenant_id=context.get("tenant_id"))
+                                self._metrics.histogram_observe("policy_evaluation_latency_seconds", elapsed_ms / 1000.0, tenant_id=context.get("tenant_id"), buckets=(0.001,0.005,0.01,0.02,0.05,0.1,0.25,0.5,1,2))
+                                self._metrics.counter_inc("policy_evaluations_total", tenant_id=context.get("tenant_id"), amount=1)
                         except Exception:
                             pass
                         span.set_attribute("policy.decision", res.decision.name)
@@ -145,7 +149,8 @@ class PolicyEvaluator:
             elapsed_ms = (time.perf_counter() - start) * 1000.0
             try:
                 if self._metrics:
-                    self._metrics.histogram_observe("policy_eval_latency_ms", elapsed_ms, tenant_id=context.get("tenant_id"))
+                    self._metrics.histogram_observe("policy_evaluation_latency_seconds", elapsed_ms / 1000.0, tenant_id=context.get("tenant_id"), buckets=(0.001,0.005,0.01,0.02,0.05,0.1,0.25,0.5,1,2))
+                    self._metrics.counter_inc("policy_evaluations_total", tenant_id=context.get("tenant_id"), amount=1)
             except Exception:
                 pass
             span.set_attribute("policy.decision", result.decision.name)

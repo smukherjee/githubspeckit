@@ -6,6 +6,7 @@ from typing import Optional
 from datetime import datetime, timezone, timedelta
 
 from auth_core.hashers import default_hasher
+from adapters.api.deps import get_audit_service
 from domain.users.models import UserStatus
 from adapters.api.deps import get_user_repo, get_auth_service, get_jwt_service
 
@@ -34,7 +35,7 @@ class RevokeRequest(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(payload: LoginRequest, user_repo=Depends(_UserRepoDep), auth_service=Depends(_AuthServiceDep), jwt_service=Depends(_JWTDep)):
+async def login(payload: LoginRequest, user_repo=Depends(_UserRepoDep), auth_service=Depends(_AuthServiceDep), jwt_service=Depends(_JWTDep), audit=Depends(get_audit_service)):
     user = user_repo.get(payload.user_id)
     if not user or not user.password_hash or user.status != UserStatus.active:
         raise HTTPException(status_code=401, detail="invalid_credentials")
@@ -45,7 +46,13 @@ async def login(payload: LoginRequest, user_repo=Depends(_UserRepoDep), auth_ser
     token = jwt_service.issue(sub=user.user_id, tenant_id=user.tenant_id, roles=user.roles)
     # hash upgrade path
     if result.get("needs_rehash"):
+        old_hash = user.password_hash
         user.password_hash = default_hasher.hash(payload.password)
+        # Emit audit event (FR-051 C-033)
+        try:
+            audit.log(action_type="auth.password.hash_upgraded", tenant_id=user.tenant_id, metadata={"user_id": user.user_id})
+        except Exception:
+            pass
     user_repo.upsert(user)
     return LoginResponse(access_token=token, expires_at=datetime.now(timezone.utc) + timedelta(minutes=30))
 

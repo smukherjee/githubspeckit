@@ -253,7 +253,7 @@ FR-031: TEST-POL-05, IMPL-POL-06
 FR-032: TEST-API-23, TEST-API-23A, IMPL-OBS-04
 FR-033: TEST-SEC-19, IMPL-SEC-20 (C-020) // explicit mapping replacing implicit reuse of TEST-AUTH-07
 FR-034: TEST-OBS-07, IMPL-OBS-08, TEST-API-21, IMPL-API-22, TEST-XCUT-11, IMPL-XCUT-12 (C-044)
-FR-035: TEST-ULF-05, IMPL-ULF-06
+FR-035: TEST-API-05, IMPL-API-06, IMPL-CONF-06  # tenant configuration export bundle (C-029)
 FR-036: TEST-POL-09, IMPL-POL-10 (C-026)
 // Legacy duplicate FR mapping block removed (was below); canonical block above retained per cleanup instruction.
 // (Removed legacy duplicate mapping block here.)
@@ -297,7 +297,27 @@ FR-036: TEST-POL-09, IMPL-POL-10 (C-026)
 - TEST-AUTH-00A OIDC absence assertion (FR-007, C-036) [PENDING]
 - TEST-SEC-XX Justification registry cross-ref lint (FR-070, C-018) [PENDING]
 - TEST-API-XX Deprecation header emission contract (FR-014) [PENDING]
+<!-- Newly added remediation tasks (consistency gap closure) -->
+TEST-CONF-09 Startup failure aggregated error JSON (FR-041 C-045) [DONE]
+IMPL-CONF-10 Abort on config validation failure w/ JSON emit (FR-041 C-045) [DONE]
+TEST-BOOT-01 Bootstrap duration structured log (FR-052 C-034) [DONE]
+IMPL-BOOT-02 infra.bootstrap duration log emission (FR-052 C-034) [DONE]
+TEST-OBS-13 Policy evaluation histogram buckets (FR-034 C-044) [DONE]
+TEST-MET-KEYS-01 Required metrics key set compliance (FR-016 C-030) [DONE]
+TEST-AUTH-00A OIDC absence assertion (FR-007 C-036) [PENDING]
+TEST-SEC-JUSTIFY-XREF Justification cross-ref lint (FR-070 C-018) [PENDING]
+TEST-AUTH-07B Replay detection near expiry boundary (FR-028 C-020) [PENDING]
+TEST-API-DEPRECATION-CONTRACT Deprecation header contract (FR-014) [DONE]
+TEST-OBS-POLICY-HISTO Policy evaluation latency histogram presence (FR-034 C-044) [DONE]
+TEST-CONF-EXPORT-BUNDLE Integrity & hash contents verification (FR-035 C-029) [DONE]
+TEST-AUTH-HASH-UPGRADE-AUDIT Password hash upgrade audit emission (FR-051 C-033) [DONE]
+TEST-AUTH-ROLE-DOWNGRADE-TIMING Role downgrade invalidation timing window (FR-021 C-032) [DEFERRED]
 // Removed placeholder contract tests now covered by concrete tests: auth login, invitation accept, user restore
+
+## Deferred FR Enforcement (Documented)
+
+- FR-051 (Password hash upgrade audit) deferred: pending TEST-AUTH-HASH-UPGRADE-AUDIT.
+- FR-021 timing strictness (role downgrade) partially deferred: timing window test pending TEST-AUTH-ROLE-DOWNGRADE-TIMING.
 
 ## Parallelization Plan (Initial Sprint Ordering)
 

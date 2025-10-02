@@ -14,6 +14,7 @@ class SimpleMetricsRegistry:
         "rate_limit_hits_total",
         "config_drift_events_total",
         "performance_regressions_total",
+        "policy_evaluations_total",
     }
 
     def __init__(self, prom_adapter=None):
@@ -58,3 +59,11 @@ class SimpleMetricsRegistry:
 
     def has_required(self) -> bool:
         return self.REQUIRED_METRICS.issubset(self.registered)
+
+    # Compatibility methods for policy evaluator instrumentation
+    def histogram_observe(self, name: str, value: float, tenant_id=None, buckets=None):  # pragma: no cover simple adapter
+        # For in-memory tests we don't store histogram data; presence indicates call path works.
+        self.register(name)
+
+    def counter_inc(self, name: str, tenant_id=None, amount: int = 1):  # pragma: no cover
+        self.inc(name, amount)
