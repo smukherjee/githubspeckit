@@ -51,7 +51,7 @@
 Evaluate and explicitly confirm (checklist) before proceeding:
 
 1. Architecture: Domain layer free of framework/infrastructure imports (Principle I).
-2. Test-First: All proposed endpoints & services have planned failing tests (Principle II).
+2. Test-First & Coverage: Planned failing tests exist AND projected coverage meets thresholds (≥90% domain, ≥85% overall; 100% critical auth/tenancy paths) (Principle II).
 3. Multi-Tenancy: Every new data access path includes tenant context + filtering (Principles I & III).
 4. RBAC & Policies: Authorization expressed via registered policies—no inline role branching (Principles III & VI).
 5. Auth Reuse: No domain-specific logic added inside auth core; only registrations/extensions (Principle VI).
@@ -246,4 +246,4 @@ This checklist is updated during execution flow.
 - [ ] Complexity deviations documented
 
 ---
-*Based on Constitution v1.5.0 - See `/memory/constitution.md`*
+*Based on Constitution v1.5.1 - See `/memory/constitution.md`*

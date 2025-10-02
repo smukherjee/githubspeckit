@@ -1,15 +1,16 @@
 <!--
 Sync Impact Report
-Version: 1.4.0 -> 1.5.0 (MINOR)
-Modified Principles: III (explicit role hierarchy & tenant admin implicit scope), Additional Constraints (updated roles & seed data), Added new Principle IX (Code Quality & Simplicity)
-Added Sections: Principle IX
+Version: 1.5.0 -> 1.5.1 (PATCH)
+Modified Principles: II (expanded explicit coverage enforcement mechanics: 90% domain, 85% overall, 100% critical paths; added coverage manifest governance and justification rules)
+Added Sections: None
 Removed Sections: None
 Templates Updated:
-	- .specify/templates/plan-template.md ✅ (added Code Quality & Simplicity gate + version ref)
-	- .specify/templates/tasks-template.md ✅ (added quality/duplication/static analysis tasks placeholders)
+	- .specify/templates/plan-template.md ✅ (added coverage gating to Constitution Check item 2 + version ref)
+	- .specify/templates/spec-template.md ✅ (compatible; no change needed)
+	- .specify/templates/tasks-template.md ✅ (implicit support; no wording change required)
 Templates Pending: None
 Deferred TODOs: None
-Rationale for Version Bump: New enforceable principle (Code Quality & Simplicity) plus material clarification of tenancy & RBAC hierarchy semantics; not a breaking reversal of existing governance—qualifies as MINOR.
+Rationale for Version Bump: Clarification and procedural detail only (no semantic governance change) qualifies as PATCH.
 -->
 
 # githubspeckit Backend Constitution
@@ -21,7 +22,24 @@ The system uses a ports & adapters (hexagonal) architecture: domain layer (pure 
 
 ## II. Contract & Test First (NON‑NEGOTIABLE)
 
-Every change starts with: (1) contract (OpenAPI fragment / Pydantic model / domain interface) (2) failing tests (unit + contract + RBAC + negative). Red‑Green‑Refactor strictly enforced. No implementation without an asserting test. Mutation of public contracts requires version impact analysis + backward compatibility plan. Minimum coverage: 90% domain, 85% overall; critical auth / tenancy paths 100%. Performance tests for high‑throughput endpoints precede completion.
+Every change starts with: (1) contract (OpenAPI fragment / Pydantic model / domain interface) (2) failing tests (unit + contract + RBAC + negative). Red‑Green‑Refactor strictly enforced. No implementation without an asserting test. Mutation of public contracts requires version impact analysis + backward compatibility plan.
+
+Required Coverage Matrix (enforced in CI):
+ 
+* Domain layer: >= 90% line coverage (hard fail below).
+* Overall repository: >= 85% line coverage (hard fail below).
+* Critical auth & multi‑tenancy enforcement paths: 100% statement coverage (no unexecuted branches) — failing lines block merge.
+* New/changed files: MUST NOT reduce aggregate coverage; any overall drop >0.5% requires justification (JUSTIFY ID) and >1.0% blocks until addressed.
+
+Enforcement Mechanics:
+ 
+1. CI `coverage-gate` parses coverage XML → structured JSON summary consumed by quality gate.
+2. If any threshold violated: pipeline fails; merge blocked.
+3. Coverage decreases within thresholds but >0.5% overall produce a non-blocking warning requiring reviewer acknowledgment; >1.0% becomes blocking.
+4. Critical path manifest (`coverage_critical_paths.yml`) governs which files require 100%; manifest edits require security reviewer approval.
+5. Performance tests for high‑throughput endpoints MUST exist (tag `@smoke_performance`) before feature completion; absence becomes blocking after first stable release of that feature.
+
+Performance Gate Ordering: Coverage gate runs before performance regression detection to prevent masking untested slow paths.
 
 ## III. Secure Multi-Tenancy, Role Hierarchy & Least Privilege
 
@@ -299,4 +317,4 @@ CI/CD:
 9. ADR Index maintained; stale ADRs reviewed quarterly.  
 10. Emergency Changes: Post‑incident retro must include Constitution compliance gap analysis.
 
-**Version**: 1.5.0 | **Ratified**: 2025-10-02 | **Last Amended**: 2025-10-02
+**Version**: 1.5.1 | **Ratified**: 2025-10-02 | **Last Amended**: 2025-10-02

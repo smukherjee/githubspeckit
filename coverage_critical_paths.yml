@@ -1,0 +1,146 @@
+# coverage_critical_paths.yml
+#
+# Purpose: Defines the set of source file (or glob) patterns that are
+# designated "critical" for 100% statement/line coverage as enforced by
+# Constitution Principle II (Contract & Test First) – coverage gate.
+#
+# Enforcement Responsibilities:
+#   * CI coverage gate MUST fail if any resolved file under these patterns
+#     has <100% coverage (statements or lines depending on tool).
+#   * Edits to this manifest REQUIRE security or architecture reviewer
+#     approval (see governance review process) and MUST be done in a
+#     dedicated PR referencing rationale.
+#   * Patterns are evaluated AFTER test collection; exclusions in
+#     coverage configuration MUST NOT override this manifest.
+#
+# Schema:
+#   version:      Integer incremented when structure or semantics change.
+#   last_updated: ISO-8601 date of last manifest modification.
+#   owner:        Primary team or role accountable for approvals.
+#   categories:   Logical grouping for traceability and rationale.
+#       - name:        Category name
+#         rationale:   Why these files require 100% coverage
+#         patterns:    List of glob patterns (Python fnmatch style) rooted at repo root
+#         notes:       Optional clarifications (e.g., allowed generated code exceptions)
+#
+# Pattern Resolution Rules:
+#   * Patterns are matched relative to repository root.
+#   * Use forward slashes; no leading './'.
+#   * To mark an entire directory recursively: path/**
+#   * To single out a precise file: path/to/file.py
+#
+# Exclusions / Edge Cases:
+#   * Generated files (e.g., auto-generated OpenAPI bundles) SHOULD NOT be
+#     added here; if present they must remain stable and intentionally
+#     unmodified.
+#   * Test helper utilities are not critical unless they enforce security
+#     or tenancy boundaries.
+#
+# Adding New Patterns:
+#   1. Provide a clear rationale referencing FRs / Clarifications / Principles.
+#   2. Ensure new tests drive coverage to 100% BEFORE merging.
+#   3. Increment the manifest version and update last_updated.
+#
+# Removing Patterns:
+#   * Requires ADR or justification referencing simplified architecture or
+#     de-scoped feature; never remove to "make coverage pass".
+#
+# Consumption:
+#   * coverage-gate script loads this YAML, expands patterns, computes file
+#     coverage, and emits blocking failures for any <100% file.
+#
+version: 1
+last_updated: 2025-10-02
+owner: platform-security-and-architecture
+
+categories:
+  - name: authentication-core
+    rationale: "Auth primitives (password hashing, token issuance, validation, rotation, replay detection) guard system boundary; bugs here have security impact."
+    patterns:
+      - auth_core/**
+      - adapters/security/token_*.py
+      - adapters/security/key_rotation*.py
+    notes: "Exclude cryptography library internals; focus only on our orchestration code."
+
+  - name: tenancy-boundary-enforcement
+    rationale: "Tenant isolation enforcement must be fully exercised to guarantee absence of cross-tenant data leakage."
+    patterns:
+      - adapters/api/middleware/tenant_*.py
+      - adapters/api/dependencies/tenant_*.py
+      - services/**/tenant_*enforcer.py
+    notes: "If middleware module is renamed, update pattern immediately."
+
+  - name: policy-engine
+    rationale: "Deterministic authorization decisions require complete test oracle coverage for ALLOW/DENY/ABSTAIN + rationale codes."
+    patterns:
+      - auth_core/policy/**
+      - domain/authz/**
+    notes: "Include rationale enumeration evolution tests."
+
+  - name: configuration-loader
+    rationale: "Unified configuration (immutability, validation, drift detection) underpins consistent deployments and security posture."
+    patterns:
+      - adapters/config/**
+      - services/config_loader.py
+    notes: "Do not include .env example generator if trivial; only logic paths."
+
+  - name: seed-bootstrap
+    rationale: "Seed & bootstrap ensure deterministic initial roles, users, tenants; correctness critical for reproducible environments."
+    patterns:
+      - cli/commands/seed*.py
+      - cli/commands/bootstrap*.py
+    notes: "Durable DB seed will extend patterns once persistence added (Phase 3)."
+
+  - name: logging-redaction
+    rationale: "PII / secret redaction & structured logging integrity must not regress; omissions risk data exfiltration."
+    patterns:
+      - adapters/logging/**
+      - adapters/observability/redaction*.py
+    notes: "Patterns intentionally broad—refine when structure stabilizes."
+
+  - name: metrics-and-regression
+    rationale: "Performance regression detection & mandatory metrics guarantee SLA visibility."
+    patterns:
+      - adapters/observability/metrics*.py
+      - services/performance/regression*.py
+      - services/performance/latency_*.py
+    notes: "Add new metric collectors here when introduced."
+
+  - name: rate-limiting-and-abuse
+    rationale: "Rate limiter correctness prevents abuse amplification and protects multi-tenant fairness."
+    patterns:
+      - adapters/security/rate_limit*.py
+      - services/security/rate_limit*.py
+    notes: "Patterns will be narrowed to specific modules once interface solidified."
+
+  - name: replay-detection
+    rationale: "Replay detection prevents token reuse attacks; false negatives are critical."
+    patterns:
+      - adapters/security/replay*.py
+      - auth_core/session/replay*.py
+    notes: "Ensure near-expiry boundary test coverage maintained."
+
+  - name: embed-security
+    rationale: "Embed origin validation & token exchange must not degrade tenant isolation or CSRF posture."
+    patterns:
+      - services/embed/**
+      - adapters/api/routes/embed*.py
+    notes: "Add future PostMessage channel handler when implemented."
+
+  - name: error-envelope-and-correlation
+    rationale: "Consistent error schema + correlation propagation is foundational for debugging and security auditing."
+    patterns:
+      - adapters/api/error_handler.py
+      - adapters/api/middleware/correlation*.py
+    notes: "If error handler is split, update pattern."
+
+  - name: critical-domain-entities
+    rationale: "Domain models with security/audit implications require exhaustive test coverage for invariants & transitions."
+    patterns:
+      - domain/tenants/**
+      - domain/users/**
+      - domain/policies/**
+      - domain/audit/**
+    notes: "Exclude purely declarative __init__.py files automatically."
+
+# End of file

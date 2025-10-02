@@ -255,6 +255,16 @@ FR-033: TEST-SEC-19, IMPL-SEC-20 (C-020) // explicit mapping replacing implicit 
 FR-034: TEST-OBS-07, IMPL-OBS-08, TEST-API-21, IMPL-API-22, TEST-XCUT-11, IMPL-XCUT-12 (C-044)
 FR-035: TEST-API-05, IMPL-API-06, IMPL-CONF-06  # tenant configuration export bundle (C-029)
 FR-036: TEST-POL-09, IMPL-POL-10 (C-026)
+FR-037: TEST-XCUT-01, IMPL-XCUT-02
+FR-038: IMPL-POL-11, TEST-POL-12
+FR-039: TEST-CONF-01, IMPL-CONF-02
+FR-040: IMPL-CONF-02, TEST-CONF-03
+FR-041: TEST-API-28, TEST-CONF-09, IMPL-CONF-10
+FR-042: TEST-CONF-01, IMPL-CONF-02
+FR-043: TEST-CONF-05, TEST-CONF-07, IMPL-CONF-02
+FR-044: TEST-CONF-06, IMPL-CONF-04
+FR-045: IMPL-CONF-02, TEST-CONF-03
+FR-046: TEST-API-05, IMPL-CONF-06, IMPL-API-06
 // Legacy duplicate FR mapping block removed (was below); canonical block above retained per cleanup instruction.
 // (Removed legacy duplicate mapping block here.)
 
@@ -316,8 +326,9 @@ TEST-AUTH-ROLE-DOWNGRADE-TIMING Role downgrade invalidation timing window (FR-02
 
 ## Deferred FR Enforcement (Documented)
 
-- FR-051 (Password hash upgrade audit) deferred: pending TEST-AUTH-HASH-UPGRADE-AUDIT.
 - FR-021 timing strictness (role downgrade) partially deferred: timing window test pending TEST-AUTH-ROLE-DOWNGRADE-TIMING.
+
+// Reconciliation Note (C-050): Seed & bootstrap tasks executed in Phase 2 (TEST-API-25, IMPL-API-26, TEST-XCUT-10, IMPL-XCUT-11) operate purely against in-memory repositories; durable persistence + migration-backed seed remains deferred to Phase 3 per Clarification C-050. No update to C-050 required—this note documents the distinction.
 
 ## Parallelization Plan (Initial Sprint Ordering)
 
