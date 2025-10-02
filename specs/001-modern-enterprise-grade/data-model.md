@@ -205,7 +205,89 @@ Sensitive metadata keys replaced with `REDACTED` prior to persistence if acciden
 - High-write tables: AuditEvent, PolicyEvaluationLog – require partitioning/index strategy (future ADR).
 - Latency tracking: store latency_ms integer for evaluation optimization.
 - Avoid cascade deletes; use soft delete & background cleanup tasks (future).
+  - Exception Rationale (Phase 3 Planning Alignment): Limited ON DELETE CASCADE may be applied ONLY to:
+    - Ephemeral token state tables (e.g., password_resets) where rows lose meaning immediately when parent (User) is physically purged in explicit maintenance scenarios.
+    - Pure association/bridge tables (e.g., user_roles) to prevent orphan join rows and reduce maintenance complexity.
+  - All high-volume or auditable domain tables (tenants, users, policies, policy_eval_logs, audit_events, feature_flags) continue to use RESTRICT + logical (soft) delete semantics to avoid accidental large fan-out deletions and to preserve performance predictability under heavy write load.
+  - This clarification ensures the Phase 3 FK & Cascade Matrix does not contradict the overarching performance guidance; cascades are constrained to low-cardinality, low-write, operationally trivial relations.
 
 ## Open Questions (Deferred)
 
 None for initial scope (covered by clarifications). Future: partitioning strategy, policy DSL extensibility.
+
+---
+
+## Phase 3 Addendum: Persistence Foreign Keys, Cascades & Key Management
+
+This addendum aligns the domain data model with the Phase 3 persistence plan (see `plan.md` Physical Mapping & FK policy tables). It introduces explicit foreign key semantics, logical vs physical cascade strategy, and clarifies which relationships are enforced at the DB vs domain layer.
+
+### Foreign Key & Cascade Matrix
+
+| Relationship | Physical FK | ON DELETE (DB) | Logical (Domain) Behavior | Notes |
+|--------------|-------------|----------------|---------------------------|-------|
+| users.tenant_id → tenants.tenant_id | Yes | RESTRICT | Tenant soft delete hides users; hard delete not routine | Protects cross-table integrity; no orphan users. |
+| invitations.tenant_id → tenants.tenant_id | Yes | RESTRICT | Cleanup job removes stale invites if tenant soft_deleted | Avoids accidental loss; invites ephemeral. |
+| password_resets.user_id → users.user_id | Yes | CASCADE | User soft delete invalidates outstanding resets | Physical cascade acceptable (tokens meaningless post-delete). |
+| user_roles.user_id → users.user_id | Yes | CASCADE | Role entries removed if user physically purged (rare) | Normal flows use soft delete only. |
+| user_roles.tenant_id → tenants.tenant_id | Yes | RESTRICT | Tenant soft delete preserves assignments for audit | Historical role evidence retained. |
+| policies.tenant_id → tenants.tenant_id | Yes | RESTRICT | Policies retained; may be archived if tenant archived | Required for compliance rollback references. |
+| policy_eval_logs.tenant_id → tenants.tenant_id | Yes | RESTRICT | Logs retained unless regulated purge required | Append-only; high volume. |
+| feature_flags.tenant_id → tenants.tenant_id | Yes | RESTRICT | Tenant soft delete disables evaluation path | Prevents silent toggle removal. |
+| audit_events.tenant_id → tenants.tenant_id | Yes | RESTRICT | Immutable audit persists | No cascade ever. |
+| password_resets.user_id → users.user_id | Yes | CASCADE | Redundant entry (see above) | Consolidated for clarity. |
+| token_replays (hashed_jti) | No | N/A | TTL cleanup independent of FK constraints | Performance / simplicity. |
+| key_rotations.key_version (sequence) | Unique key only | N/A | Retired versions pruned after grace | Not tenant-scoped. |
+
+"Logical cascade" means the application enforces soft delete semantics (status flags) and background cleanup rather than DB-level ON DELETE CASCADE to avoid silent large-scale data removal.
+
+### Soft Delete Strategy
+
+| Entity | Soft Delete Field | Physical Delete Trigger | Justification |
+|--------|-------------------|-------------------------|--------------|
+| Tenant | status=soft_deleted | Manual migration / admin tool | Ensures reversible isolation before irreversible purge. |
+| User | status=disabled (not a full delete) | (Future) explicit purge task | Keeps audit references & evaluation logs valid. |
+| FeatureFlag | status=disabled | Rare manual removal | Historical feature state for debugging retained. |
+
+Other entities (invitations, password_resets) are inherently ephemeral—expiration or consumption drives deletion via maintenance job.
+
+### Index Naming Conventions (Persistence Alignment)
+
+| Type | Pattern | Example |
+|------|---------|---------|
+| Primary Key | `pk_<table>` | pk_users |
+| Foreign Key | `fk_<from>_<to>` | fk_users_tenant_id_tenants |
+| Unique | `uq_<table>_<cols>` | uq_users_tenant_id_email |
+| Standard Index | `ix_<table>_<col>` | ix_users_tenant_id_status |
+| Composite Index | `ix_<table>_<col1>_<col2>` | ix_policies_tenant_id_resource_type |
+
+Deterministic naming ensures migration diffs are reviewable, aligning with migration safety gate.
+
+### Encryption & Key Management Alignment
+
+| Asset | Scope | Persistence | Rotation / Change Path | References |
+|-------|-------|------------|-------------------------|------------|
+| JWT Signing Keys | Auth boundary | External secret / file ref | Dual-key overlap, grace removal | FR-022, C-028 |
+| Password Hash Parameters | Auth core | Config descriptor | Rehash on login when outdated | FR-051, C-033 |
+| Deterministic Namespace UUID | Global constant | Code constant | Immutable | C-038 |
+| Seed Deterministic IDs | Global | Derived (UUIDv5) | Immutable | C-009, C-038 |
+| Future DEKs (data encryption keys) | Deferred | N/A | Requires ADR (not Phase 3) | (Future) |
+
+### Migration Safety Notes
+
+- All destructive operations (DROP COLUMN / TABLE) require explicit approval comment and ADR reference.
+- Initial revision introduces only additive, non-destructive objects; subsequent destructive changes must be accompanied by rollback plan.
+- Migration head reported via health endpoint enabling drift detection (FR-015).
+
+### Additional Governance Hooks
+
+- Critical path coverage list will include `adapters/persistence/*` & `alembic/versions/*` once IMPL-DB-13 complete.
+- Slow query threshold (`DB_SLOW_QUERY_THRESHOLD_MS`) documented in config descriptor and enforced in metrics logging path.
+
+### Open Questions (Phase 3 Forward-Looking)
+
+| Topic | Description | Planned Resolution Mechanism |
+|-------|-------------|------------------------------|
+| Partitioning | When to partition high-volume logs | Future ADR after volume telemetry baseline |
+| Policy Eval Log Retention | How long to retain evaluation logs | Configurable retention + archival ADR |
+| Encrypted Columns | Selective encryption for PII fields | Encryption ADR (deferred) |
+

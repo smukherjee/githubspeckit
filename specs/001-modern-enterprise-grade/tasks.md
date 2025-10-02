@@ -220,10 +220,10 @@ IMPL-API-29 Config error report formatter (FR-041 C-045) [DONE]
 
 // Canonical, deduplicated FR mapping (one line per FR; clarifications referenced where relevant)
 FR-001: TEST-API-07, IMPL-API-08, TEST-DOM-07
-FR-002: TEST-DOM-05, TEST-SEC-17, IMPL-SEC-18 (C-040)
-FR-003: IMPL-AUTH-10 (core auth service)
+FR-002: TEST-DOM-05, TEST-SEC-17, IMPL-SEC-18 (C-040), TEST-DB-01, IMPL-DB-05, TEST-DB-08
+FR-003: TEST-AUTH-03 (token issuance validation covers core module), IMPL-AUTH-10 (core auth service)
 FR-004: IMPL-POL-04 (policy versioning & registration)
-FR-005: IMPL-OBS-04, TEST-OBS-12
+FR-005: IMPL-OBS-04, TEST-OBS-12, TEST-DB-14
 FR-006: TEST-ULF-01, IMPL-ULF-02, TEST-API-11, IMPL-API-12
 FR-007: TEST-AUTH-00, IMPL-AUTH-00, TEST-AUTH-09, IMPL-AUTH-10 (OIDC deferred DEFER-AUTH-15/16, C-036)
 FR-008: TEST-AUTH-03, IMPL-AUTH-04, TEST-API-13, IMPL-API-14
@@ -233,33 +233,33 @@ FR-011: TEST-DOM-05
 FR-012: TEST-POL-01, IMPL-POL-02 (rationale codes C-041/C-049)
 FR-013: TEST-API-07, IMPL-API-08
 FR-014: TEST-XCUT-05, IMPL-XCUT-06
-FR-015: TEST-API-03, IMPL-API-04
+FR-015: TEST-API-03, IMPL-API-04, IMPL-DB-03, TEST-DB-04, IMPL-DB-15
 FR-016: TEST-OBS-07, IMPL-OBS-08, TEST-OBS-01A (C-030)
 FR-017: TEST-SEC-03, TEST-SEC-12, IMPL-SEC-04 (C-031)
-FR-018: TEST-API-09, IMPL-API-10, TEST-DOM-07
+FR-018: TEST-API-09, IMPL-API-10, TEST-DOM-07, TEST-DB-01, IMPL-DB-05, TEST-DB-08
 FR-019: TEST-POL-05, IMPL-POL-06
 FR-020: TEST-API-15, TEST-API-15A, IMPL-API-16 (C-041)
 FR-021: TEST-AUTH-13, TEST-XCUT-09, IMPL-AUTH-14 (C-032)
 FR-022: TEST-AUTH-05, IMPL-AUTH-06, IMPL-API-04 (key version)
 FR-023: TEST-SEC-01, IMPL-SEC-02
 FR-024: TEST-API-01
-FR-025: TEST-API-25, IMPL-API-26, TEST-XCUT-10, IMPL-XCUT-11 (C-043)
+FR-025: TEST-API-25, IMPL-API-26, TEST-XCUT-10, IMPL-XCUT-11 (C-043), TEST-DB-06, IMPL-DB-07, TEST-DB-14
 FR-026: TEST-ULF-05, IMPL-ULF-06, TEST-API-17, IMPL-API-18
 FR-027: TEST-OBS-09, IMPL-OBS-10 (classification C-042)
 FR-028: TEST-AUTH-07, TEST-SEC-11, IMPL-AUTH-08 (C-027)
 FR-029: TEST-API-27, IMPL-API-27, IMPL-POL-04
-FR-030: TEST-POL-03, IMPL-POL-04
+FR-030: TEST-POL-03, IMPL-POL-04, TEST-DB-01, TEST-DB-10
 FR-031: TEST-POL-05, IMPL-POL-06
 FR-032: TEST-API-23, TEST-API-23A, IMPL-OBS-04
-FR-033: TEST-SEC-19, IMPL-SEC-20 (C-020) // explicit mapping replacing implicit reuse of TEST-AUTH-07
-FR-034: TEST-OBS-07, IMPL-OBS-08, TEST-API-21, IMPL-API-22, TEST-XCUT-11, IMPL-XCUT-12 (C-044)
+FR-033: TEST-SEC-19, IMPL-SEC-20 (C-020), IMPL-DB-11, TEST-DB-12 // DB replay store
+FR-034: TEST-OBS-07, IMPL-OBS-08, TEST-API-21, IMPL-API-22, TEST-XCUT-11, IMPL-XCUT-12 (C-044), IMPL-DB-09, TEST-DB-10
 FR-035: TEST-API-05, IMPL-API-06, IMPL-CONF-06  # tenant configuration export bundle (C-029)
 FR-036: TEST-POL-09, IMPL-POL-10 (C-026)
 FR-037: TEST-XCUT-01, IMPL-XCUT-02
 FR-038: IMPL-POL-11, TEST-POL-12
 FR-039: TEST-CONF-01, IMPL-CONF-02
 FR-040: IMPL-CONF-02, TEST-CONF-03
-FR-041: TEST-API-28, TEST-CONF-09, IMPL-CONF-10
+FR-041: TEST-API-28, TEST-CONF-09, IMPL-CONF-10, TEST-CONF-DB-THRESHOLD, IMPL-CONF-DB-THRESHOLD
 FR-042: TEST-CONF-01, IMPL-CONF-02
 FR-043: TEST-CONF-05, TEST-CONF-07, IMPL-CONF-02
 FR-044: TEST-CONF-06, IMPL-CONF-04
@@ -273,7 +273,7 @@ FR-046: TEST-API-05, IMPL-CONF-06, IMPL-API-06
 - FR-049: TEST-AUTH-01, IMPL-AUTH-02
 - FR-050: IMPL-ULF-02, IMPL-AUTH-12 (reset tokens)
 - FR-051: TEST-AUTH-01, IMPL-AUTH-02
-- FR-052: IMPL-API-26, TEST-API-25
+- FR-052: IMPL-API-26, TEST-API-25, IMPL-DB-03, TEST-DB-04  // Phase 2 bootstrap operates in-memory per C-050 until DB present
 - FR-053: TEST-ULF-07, IMPL-ULF-08
 - FR-054: TEST-ULF-07, IMPL-ULF-08
 - FR-055: TEST-ULF-07, IMPL-ULF-08
@@ -290,12 +290,12 @@ FR-046: TEST-API-05, IMPL-CONF-06, IMPL-API-06
 - FR-066: TEST-POL-07, IMPL-POL-08
 - FR-067: TEST-POL-05, IMPL-POL-06
 - FR-068: TEST-POL-05, IMPL-POL-06
-- FR-069: IMPL-API-26, TEST-API-25
+- FR-069: IMPL-API-26, TEST-API-25, TEST-DB-06, IMPL-DB-07
 - FR-070: TEST-SEC-05, IMPL-SEC-06
 - FR-071: TEST-OBS-01, IMPL-OBS-02
 - FR-072: TEST-OBS-05, IMPL-OBS-06
 - FR-073: TEST-OBS-03, IMPL-OBS-02
-- FR-074: TEST-OBS-09, IMPL-OBS-10
+- FR-074: TEST-OBS-09, IMPL-OBS-10, IMPL-DB-09
 - FR-075: TEST-SEC-09, IMPL-SEC-10
 - FR-076: TEST-SEC-05, IMPL-SEC-06, TEST-SEC-07, IMPL-SEC-08
 - FR-077: TEST-DOM-01, TEST-XCUT-03, IMPL-XCUT-04
@@ -363,3 +363,72 @@ TEST-AUTH-ROLE-DOWNGRADE-TIMING Role downgrade invalidation timing window (FR-02
 3. Begin C (hashing) after configuration loader & domain models tests exist.
 
 End of tasks.md
+
+## Phase 3 (Planned) – Persistence Layer & Durable Seed
+
+Status Legend (planned): PENDING (not started). All Phase 3 tasks are additions; Phase 2 remains the reference baseline (C-050).
+
+Principle Reinforcement:
+
+- Preserve test speed: DB tests isolated via `@pytest.mark.db` and excluded from default fast suite.
+- Test-first: Every persistence implementation preceded by parity / behavior tests against in-memory baseline.
+- Determinism & Idempotency: Seed + migrations deterministic (C-009, C-038, C-043).
+
+### Ordering & Dependency Notes
+
+1. TEST-DB-01 establishes behavioral contract before any models.
+2. Models (IMPL-DB-02) precede migrations (IMPL-DB-03) only for base metadata scaffolding; initial revision created immediately afterward.
+3. Adapters (IMPL-DB-05) land after migration smoke (TEST-DB-04) proves revision integrity.
+4. Seed durability (IMPL-DB-07) after adapters available; idempotency tests (TEST-DB-06 & TEST-DB-14) flank implementation.
+5. Observability (IMPL-DB-09) after baseline CRUD verified to capture representative queries.
+6. Replay persistence (IMPL-DB-11 / TEST-DB-12) after general adapter foundation to reuse session.
+7. Migration head check (IMPL-DB-15) last—depends on stable Alembic environment & health endpoint integration.
+
+### Tasks (Test-First)
+
+- TEST-DB-01 Repository parity (in-memory vs DB) for Tenant/User/Policy/FeatureFlag (FR-002, FR-018, FR-030) [PENDING]
+- IMPL-DB-02 SQLAlchemy models (all mapped entities) (supports FR-002, FR-018, FR-030) [PENDING]
+- IMPL-DB-03 Alembic config + initial revision (baseline schema) (FR-015, FR-052) [PENDING]
+- TEST-DB-04 Migration apply smoke (fresh + repeat idempotency) (FR-015, FR-052) [PENDING]
+- IMPL-DB-05 Persistence adapters implementing repository interfaces (FR-002, FR-018) [PENDING]
+- TEST-DB-06 Seed idempotency with real DB (initial vs second run) (FR-025, FR-069, C-043) [PENDING]
+- IMPL-DB-07 Durable seed script upgrade (upsert + summary JSON) (FR-025, FR-069, C-043) [PENDING]
+- TEST-DB-08 Tenant isolation & soft delete enforcement at query layer (FR-002, FR-018) [PENDING]
+- IMPL-DB-09 Query latency metrics + slow query structured log (FR-034, FR-074) [PENDING]
+- TEST-DB-09A Slow query log emission & threshold override (FR-034, FR-074) [PENDING]
+- TEST-DB-10 Policy evaluation log persistence & retrieval (FR-030, FR-034) [PENDING]
+- IMPL-DB-11 Token replay persistent store (hashed jti TTL) (FR-033, C-020) [PENDING]
+- TEST-DB-12 Replay detection parity vs in-memory (FR-033, C-020) [PENDING]
+- IMPL-DB-13 Coverage manifest update (add persistence critical paths) (Principle II enforcement) [PENDING]
+- TEST-DB-13A Critical path manifest updated includes persistence adapters & migrations (Principle II) [PENDING]
+- TEST-DB-14 Seed conflict scenario emits audit & correct summary counts (FR-025, C-043, FR-005) [PENDING]
+- IMPL-DB-15 Startup migration head check + health endpoint revision exposure (FR-015) [PENDING]
+- TEST-DB-15A Migration head mismatch aborts startup (FR-015) [PENDING]
+- TEST-CONF-DB-THRESHOLD DB slow query threshold config exposure & validation (FR-041, FR-034) [PENDING]
+- IMPL-CONF-DB-THRESHOLD Add `DB_SLOW_QUERY_THRESHOLD_MS` to config descriptor + docs (FR-041, FR-034) [PENDING]
+- TEST-DB-FK-01 Foreign key & cascade behavior (delete tenant -> restricted; user soft delete unaffected) (FR-002, FR-018) [PENDING]
+- IMPL-DB-FK-02 Define & document FKs + ON DELETE policies in initial revision (FR-002, FR-018) [PENDING]
+
+### Parallelization (Indicative)
+
+Lane DB-A: TEST-DB-01 → IMPL-DB-02 → IMPL-DB-03 → TEST-DB-04
+Lane DB-B (after IMPL-DB-05 available): TEST-DB-06 → IMPL-DB-07 → TEST-DB-14
+Lane DB-C: TEST-DB-08 (after IMPL-DB-05) & TEST-DB-10 (after policy adapter ready)
+Lane DB-D: IMPL-DB-09 ↔ TEST-DB-10 (metrics observed during policy eval persistence)
+Lane DB-E: IMPL-DB-11 ↔ TEST-DB-12
+Lane DB-F: IMPL-DB-13 (after core tasks) then coverage gate CI update (follow-up to enforce 100% for adapters & migrations)
+Lane DB-G: IMPL-DB-15 final gate (blocks non-dev startup if out-of-date)
+
+### Reconciliation Note (Extends C-050)
+
+These tasks transition from Phase 2 in-memory only persistence to a durable database layer without invalidating earlier FR validations; existing tests remain authoritative and are supplemented—not replaced—by DB variants.
+
+### Phase 3 Remediation Notes
+
+Addressed analysis findings:
+
+- I1/I2: Plan placeholders & dual-authority risk clarified (plan.md updated; tasks.md authoritative).
+- C1: FR-003 now explicitly lists a test task (TEST-AUTH-03) in mapping.
+- C2/G1: IMPL-DB-13 & TEST-DB-13A annotated with Principle II (coverage gate governance).
+- A1: Slow query threshold (100ms default; configurable) captured; TEST-DB-09A added.
+- I3: FR-052 mapping comment clarifies Phase 2 in-memory bootstrap per C-050.
