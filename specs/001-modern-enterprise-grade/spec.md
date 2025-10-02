@@ -7,7 +7,7 @@
 
 ## Execution Flow (main)
 
-```  
+```text  
 
 
 1. Parse user description from Input
@@ -119,6 +119,60 @@ As a platform superadmin, I can provision a new tenant, configure its base roles
 - Redaction violation: detection of raw secret in log triggers redaction_violation audit and metric increment.
 - Performance regression false positive: budget breach due to configuration anomaly flagged and linked to configuration hash for triage.
 - Security test waiver: waiver requires explicit justification reference; missing justification blocks release.
+
+## Clarifications
+
+All previously implicit or ambiguous parameters are now explicitly defined to remove planning uncertainty. Each clarification ID (C-###) can be referenced by functional requirements, implementation tasks, and tests. No open clarification items remain at this time.
+
+### Session 1 – Resolved (Defaults Applied)
+
+- **C-001 Password Policy (FR-009)**: Minimum length 12; must include at least 1 letter and 1 digit. Optional advanced complexity (require 3 of 4 classes: upper, lower, digit, symbol) may be enabled via configuration flag `PASSWORD_COMPLEXITY_STRICT=false` (default false for developer friendliness). Maximum accepted length 128 to prevent abuse.
+- **C-002 Rate Limits (FR-023, FR-058)**: Auth endpoints default limits: per-tenant 500 req/min, per-IP 50 req/min; burst smoothing via leaky bucket. Embedded context has independent bucket with same defaults unless `EMBED_RATE_LIMIT_SCALE` applied. Lockout escalation for repeated 429s is deferred (future feature) to keep initial developer experience simple.
+- **C-003 Performance Load Profile (FR-027, FR-074)**: Reference dataset ≥10k users, ≥50k audit events, representative policies (≥25), invitations (≥1k). Concurrency tiers: light 25, reference 100 (budget enforced), stress 300 (informational). CRUD budgets: p95 < 200ms, p99 < 400ms. Heavy operations (exports, bulk policy load) informational targets p95 < 400ms, p99 < 800ms (regression triggers per FR-074 thresholds).
+- **C-004 Key Rotation Grace (FR-022)**: Default overlap 15 minutes (shortened from earlier informal 24h concept for simpler ops) – adjustable via `KEY_ROTATION_GRACE_MINUTES`. Dual verification path active during overlap only.
+- **C-005 Logging Configuration (FR-071)**: Allowed formats: json, text. Allowed sinks: stdout (default), file, otlp. Required base fields: timestamp, level, message, correlation_id, request_id, tenant_id (nullable), user_id (nullable), path (when HTTP), method (when HTTP), status (when HTTP), latency_ms (when HTTP). Additional opt-in fields via `LOG_FIELDS_EXTRA` (comma list) validated against allowlist (e.g. ip, user_agent).
+- **C-006 Log Export Bounds (FR-072)**: Time window ≤ 24h, maximum uncompressed size 100MB. If size exceeded mid-stream, export truncates at record boundary and includes `truncated=true` plus `reason=size_limit` metadata.
+- **C-007 Redaction Set (FR-073)**: Case-insensitive key match for: password, password_hash, passwd, token, access_token, refresh_token, secret, api_key, authorization, set-cookie, mfa_secret, email (hashed variant stored), pii_hint. Values replaced with `REDACTED`. Redaction violations emit `redaction_violation` audit event.
+- **C-008 Password Reset Token (FR-060–FR-065)**: Expiry default 30 minutes; single-use; stored as SHA-256 hash; attempts after consumption or expiry return uniform `invalid_token` response without enumeration of success state.
+- **C-009 Seed Baseline (FR-069, FR-052)**: Deterministic TestTenant slug `test-tenant` with UUID v5 derived from namespace + slug; users: superadmin (email: `superadmin at test.local`), tenant_admin (`tenant_admin at test.local`), standard (`user at test.local`). Reruns skip existing by deterministic identifiers. Hash parameters may upgrade on seed rerun.
+- **C-010 Role Hierarchy (FR-066–FR-068)**: Predefined roles: superadmin, tenant_admin, analyst, standard. Only superadmin may grant/revoke superadmin or tenant_admin. Implicit tenant_admin allowances exclude destructive purge and cross-tenant actions.
+- **C-011 Code Quality Thresholds (FR-070, FR-076)**: Duplication overall < 8%; any single file duplication < 15%; cyclomatic complexity ≤ 10 per function. Justification marker pattern: `JUSTIFY:<ID>` inline comment adjacent to function or block. CI fails if metrics exceed thresholds without matching justification ID recorded in a justification registry artifact (to be defined in planning phase) – keeps developer friction low while enabling exceptions.
+- **C-012 Embed Mode (FR-053–FR-059)**: Default origin allowlist empty in non-dev; in dev mode (`DEV_MODE=true`) wildcard `http://localhost:*` allowed. Embed token TTL default 5 minutes; non-refreshable; exchange invalidates token. Separate rate limit bucket label `embed`.
+- **C-013 Performance Regression Events (FR-074)**: Trigger conditions: CRUD p95 ≥ 200ms OR p99 ≥ 500ms; heavy ops p95 ≥ 400ms OR p99 ≥ 800ms; only if outside declared maintenance window (`MAINT_WINDOW_ACTIVE=false`). Event payload includes configuration hash to disambiguate environment anomalies.
+- **C-014 Configuration Descriptor Mutation (FR-044, FR-048)**: Attempted mutation raises error with code `config_immutable`. Direct `os.environ` access in app layer is flagged by static rule; single exception allowed inside configuration bootstrap module.
+- **C-015 Minimal Hardware Assumption (General)**: Developer baseline: 4 CPU cores, 8GB RAM, SSD storage. All bootstrap and reference performance requirements scoped to this minimum to remain accessible.
+- **C-016 Security Testing Cadence (FR-075)**: OWASP dynamic suite executes per release cycle boundary (tag or main merge). Waiver requires `WAIVER:<ID>` reference plus risk justification artifact.
+- **C-017 Rate Limit Configuration Source (FR-023, FR-058)**: All rate limit parameters reside in centralized configuration (no inline constants) supporting environment overrides without code changes.
+- **C-018 Justification Registry (FR-070, FR-076)**: Stored as machine-readable YAML (`quality_justifications.yml`) mapping JUSTIFY IDs to rationale, owner, expiry date to avoid permanent degradation.
+
+### Traceability Mapping (Selected)
+
+| Clarification | Related FRs |
+|---------------|-------------|
+| C-001 | FR-009 |
+| C-002 | FR-023, FR-058 |
+| C-003 | FR-027, FR-074 |
+| C-004 | FR-022 |
+| C-005 | FR-071, FR-072, FR-073 |
+| C-006 | FR-072 |
+| C-007 | FR-073 |
+| C-008 | FR-060–FR-065 |
+| C-009 | FR-069, FR-052 |
+| C-010 | FR-066–FR-068 |
+| C-011 | FR-070, FR-076 |
+| C-012 | FR-053–FR-059 |
+| C-013 | FR-074, FR-027 |
+| C-014 | FR-044, FR-048 |
+| C-015 | FR-052, FR-027 |
+| C-016 | FR-075 |
+| C-017 | FR-023, FR-058 |
+| C-018 | FR-070, FR-076 |
+
+### Open Items
+
+None at this time. Future ambiguities will be appended with next available ID (C-019+).
+
+---
 
 ## Requirements *(mandatory)*
 
