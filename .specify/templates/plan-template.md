@@ -45,14 +45,33 @@
 **Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
 
 ## Constitution Check
+
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+Evaluate and explicitly confirm (checklist) before proceeding:
+
+1. Architecture: Domain layer free of framework/infrastructure imports (Principle I).
+2. Test-First: All proposed endpoints & services have planned failing tests (Principle II).
+3. Multi-Tenancy: Every new data access path includes tenant context + filtering (Principles I & III).
+4. RBAC & Policies: Authorization expressed via registered policies—no inline role branching (Principles III & VI).
+5. Auth Reuse: No domain-specific logic added inside auth core; only registrations/extensions (Principle VI).
+6. Switchable Persistence: Repositories stay interface-driven; no leakage of ORM/session into domain (Principle IV).
+7. Observability: Planned metrics, centrally configurable structured logs (export + redaction), tracing spans for each new boundary (Principle V).
+8. API Versioning: New/changed endpoints supply version impact assessment (Principle V).
+9. Performance Budgets: Declared baseline p95/p99 expectations (Principle V).
+10. Unified Configuration: Single descriptor (no direct env access) + DEPLOY_MODE implications addressed (Principle VII).
+11. Developer Experience & Embed: Minimal local infra (fallback mocks) + embed session/cookie strategy documented (Principle VIII).
+12. Complexity: Any new adapter/infra addition justified vs simpler alternative (Governance & Principle IV).
+13. Security Testing: OWASP Top 10 mapping updates + dynamic/pen test considerations documented (Additional Constraints & Principle V).
+14. Code Quality & Simplicity: DRY/KISS/YAGNI respected; no premature abstractions; duplication/complexity impact considered (Principle IX).
+
+Document any violation in Complexity Tracking with justification BEFORE continuing.
 
 ## Project Structure
 
 ### Documentation (this feature)
-```
+
+```text
 specs/[###-feature]/
 ├── plan.md              # This file (/plan command output)
 ├── research.md          # Phase 0 output (/plan command)
@@ -69,7 +88,7 @@ specs/[###-feature]/
   real paths (e.g., apps/admin, packages/something). The delivered plan must
   not include Option labels.
 -->
-```
+```text
 # [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
 src/
 ├── models/
@@ -109,18 +128,20 @@ ios/ or android/
 directories captured above]
 
 ## Phase 0: Outline & Research
+
 1. **Extract unknowns from Technical Context** above:
    - For each NEEDS CLARIFICATION → research task
    - For each dependency → best practices task
    - For each integration → patterns task
 
 2. **Generate and dispatch research agents**:
-   ```
-   For each unknown in Technical Context:
-     Task: "Research {unknown} for {feature context}"
-   For each technology choice:
-     Task: "Find best practices for {tech} in {domain}"
-   ```
+
+    ```text
+    For each unknown in Technical Context:
+       Task: "Research {unknown} for {feature context}"
+    For each technology choice:
+       Task: "Find best practices for {tech} in {domain}"
+    ```
 
 3. **Consolidate findings** in `research.md` using format:
    - Decision: [what was chosen]
@@ -130,7 +151,8 @@ directories captured above]
 **Output**: research.md with all NEEDS CLARIFICATION resolved
 
 ## Phase 1: Design & Contracts
-*Prerequisites: research.md complete*
+
+Prerequisites: research.md complete
 
 1. **Extract entities from feature spec** → `data-model.md`:
    - Entity name, fields, relationships
@@ -163,18 +185,21 @@ directories captured above]
 **Output**: data-model.md, /contracts/*, failing tests, quickstart.md, agent-specific file
 
 ## Phase 2: Task Planning Approach
-*This section describes what the /tasks command will do - DO NOT execute during /plan*
+
+Description: This section describes what the /tasks command will do - DO NOT execute during /plan.
 
 **Task Generation Strategy**:
+
 - Load `.specify/templates/tasks-template.md` as base
 - Generate tasks from Phase 1 design docs (contracts, data model, quickstart)
 - Each contract → contract test task [P]
-- Each entity → model creation task [P] 
+- Each entity → model creation task [P]
 - Each user story → integration test task
 - Implementation tasks to make tests pass
 
 **Ordering Strategy**:
-- TDD order: Tests before implementation 
+
+- TDD order: Tests before implementation
 - Dependency order: Models before services before UI
 - Mark [P] for parallel execution (independent files)
 
@@ -183,14 +208,16 @@ directories captured above]
 **IMPORTANT**: This phase is executed by the /tasks command, NOT by /plan
 
 ## Phase 3+: Future Implementation
-*These phases are beyond the scope of the /plan command*
+
+Scope: These phases are beyond the scope of the /plan command.
 
 **Phase 3**: Task execution (/tasks command creates tasks.md)  
 **Phase 4**: Implementation (execute tasks.md following constitutional principles)  
 **Phase 5**: Validation (run tests, execute quickstart.md, performance validation)
 
 ## Complexity Tracking
-*Fill ONLY if Constitution Check has violations that must be justified*
+
+Fill ONLY if Constitution Check has violations that must be justified.
 
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
@@ -199,9 +226,11 @@ directories captured above]
 
 
 ## Progress Tracking
-*This checklist is updated during execution flow*
+
+This checklist is updated during execution flow.
 
 **Phase Status**:
+
 - [ ] Phase 0: Research complete (/plan command)
 - [ ] Phase 1: Design complete (/plan command)
 - [ ] Phase 2: Task planning complete (/plan command - describe approach only)
@@ -210,10 +239,11 @@ directories captured above]
 - [ ] Phase 5: Validation passed
 
 **Gate Status**:
+
 - [ ] Initial Constitution Check: PASS
 - [ ] Post-Design Constitution Check: PASS
 - [ ] All NEEDS CLARIFICATION resolved
 - [ ] Complexity deviations documented
 
 ---
-*Based on Constitution v2.1.1 - See `/memory/constitution.md`*
+*Based on Constitution v1.5.0 - See `/memory/constitution.md`*
