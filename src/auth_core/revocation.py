@@ -34,9 +34,10 @@ class _Entry:
 
 
 class RevocationService:
-    def __init__(self) -> None:
+    def __init__(self, *, audit_service=None) -> None:
         # hashed_jti -> _Entry
         self._store: Dict[str, _Entry] = {}
+        self._audit = audit_service
 
     @staticmethod
     def _hash_jti(jti: str) -> str:
@@ -46,6 +47,11 @@ class RevocationService:
         now = now or datetime.now(timezone.utc)
         h = self._hash_jti(jti)
         self._store[h] = _Entry(reason=reason, expires_at=now + timedelta(seconds=ttl_seconds))
+        if self._audit:
+            try:
+                self._audit.emit(actor="system", action="token.revoke", target={"hashed_jti": h}, metadata={"reason": reason})
+            except Exception:
+                pass
 
     def check_and_register(self, *, jti: str, ttl_seconds: int, now: Optional[datetime] = None) -> None:
         """If first time seeing jti store it, else raise replay.

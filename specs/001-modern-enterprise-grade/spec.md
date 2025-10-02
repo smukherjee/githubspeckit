@@ -166,6 +166,54 @@ All previously implicit or ambiguous parameters are now explicitly defined to re
 **C-038 Deterministic Namespace UUID (FR-069)**: Fixed namespace UUID constant `9b4f53c4-2e74-5e5b-9e33-3d4c0fd84c11`. Deterministic entity IDs use `UUIDv5(namespace, normalized_identifier)`; normalization = lowercase + trim. C-009 references this constant for tenant & seed user IDs.
 **C-039 Policy Extension Registry Shape (FR-038)**: Registry entry: `resource_type` (str), `predicate_ref` (import path), `version` (semver), `created_at` (timestamp). Unique constraint (resource_type, version). Duplicate registration raises `extension_conflict` and is audited. Removal requires future clarification.
 
+**C-040 Superadmin Cross-Tenant Misuse Threshold (FR-002 Edge Case)**: An alert/audit event `security.superadmin_cross_tenant_suspect` MUST be emitted if a single superadmin performs >5 cross-tenant data access operations (reads or writes) within any rolling 10 minute window outside maintenance mode. A Prometheus counter `superadmin_cross_tenant_suspect_total{superadmin_id}` increments once per breach per window; subsequent breaches require the count to drop below threshold then exceed again. Threshold & window configurable via `SUPERACTION_ALERT_THRESHOLD` (default 5) and `SUPERACTION_ALERT_WINDOW_MINUTES` (default 10). Reset logic evaluated every request. Optional future adaptive heuristics require new clarification.
+
+**C-041 Policy Dry-Run Response & Rationale Codes (FR-012, FR-020)**: Dry-run endpoint response schema:
+
+```json
+{
+   "decision": "ALLOW|DENY|ABSTAIN",
+   "rationale_code": "policy_not_found|explicit_deny|implicit_allow|condition_mismatch|no_applicable_policy",
+   "matched_policies": [ {"policy_id": "string", "version": 1, "effect": "ALLOW"} ],
+   "evaluation_trace": [ {"policy_id": "string", "step": "predicate_eval", "result": "match"} ],
+   "latency_ms": 3.42
+}
+```
+
+`evaluation_trace` only present when query param `verbose=1`. `rationale_code` enumeration above MUST be asserted by contract tests; adding a new code requires a new clarification ID.
+
+**C-042 Performance Endpoint Classification (FR-027)**: “Standard CRUD endpoints” = tenant/user create, update (non-destructive), soft delete/restore, list/list-with-pagination for Users, Tenants, FeatureFlags, Policies (excluding export, bulk import, configuration bundle, audit/export operations). “Heavy operations” = configuration export, log export, audit query (spanning > 1000 events), policy bulk registration, performance regression scan, seed/bootstrap. Classification table MUST appear in developer docs; tests tag endpoints for latency grouping to ensure correct budget evaluation.
+
+**C-043 Seed Script Error Modes (FR-025)**: Exit codes: 0 success (idempotent or initial), 2 partial seed (recoverable—e.g., one baseline user missing then created), 3 fatal (irrecoverable constraint mismatch requiring manual intervention). On conflict (existing deterministic UUID with divergent immutable attributes) the script logs `seed.conflict` audit event and skips mutation (non-fatal). A summary JSON line `infra.seed.summary` includes counts: created, skipped, upgraded (password hash), conflicts, duration_ms. Re-running MUST not increase `created` count after first successful seed.
+
+**C-044 Policy Evaluation Latency Histogram (FR-034)**: Metric: `policy_evaluation_latency_seconds{tenant_id}` (histogram) with buckets (seconds): 0.001,0.005,0.01,0.02,0.05,0.1,0.25,0.5,1,2. Companion counter: `policy_evaluations_total{tenant_id,decision}`. 95th & 99th percentiles derived via Prometheus queries documented. Tests assert bucket presence and at least one observation after simulated evaluations.
+
+**C-045 Aggregated Configuration Error Report Format (FR-041)**: On startup failure due to config validation, STDERR (and structured log) emits single JSON object:
+
+```json
+{
+   "error": "configuration_validation_failed",
+   "config_hash": "<non_secret_hash_or_null>",
+   "issues": [
+      {"name": "BACKEND_DB_URL", "error": "missing", "expected_type": "str"},
+      {"name": "FRONTEND_PUBLIC_ORIGIN", "error": "invalid_format", "expected_type": "url"}
+   ]
+}
+```
+
+`issues` sorted lexicographically by `name`. Process exit code = 1.
+
+**C-046 Embedded vs Primary Rate Limit Precedence (FR-058)**: Two evaluations performed: (1) context bucket (embed or primary) (2) global per-tenant bucket. If either exceeds limit the request is rejected. Preference of error code: if context=embed AND its bucket exceeded → `embed_rate_limited`; else `rate_limited`. Headers returned:
+`RateLimit-Limit`, `RateLimit-Remaining`, and context-specific `RateLimit-Context-Limit`, `RateLimit-Context-Remaining`. Both reflect post-decrement state. When both exceeded simultaneously in embed context, a single rejection with embed code is emitted; metrics increment for both buckets.
+
+**C-047 Embed Documentation Artifact (FR-059)**: Generated file `docs/embed/guide.md` produced by embed docs generator task; includes sections: Overview, Origin Allowlist, Token Exchange, Cookie Attributes, CSP & frame-ancestors examples, Rate Limit Headers, Error Codes. CI check ensures file updated if embed-related clarifications change (hash compare of relevant clarifications text). Missing or stale file blocks merge.
+
+**C-048 Redaction Violation Metric (FR-073)**: Metric name `redaction_violations_total{tenant_id, key}` (counter). Emitted once per request containing at least one unredacted sensitive key; multiple keys produce multiple increments (distinct label cardinality). Audit event `security.redaction_violation` includes offending keys list (capped length 10, else truncated=true flag). Tests assert metric increment & audit emission on synthetic violation.
+
+**C-049 Rationale Code Enumeration Reference (FR-012)**: Policy evaluation (non-dry-run) responses embedding denial rationale use `rationale_code` values from C-041 enumeration. Implementation MUST NOT leak raw condition expressions. Adding rationale requires new clarification.
+
+**C-050 API Implementation Ordering vs DB & Seed (FR-024, FR-025, FR-052, FR-069)**: Phase 2 API endpoints (health, auth, tenant/user CRUD, policy, feature flags, embed, metrics, audit query) MUST be implemented and validated against in-memory repositories BEFORE introducing a real database layer. Rationale: preserves test speed and enables contract tests early. The persistent database integration (and migration layer) is deferred to Phase 3; the seed script (FR-025 / FR-069) producing durable baseline data executes only after the real persistence adapter is added. Until then, any test data “seeding” occurs via test fixtures/factories in memory—no bootstrap seed required for Phase 2 runtime. Bootstrap command (FR-052) in Phase 2 operates without a DB by wiring in-memory stores; its responsibility is environment/config readiness, not durable data population. Introducing DB earlier than specified requires a new clarification ID documenting impact on test strategy and performance budgets.
+
 ### Traceability Mapping (Selected)
 
 | Clarification | Related FRs |
@@ -209,10 +257,21 @@ All previously implicit or ambiguous parameters are now explicitly defined to re
 | C-037 | FR-043, FR-071 |
 | C-038 | FR-069 |
 | C-039 | FR-038 |
+| C-040 | FR-002 |
+| C-041 | FR-012, FR-020 |
+| C-042 | FR-027 |
+| C-043 | FR-025 |
+| C-044 | FR-034 |
+| C-045 | FR-041 |
+| C-046 | FR-058 |
+| C-047 | FR-059 |
+| C-048 | FR-073 |
+| C-049 | FR-012 |
+| C-050 | FR-024, FR-025, FR-052, FR-069 |
 
 ### Open Items
 
-None at this time. Future ambiguities will be appended with next available ID (C-040+).
+None at this time. Future ambiguities will be appended with next available ID (C-050+).
 
 ---
 
@@ -232,6 +291,7 @@ None at this time. Future ambiguities will be appended with next available ID (C
 - **FR-010**: System MUST expose endpoint to list tenant users with pagination, filtering, and role-based column restrictions.
 - **FR-011**: System MUST implement superadmin cross_tenant access gating with explicit query parameter and audit reason.
 - **FR-012**: System MUST enforce policy evaluation returning ALLOW/DENY with rationale code for denial responses.
+      - (See C-041, C-049 for rationale enumeration & dry-run response schema.)
 - **FR-013**: System MUST maintain idempotency for tenant creation retry (same name within retry window returns original tenant_id).
 - **FR-014**: System MUST provide API versioning through URI prefix /v1 and embed deprecation headers when needed.
 - **FR-015**: System MUST expose health/status endpoint including migration state and key rotation version.
@@ -239,28 +299,28 @@ None at this time. Future ambiguities will be appended with next available ID (C
 - **FR-017**: System MUST implement structured error envelope for all non-2xx responses (see C-031).
 - **FR-018**: System MUST support soft delete and restore for users and tenants.
 - **FR-019**: System MUST prevent assignment of undefined roles and reject ambiguous role expansion.
-- **FR-020**: System MUST support policy dry-run mode (simulate decision) for debugging.
+- **FR-020**: System MUST support policy dry-run mode (simulate decision) for debugging (response schema & rationale codes per C-041).
 - **FR-021**: System MUST invalidate sessions upon role downgrade within max 60 seconds (see C-032).
 - **FR-022**: System MUST allow rotating signing keys without downtime (grace overlap window) (DEFAULT grace 15m).
 - **FR-023**: System MUST enforce configurable rate limiting on auth endpoints. DEFAULT: 500 requests/minute per tenant + 50 requests/minute per IP (burst tokens allowed via leaky bucket); limits adjustable via configuration.
 - **FR-024**: System MUST export OpenAPI documentation with security schemes defined for all protected endpoints.
-- **FR-025**: System MUST provide seed script / initialization pathway for first superadmin creation.
+- **FR-025**: System MUST provide seed script / initialization pathway for first superadmin creation (error modes & idempotency per C-043).
 - **FR-026**: System MUST support feature flag evaluation per tenant for future domain modules.
-- **FR-027**: System MUST ensure p95 latency < 200ms and p99 < 400ms for standard CRUD endpoints under reference load: 100 concurrent users, representative dataset (≥10k users, ≥50k audit events) on production-like hardware.
+- **FR-027**: System MUST ensure p95 latency < 200ms and p99 < 400ms for standard CRUD endpoints (classification per C-042) under reference load: 100 concurrent users, representative dataset (≥10k users, ≥50k audit events) on production-like hardware.
 - **FR-028**: System MUST log all token revocations and failed token validations.
 - **FR-029**: System MUST provide a policy registration endpoint (admin-only) for dynamic policy deployment.
 - **FR-030**: System MUST ensure policy changes are versioned and can be rolled back.
 - **FR-031**: System MUST ensure only superadmin can assign or revoke tenant_admin role.
 - **FR-032**: System MUST expose audit query endpoint filtered by tenant and event type with pagination.
 - **FR-033**: System MUST detect and reject token replay attempts.
-- **FR-034**: System MUST provide instrumentation endpoints/metrics (Prometheus format) including policy evaluation latency distribution.
+- **FR-034**: System MUST provide instrumentation endpoints/metrics (Prometheus format) including policy evaluation latency distribution (histogram spec per C-044).
 - **FR-035**: System MUST allow exporting tenant configuration (roles, policies) as versioned bundle (see C-029).
 - **FR-036**: System MUST secure all admin endpoints via defense-in-depth (role + policy + explicit admin scope claim).
 - **FR-037**: System MUST provide standardized correlation_id header passthrough.
 - **FR-038**: System MUST provide domain extension registry enabling future modules to register resource types.
 - **FR-039**: System MUST centralize configuration in a single descriptor enumerating all environment variables (name, scope, type, required, description) and generate an example file.
 - **FR-040**: System MUST support DEPLOY_MODE values: monorepo, backend-only, frontend-only, dual.
-- **FR-041**: System MUST fail fast with aggregated configuration errors if required variables are missing/invalid.
+- **FR-041**: System MUST fail fast with aggregated configuration errors if required variables are missing/invalid (report format per C-045).
 - **FR-042**: System MUST enforce scoping so frontend code can only access `FRONTEND_` or `SHARED_` variables.
 - **FR-043**: System MUST log a hashed summary (excluding secrets) of effective configuration at startup.
 - **FR-044**: System MUST provide immutable configuration objects (attempted mutation raises error).
@@ -277,8 +337,8 @@ None at this time. Future ambiguities will be appended with next available ID (C
 - **FR-055**: System MUST set cookies for embedded sessions with attributes: Secure, HttpOnly, SameSite=None.
 - **FR-056**: System MUST log embed session establishment including origin, tenant_id, and correlation_id.
 - **FR-057**: System MUST deny and audit attempts from non-allowlisted origins with a distinct error code (origin_not_allowed).
-- **FR-058**: System MUST provide configuration to isolate rate limits for embedded vs primary application contexts (see C-035).
-- **FR-059**: System MUST document (generated artifact) the steps for embedding including CSP examples and required headers.
+- **FR-058**: System MUST provide configuration to isolate rate limits for embedded vs primary application contexts (see C-035, precedence per C-046).
+- **FR-059**: System MUST document (generated artifact) the steps for embedding including CSP examples and required headers (artifact per C-047).
 - **FR-060**: System MUST provide password reset initiation endpoint issuing a single-use reset token (hashed at rest) with configurable expiry (default 30m).
 - **FR-061**: System MUST allow password reset completion without MFA when user has no MFA factors enrolled.
 - **FR-062**: System MUST require successful MFA challenge during password reset completion when MFA is enabled for the user.
@@ -292,7 +352,7 @@ None at this time. Future ambiguities will be appended with next available ID (C
 - **FR-070**: System MUST expose code quality metrics (duplication %, cyclomatic complexity hotspots) per build and fail merges if thresholds (duplication >= 8% overall OR file duplication >= 15% OR function complexity > 10) are exceeded without inline justification.
 - **FR-071**: System MUST provide centralized logging configuration controlling LOG_LEVEL, LOG_FORMAT (json|text), LOG_SINK (stdout|otlp|file), and LOG_FIELDS_EXTRA (comma-separated) exclusively via the configuration layer (no runtime code overrides).
 - **FR-072**: System MUST support filtered log export (time window ≤ 24h, tenant_id, category, correlation_id) with maximum uncompressed size 100MB; partial exports MUST indicate boundary metadata and produce an export audit event.
-- **FR-073**: System MUST redact configured sensitive keys (password, passwd, token, access_token, refresh_token, secret, api_key, authorization, set-cookie) from all logs; any detection of unredacted sensitive data MUST emit a redaction_violation audit event and metric.
+- **FR-073**: System MUST redact configured sensitive keys (password, passwd, token, access_token, refresh_token, secret, api_key, authorization, set-cookie) from all logs; any detection of unredacted sensitive data MUST emit a redaction_violation audit event and metric (metric naming per C-048).
 - **FR-074**: System MUST emit a performance.regression event when measured p95 or p99 latency exceeds budget (CRUD p95 ≥ 200ms OR p99 ≥ 500ms; heavy ops p95 ≥ 400ms OR p99 ≥ 800ms) outside an approved maintenance window.
 - **FR-075**: System MUST run an OWASP Top 10 dynamic security test suite each release cycle and block release on unwaived high severity findings.
 - **FR-076**: System MUST fail CI if code quality thresholds (duplication %, file duplication %, function complexity) are exceeded without an inline justification marker referencing a tracking ID.

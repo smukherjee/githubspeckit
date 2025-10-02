@@ -1,0 +1,9 @@
+# Justification Registry (TEST-SEC-07 / IMPL-SEC-08)
+# Each entry documents an intentional deviation or complexity with rationale and expiry review date.
+entries:
+  - id: JUS-001
+    area: complexity
+    description: "In-memory repositories used instead of DB in Phase 2 to accelerate TDD."
+    rationale: "Avoid premature DB coupling; will replace with SQLAlchemy adapters in Phase 3."
+    review_by: 2025-12-31
+    owner: platform

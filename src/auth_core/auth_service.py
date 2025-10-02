@@ -27,10 +27,12 @@ class AuthenticationService:
         registry: AuthProviderRegistry,
         hasher: Argon2PasswordHasher = default_hasher,
         mfa_repo: Optional[MFARepository] = None,
+        metrics_adapter=None,
     ) -> None:
         self.registry = registry
         self.hasher = hasher
         self.mfa_repo = mfa_repo or MFARepository()
+        self._metrics = metrics_adapter
 
     async def login_password(
         self,
@@ -45,11 +47,24 @@ class AuthenticationService:
         try:
             result: AuthResult = await provider.authenticate(username=user_id, password=password, stored_hash=stored_hash)
         except AuthError as e:  # bubble stable code
+            # emit auth failure metric
+            try:
+                if self._metrics:
+                    # tenant context unknown here; callers can pass tenant via provider result/context in future
+                    self._metrics.counter_inc("auth_failures_total", tenant_id=None, amount=1)
+            except Exception:
+                pass
             raise e
 
         # Determine MFA requirement
         has_mfa = user_has_mfa if user_has_mfa is not None else self.mfa_repo.has_mfa(user_id)
         if has_mfa and not mfa_code:
+            # emit auth failure metric for MFA challenge (treated as failed auth branch)
+            try:
+                if self._metrics:
+                    self._metrics.counter_inc("auth_failures_total", tenant_id=None, amount=1)
+            except Exception:
+                pass
             raise MFACodeRequiredError("mfa_required")
         # TODO: verify mfa_code when implemented
 

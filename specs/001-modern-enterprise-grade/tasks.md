@@ -101,94 +101,116 @@ Parallelization: Lanes (A–H) can advance after prerequisites.
 
 ## E. User Lifecycle, Feature Flags, Embed
 
-- TEST-ULF-01 Invitation accept idempotent. [PENDING]
-- IMPL-ULF-02 Invitation service + hashing. [PENDING]
-- TEST-ULF-03 User soft delete/restore. [PENDING]
-- IMPL-ULF-04 Disable/restore logic. [PENDING]
-- TEST-ULF-05 Feature flag evaluate (global/tenant). [PENDING]
-- IMPL-ULF-06 FeatureFlagService. [PENDING]
-- TEST-ULF-07 Embed token lifecycle. [PENDING]
-- IMPL-ULF-08 EmbedService + origin validation. [PENDING]
-- TEST-ULF-09 Disallowed origin. [PENDING]
-- IMPL-ULF-10 Embed docs generator. [PENDING]
+- TEST-ULF-01 Invitation accept idempotent. [X]
+- IMPL-ULF-02 Invitation service + hashing. [X]
+- TEST-ULF-03 User soft delete/restore. [X]
+- IMPL-ULF-04 Disable/restore logic. [X]
+- TEST-ULF-05 Feature flag evaluate (global/tenant). [X]
+- IMPL-ULF-06 FeatureFlagService. [X]
+- TEST-ULF-07 Embed token lifecycle. [X]
+- IMPL-ULF-08 EmbedService + origin validation. [X]
+- TEST-ULF-09 Disallowed origin. [X]
+- IMPL-ULF-10 Embed docs generator. [X]
+TEST-ULF-11 Embed docs artifact freshness (FR-059 C-047). [DONE]
+IMPL-ULF-12 Embed docs freshness CI check (FR-059 C-047). [DONE]
+TEST-ULF-13 Embed rate limit precedence headers (FR-058 C-046). [DONE]
 
 ## F. Observability & Performance
 
-- TEST-OBS-01 Log field presence. [PENDING]
-- IMPL-OBS-02 Logging + redaction. [PENDING]
-- TEST-OBS-03 Redaction enforcement. [PENDING]
-- IMPL-OBS-04 Audit service. [PENDING]
-- TEST-OBS-05 Log export bounds. [PENDING]
-- IMPL-OBS-06 Export orchestrator. [PENDING]
-- TEST-OBS-07 Metrics snapshot & Prometheus. [PENDING]
-- IMPL-OBS-08 Metrics instrumentation. [PENDING]
-- TEST-OBS-09 Regression trigger. [PENDING]
-- IMPL-OBS-10 Regression detector. [PENDING]
-- TEST-OBS-11 Revocation audit log. [PENDING]
-- TEST-OBS-12 Audit event emission security-sensitive (FR-005). [PENDING]
-- TEST-OBS-09A Regression false positive filtering (config hash differentiation). [PENDING]
+- TEST-OBS-01 Log field presence. [X]
+- IMPL-OBS-02 Logging + redaction. [X]
+- TEST-OBS-03 Redaction enforcement. [X]
+- IMPL-OBS-04 Audit service. [X]
+- TEST-OBS-05 Log export bounds. [X]
+- IMPL-OBS-06 Export orchestrator. [X]
+- TEST-OBS-07 Metrics snapshot & Prometheus. [X]
+- IMPL-OBS-08 Metrics instrumentation. [X]
+- TEST-OBS-09 Regression trigger. [X]
+- IMPL-OBS-10 Regression detector. [X]
+- TEST-OBS-11 Revocation audit log. [X]
+- TEST-OBS-12 Audit event emission security-sensitive (FR-005). [X]
+- TEST-OBS-09A Regression false positive filtering (config hash differentiation). [X]
+- TEST-SEC-11 Failed token validation logging fields (FR-028 C-027). [X]
+- TEST-SEC-12 Error envelope schema compliance (FR-017 C-031). [X]
 
 ## G. Security & Quality Gates
 
-- TEST-SEC-01 Rate limit config. [PENDING]
-- IMPL-SEC-02 Rate limiter abstraction. [PENDING]
-- TEST-SEC-03 Error envelope. [PENDING]
-- IMPL-SEC-04 Error middleware. [PENDING]
-- TEST-SEC-05 Quality metrics fail example. [PENDING]
-- IMPL-SEC-06 Quality metrics integration. [PENDING]
-- TEST-SEC-07 Justification registry parser. [PENDING]
-- IMPL-SEC-08 Justifications file + validator. [PENDING]
-- TEST-SEC-09 OWASP scan ingestion mock. [PENDING]
-- IMPL-SEC-10 Security scan integration. [PENDING]
-- TEST-SEC-11 Failed token validation logging fields (FR-028 C-027). [PENDING]
-- TEST-SEC-12 Error envelope schema compliance (FR-017 C-031). [PENDING]
+- TEST-SEC-01 Rate limit config. [DONE]
+- IMPL-SEC-02 Rate limiter abstraction. [DONE]
+- TEST-SEC-03 Error envelope. [DONE]
+- IMPL-SEC-04 Error middleware. [DONE]
+- TEST-SEC-05 Quality metrics fail example. [DONE]
+- IMPL-SEC-06 Quality metrics integration. [DONE]
+- TEST-SEC-07 Justification registry parser. [DONE]
+- IMPL-SEC-08 Justifications file + validator. [DONE]
+- TEST-SEC-09 OWASP scan ingestion mock. [DONE]
+- IMPL-SEC-10 Security scan integration. [DONE]
+- TEST-SEC-11 Failed token validation logging fields (FR-028 C-027). [DONE]
+- TEST-SEC-12 Error envelope schema compliance (FR-017 C-031). [DONE]
+// New clarification-driven security & quality tasks (test-first)
+- TEST-SEC-13 Justification enforcement gate (FR-070, FR-076, C-018) [DONE]
+- IMPL-SEC-14 Justification gate CI integration (FR-070, FR-076, C-018) [DONE]
+- TEST-SEC-15 Redaction violation metric & audit emission (FR-073, C-048) [DONE]
+- IMPL-SEC-16 Redaction violation metric wiring (FR-073, C-048) [DONE]
+- TEST-SEC-17 Superadmin misuse threshold alert (FR-002, C-040) [DONE]
+- IMPL-SEC-18 Superadmin misuse monitor (FR-002, C-040) [DONE]
+- TEST-SEC-19 Replay detection explicit store coverage (FR-033, C-020) [DONE]
+- IMPL-SEC-20 Replay store persistence optimization (FR-033, C-020) [DONE]
 
 ## H. API Layer & Integration
 
-- TEST-API-01 OpenAPI bundle validation. [PENDING]
+- TEST-API-01 OpenAPI bundle validation. [DONE]
 - IMPL-API-02 FastAPI app factory. [DONE]
 - TEST-API-03 Health/status. [DONE]
 - IMPL-API-04 Health controller. [DONE]
-- TEST-API-05 Config export. [PENDING]
-- IMPL-API-06 Config export route. [PENDING]
-- TEST-API-07 Tenant CRUD + idempotency. [PENDING]
-- IMPL-API-08 Tenant routes. [PENDING]
-- TEST-API-09 User list & restore. [PENDING]
-- IMPL-API-10 User routes. [PENDING]
-- TEST-API-11 Invitation accept. [PENDING]
-- IMPL-API-12 Invitation route. [PENDING]
-- TEST-API-13 Auth login/refresh/revoke. [PENDING]
-- IMPL-API-14 Auth endpoints. [PENDING]
-- TEST-API-15 Policy dry-run. [PENDING]
-- IMPL-API-16 Dry-run route. [PENDING]
-- TEST-API-17 Feature flags CRUD. [PENDING]
-- IMPL-API-18 Feature flags routes. [PENDING]
-- TEST-API-19 Embed exchange. [PENDING]
-- IMPL-API-20 Embed routes. [PENDING]
-- TEST-API-21 Metrics endpoints. [PENDING]
-- IMPL-API-22 Metrics routes. [PENDING]
-- TEST-API-23 Audit events page. [PENDING]
-- IMPL-API-24 Audit routes. [PENDING]
-- TEST-API-25 Bootstrap command integration. [PENDING]
-- IMPL-API-26 Bootstrap CLI. [PENDING]
-- TEST-API-27 Policy registration endpoint (admin-only) (FR-029). [PENDING]
-- IMPL-API-27 Policy registration route wiring. [PENDING]
-- TEST-API-23A Audit query multi-filter & pagination edge cases (FR-032). [PENDING]
+- TEST-API-05 Config export. [DONE]
+- IMPL-API-06 Config export route. [DONE]
+- TEST-API-07 Tenant CRUD + idempotency. [DONE]
+- IMPL-API-08 Tenant routes. [DONE]
+- TEST-API-09 User list & restore. [DONE]
+- IMPL-API-10 User routes. [DONE]
+- TEST-API-11 Invitation accept. [DONE]
+- IMPL-API-12 Invitation route. [DONE]
+- TEST-API-13 Auth login/refresh/revoke. [DONE]
+- IMPL-API-14 Auth endpoints. [DONE]
+- TEST-API-15 Policy dry-run. [DONE]
+- IMPL-API-16 Dry-run route. [DONE]
+- TEST-API-15A Dry-run rationale enumeration guard (FR-020 C-041) [DONE]
+- TEST-API-17 Feature flags CRUD. [DONE]
+- IMPL-API-18 Feature flags routes. [DONE]
+- TEST-API-19 Embed exchange. [DONE]
+- IMPL-API-20 Embed routes. [DONE]
+- TEST-API-21 Metrics endpoints. [DONE]
+- IMPL-API-22 Metrics routes. [DONE]
+- TEST-API-23 Audit events page. [DONE]
+- IMPL-API-24 Audit routes. [DONE]
+- TEST-API-25 Bootstrap command integration. [DONE]
+- IMPL-API-26 Bootstrap CLI. [DONE]
+- TEST-API-27 Policy registration endpoint (admin-only) (FR-029). [DONE]
+- IMPL-API-27 Policy registration route wiring. [DONE]
+- TEST-API-23A Audit query multi-filter & pagination edge cases (FR-032). [DONE]
+- TEST-API-28 Config error report JSON schema (FR-041 C-045) [DONE]
+IMPL-API-29 Config error report formatter (FR-041 C-045) [DONE]
 
 ## Cross-Cutting / Finalization
 
-- TEST-XCUT-01 Correlation propagation. [PENDING]
-- IMPL-XCUT-02 Correlation middleware. [PENDING]
-- TEST-XCUT-03 Audit metadata persistence. [PENDING]
-- IMPL-XCUT-04 Populate created_by/updated_by. [PENDING]
-- TEST-XCUT-05 Deprecation header. [PENDING]
-- IMPL-XCUT-06 Deprecation utility. [PENDING]
-- TEST-XCUT-07 Seed idempotency deterministic UUIDv5 (FR-069). [PENDING]
-- TEST-XCUT-08 Hash upgrade audit emission (FR-051 C-033). [PENDING]
-- TEST-XCUT-09 Role downgrade session version invalidation timing (FR-021 C-032). [PENDING]
+- TEST-XCUT-01 Correlation propagation. [DONE]
+- IMPL-XCUT-02 Correlation middleware. [DONE]
+- TEST-XCUT-03 Audit metadata persistence. [DONE]
+- IMPL-XCUT-04 Populate created_by/updated_by. [DONE]
+- TEST-XCUT-05 Deprecation header. [DONE]
+- IMPL-XCUT-06 Deprecation utility. [DONE]
+- TEST-XCUT-07 Seed idempotency deterministic UUIDv5 (FR-069). [DONE]
+// New cross-cutting clarification tasks
+- TEST-XCUT-10 Seed script error modes & summary (FR-025 C-043) [DONE]
+- IMPL-XCUT-11 Seed summary & conflict audit (FR-025 C-043) [DONE]
+- TEST-XCUT-11 Span coverage for all API routes (FR-034 Principle V) [DONE]
+- IMPL-XCUT-12 Tracing instrumentation completion (FR-034) [DONE]
 
 ## Deferred / Backlog
 
+- TEST-XCUT-08 Hash upgrade audit emission (FR-051 C-033). [DEFERRED]
+- TEST-XCUT-09 Role downgrade session version invalidation timing (FR-021 C-032). [DEFERRED]
 - DEFER-MFA-ENROLL MFA enrollment & WebAuthn. [DEFERRED]
 - DEFER-POL-DSL Advanced policy DSL & caching. [DEFERRED]
 - DEFER-CACHE Distributed cache layer. [DEFERRED]
@@ -196,135 +218,46 @@ Parallelization: Lanes (A–H) can advance after prerequisites.
 
 ## FR → Task Mapping (All FRs Covered)
 
-- FR-001: TEST-API-07, IMPL-API-08, TEST-DOM-07
-- FR-002: TEST-DOM-05
-- FR-003: IMPL-AUTH-10, IMPL-AUTH-16
-- FR-004: IMPL-POL-02, IMPL-POL-04
-- FR-005: IMPL-OBS-04
-- FR-006: TEST-ULF-01, IMPL-ULF-02, TEST-API-11, IMPL-API-12
-- FR-007: TEST-AUTH-00, IMPL-AUTH-00, TEST-AUTH-09, IMPL-AUTH-10 (OIDC deferred: DEFER-AUTH-15/16)
-- FR-008: TEST-AUTH-03, IMPL-AUTH-04, TEST-API-13, IMPL-API-14
-- FR-009: TEST-AUTH-01, IMPL-CONF-07
-- FR-010: TEST-API-09, IMPL-API-10
-- FR-011: TEST-DOM-05
-- FR-012: TEST-POL-01, IMPL-POL-02
-- FR-013: TEST-API-07, IMPL-API-08
-- FR-014: IMPL-API-02, TEST-XCUT-05, IMPL-XCUT-06
-- FR-015: TEST-API-03, IMPL-API-04
-- FR-016: IMPL-OBS-08, TEST-OBS-07
-- FR-016: IMPL-OBS-08, TEST-OBS-07, C-030 metrics enumeration enforced
-- FR-017: TEST-SEC-03, IMPL-SEC-04
-- FR-017: TEST-SEC-03, TEST-SEC-12, IMPL-SEC-04
-- FR-018: TEST-API-09, IMPL-API-10, TEST-DOM-07
-- FR-019: TEST-POL-05, IMPL-POL-06
-- FR-020: TEST-API-15, IMPL-API-16, IMPL-POL-04
-- FR-021: TEST-AUTH-13, IMPL-AUTH-14
-- FR-021: TEST-AUTH-13, TEST-XCUT-09, IMPL-AUTH-14
-- FR-022: TEST-AUTH-05, IMPL-AUTH-06, IMPL-API-04
-- FR-023: TEST-SEC-01, IMPL-SEC-02
-- FR-024: TEST-API-01
-- FR-025: IMPL-API-26, TEST-API-25
-- FR-026: TEST-ULF-05, IMPL-ULF-06, TEST-API-17, IMPL-API-18
-- FR-027: TEST-OBS-09, IMPL-OBS-10
-- FR-028: TEST-AUTH-07, IMPL-AUTH-08, TEST-OBS-11
-- FR-028: TEST-AUTH-07, IMPL-AUTH-08, TEST-OBS-11, TEST-SEC-11
-- FR-029: TEST-API-27, IMPL-POL-04, IMPL-API-27
-- FR-030: TEST-POL-03, IMPL-POL-04
-- FR-031: TEST-POL-05, IMPL-POL-06
-- FR-032: IMPL-OBS-04, TEST-API-23
-- FR-032: IMPL-OBS-04, TEST-API-23, TEST-API-23A
-- FR-033: TEST-AUTH-07, IMPL-AUTH-08
-- FR-034: TEST-OBS-07, IMPL-OBS-08, TEST-API-21, IMPL-API-22
-- FR-035: TEST-ULF-05, IMPL-ULF-06
-- FR-036: TEST-POL-09, IMPL-POL-10
-- FR-037: TEST-XCUT-01, IMPL-XCUT-02, IMPL-SEC-04
-- FR-038: IMPL-POL-11, TEST-POL-12
-- FR-039: TEST-CONF-01, IMPL-CONF-02
-- FR-040: TEST-CONF-03, IMPL-CONF-02
-- FR-041: TEST-CONF-01
-- FR-042: TEST-CONF-05, IMPL-CONF-02
-- FR-043: TEST-CONF-06, IMPL-CONF-04
-- FR-044: TEST-CONF-07, IMPL-CONF-02
-- FR-045: TEST-CONF-03
-- FR-046: IMPL-CONF-06, TEST-API-05, IMPL-API-06
-- FR-047: TEST-CONF-08, IMPL-CONF-04
-- FR-048: TEST-CONF-05, IMPL-CONF-02
-- FR-049: TEST-AUTH-01, IMPL-AUTH-02
-- FR-050: IMPL-ULF-02, IMPL-AUTH-12
-- FR-051: TEST-AUTH-01, IMPL-AUTH-02
-- FR-051: TEST-AUTH-01, TEST-XCUT-08, IMPL-AUTH-02
-- FR-052: IMPL-API-26, TEST-API-25
-- FR-053: TEST-ULF-07, IMPL-ULF-08
-- FR-054: TEST-ULF-07, IMPL-ULF-08
-- FR-055: TEST-ULF-07, IMPL-ULF-08
-- FR-056: IMPL-ULF-08, TEST-ULF-07
-- FR-057: TEST-ULF-09, IMPL-ULF-08
-- FR-058: TEST-SEC-01, IMPL-ULF-08
-- FR-059: IMPL-ULF-10
-- FR-060: TEST-AUTH-11, IMPL-AUTH-12
-- FR-061: TEST-AUTH-09, TEST-AUTH-11, TEST-AUTH-17, IMPL-AUTH-10, IMPL-AUTH-12, IMPL-AUTH-18
-- FR-062: TEST-AUTH-09, TEST-AUTH-11, TEST-AUTH-17, IMPL-AUTH-10, IMPL-AUTH-12, IMPL-AUTH-18
-- FR-063: TEST-AUTH-11, IMPL-AUTH-12
-- FR-064: TEST-AUTH-11, IMPL-AUTH-12
-- FR-065: TEST-AUTH-11, IMPL-AUTH-12
-- FR-066: TEST-POL-07, IMPL-POL-08
-- FR-067: TEST-POL-05, IMPL-POL-06
-- FR-068: TEST-POL-05, IMPL-POL-06
-- FR-069: IMPL-API-26, TEST-API-25
-- FR-069: IMPL-API-26, TEST-API-25, TEST-XCUT-07
-- FR-070: TEST-SEC-05, IMPL-SEC-06
-- FR-071: TEST-OBS-01, IMPL-OBS-02
-- FR-072: TEST-OBS-05, IMPL-OBS-06
-- FR-073: TEST-OBS-03, IMPL-OBS-02
-- FR-074: TEST-OBS-09, IMPL-OBS-10
-- FR-075: TEST-SEC-09, IMPL-SEC-10
-- FR-076: TEST-SEC-05, IMPL-SEC-06, TEST-SEC-07, IMPL-SEC-08
-- FR-077: TEST-DOM-01, TEST-XCUT-03, IMPL-XCUT-04
+// Canonical, deduplicated FR mapping (one line per FR; clarifications referenced where relevant)
+FR-001: TEST-API-07, IMPL-API-08, TEST-DOM-07
+FR-002: TEST-DOM-05, TEST-SEC-17, IMPL-SEC-18 (C-040)
+FR-003: IMPL-AUTH-10 (core auth service)
+FR-004: IMPL-POL-04 (policy versioning & registration)
+FR-005: IMPL-OBS-04, TEST-OBS-12
+FR-006: TEST-ULF-01, IMPL-ULF-02, TEST-API-11, IMPL-API-12
+FR-007: TEST-AUTH-00, IMPL-AUTH-00, TEST-AUTH-09, IMPL-AUTH-10 (OIDC deferred DEFER-AUTH-15/16, C-036)
+FR-008: TEST-AUTH-03, IMPL-AUTH-04, TEST-API-13, IMPL-API-14
+FR-009: TEST-AUTH-01, IMPL-CONF-07
+FR-010: TEST-API-09, IMPL-API-10
+FR-011: TEST-DOM-05
+FR-012: TEST-POL-01, IMPL-POL-02 (rationale codes C-041/C-049)
+FR-013: TEST-API-07, IMPL-API-08
+FR-014: TEST-XCUT-05, IMPL-XCUT-06
+FR-015: TEST-API-03, IMPL-API-04
+FR-016: TEST-OBS-07, IMPL-OBS-08, TEST-OBS-01A (C-030)
+FR-017: TEST-SEC-03, TEST-SEC-12, IMPL-SEC-04 (C-031)
+FR-018: TEST-API-09, IMPL-API-10, TEST-DOM-07
+FR-019: TEST-POL-05, IMPL-POL-06
+FR-020: TEST-API-15, TEST-API-15A, IMPL-API-16 (C-041)
+FR-021: TEST-AUTH-13, TEST-XCUT-09, IMPL-AUTH-14 (C-032)
+FR-022: TEST-AUTH-05, IMPL-AUTH-06, IMPL-API-04 (key version)
+FR-023: TEST-SEC-01, IMPL-SEC-02
+FR-024: TEST-API-01
+FR-025: TEST-API-25, IMPL-API-26, TEST-XCUT-10, IMPL-XCUT-11 (C-043)
+FR-026: TEST-ULF-05, IMPL-ULF-06, TEST-API-17, IMPL-API-18
+FR-027: TEST-OBS-09, IMPL-OBS-10 (classification C-042)
+FR-028: TEST-AUTH-07, TEST-SEC-11, IMPL-AUTH-08 (C-027)
+FR-029: TEST-API-27, IMPL-API-27, IMPL-POL-04
+FR-030: TEST-POL-03, IMPL-POL-04
+FR-031: TEST-POL-05, IMPL-POL-06
+FR-032: TEST-API-23, TEST-API-23A, IMPL-OBS-04
+FR-033: TEST-SEC-19, IMPL-SEC-20 (C-020) // explicit mapping replacing implicit reuse of TEST-AUTH-07
+FR-034: TEST-OBS-07, IMPL-OBS-08, TEST-API-21, IMPL-API-22, TEST-XCUT-11, IMPL-XCUT-12 (C-044)
+FR-035: TEST-ULF-05, IMPL-ULF-06
+FR-036: TEST-POL-09, IMPL-POL-10 (C-026)
+// Legacy duplicate FR mapping block removed (was below); canonical block above retained per cleanup instruction.
+// (Removed legacy duplicate mapping block here.)
 
-- FR-003: IMPL-AUTH-10, IMPL-AUTH-16
-- FR-004: IMPL-POL-02, IMPL-POL-04
-- FR-005: IMPL-OBS-04
-- FR-006: TEST-ULF-01, IMPL-ULF-02, TEST-API-11, IMPL-API-12
-- FR-007: TEST-AUTH-00, IMPL-AUTH-00, TEST-AUTH-09, IMPL-AUTH-10 (OIDC deferred: DEFER-AUTH-15/16)
-- FR-008: TEST-AUTH-03, IMPL-AUTH-04, TEST-API-13, IMPL-API-14
-- FR-009: TEST-AUTH-01 (password policy config via config tasks), IMPL-CONF-07
-- FR-010: TEST-API-09, IMPL-API-10
-- FR-011: (Implicit in multi-tenancy + superadmin bypass) TEST-DOM-05
-- FR-012: TEST-POL-01, IMPL-POL-02
-- FR-013: TEST-API-07, IMPL-API-08
-- FR-014: IMPL-API-02, TEST-XCUT-05, IMPL-XCUT-06
-- FR-015: TEST-API-03, IMPL-API-04
-- FR-016: (Per-tenant metrics) IMPL-OBS-08, TEST-OBS-07
-- FR-017: TEST-SEC-03, IMPL-SEC-04
-- FR-018: TEST-API-09, IMPL-API-10, TEST-DOM-07
-- FR-019: TEST-POL-05, IMPL-POL-06
-- FR-020: TEST-API-15, IMPL-API-16, IMPL-POL-04
-- FR-021: TEST-AUTH-13, IMPL-AUTH-14
-- FR-022: TEST-AUTH-05, IMPL-AUTH-06, IMPL-API-04 (exposes key rotation version)
-- FR-023: TEST-SEC-01, IMPL-SEC-02
-- FR-024: TEST-API-01
-- FR-025: IMPL-API-26, TEST-API-25
-- FR-026: TEST-ULF-05, IMPL-ULF-06, TEST-API-17, IMPL-API-18
-- FR-027: TEST-OBS-09 (performance regression), IMPL-OBS-10
-- FR-028: TEST-AUTH-07, IMPL-AUTH-08, TEST-OBS-11
-- FR-029: TEST-API-27, IMPL-POL-04, IMPL-API-27
-- FR-030: TEST-POL-03, IMPL-POL-04
-- FR-031: TEST-POL-05, IMPL-POL-06
-- FR-032: IMPL-OBS-04, TEST-API-23
-- FR-033: TEST-AUTH-07, IMPL-AUTH-08
-- FR-034: TEST-OBS-07, IMPL-OBS-08, TEST-API-21, IMPL-API-22
-- FR-035: TEST-ULF-05, IMPL-ULF-06
-- FR-036: TEST-POL-09, IMPL-POL-10
-- FR-037: TEST-XCUT-01, IMPL-XCUT-02, IMPL-SEC-04
-- FR-038: IMPL-POL-11, TEST-POL-12
-- FR-039: TEST-CONF-01, IMPL-CONF-02
-- FR-040: TEST-CONF-03, IMPL-CONF-02
-- FR-041: TEST-CONF-01
-- FR-042: TEST-CONF-05, IMPL-CONF-02
-- FR-043: TEST-CONF-06, IMPL-CONF-04
-- FR-044: TEST-CONF-07, IMPL-CONF-02
-- FR-045: TEST-CONF-03
-- FR-046: IMPL-CONF-06, TEST-API-05, IMPL-API-06
 - FR-047: IMPL-CONF-04
 - FR-048: TEST-CONF-05, IMPL-CONF-02
 - FR-049: TEST-AUTH-01, IMPL-AUTH-02
@@ -362,6 +295,9 @@ Parallelization: Lanes (A–H) can advance after prerequisites.
 - TEST-AUTH-07B Replay detection near expiry boundary (FR-028, C-020) [PENDING]
 - TEST-OBS-01A Metrics key set compliance (FR-016, C-030) [PENDING]
 - TEST-AUTH-00A OIDC absence assertion (FR-007, C-036) [PENDING]
+- TEST-SEC-XX Justification registry cross-ref lint (FR-070, C-018) [PENDING]
+- TEST-API-XX Deprecation header emission contract (FR-014) [PENDING]
+// Removed placeholder contract tests now covered by concrete tests: auth login, invitation accept, user restore
 
 ## Parallelization Plan (Initial Sprint Ordering)
 
