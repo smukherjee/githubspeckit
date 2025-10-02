@@ -1,0 +1,96 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "githubspeckit-backend"
+version = "0.1.0"
+description = "Modern enterprise-grade multi-tenant FastAPI backend (hexagonal, auth core, observability, quality gates)."
+authors = [ { name = "githubspeckit" } ]
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "Proprietary" }
+keywords = ["fastapi", "multi-tenant", "rbac", "observability", "argon2", "opentelemetry"]
+
+# Core runtime dependencies (minimal pins with upper bounds for forward safety)
+# Pins are intentionally ranged; a fully pinned requirements.txt will be generated via `uv export`.
+dependencies = [
+  "fastapi>=0.111,<0.200",
+  "uvicorn[standard]>=0.30,<0.40",
+  "pydantic>=2.6,<3",
+  "sqlalchemy>=2.0,<3",
+  "alembic>=1.13,<2",
+  "argon2-cffi>=25.1",
+  "python-jose[cryptography]>=3.3.0,<4",
+  "opentelemetry-api>=1.25,<2",
+  "opentelemetry-sdk>=1.25,<2",
+  # Updated to latest beta (0.58b0) as of 2025-10-02; upper bound to next minor to avoid unexpected breaking changes
+  "opentelemetry-instrumentation-fastapi>=0.58b0,<0.59",
+  "opentelemetry-instrumentation-sqlalchemy>=0.58b0,<0.59",
+  "opentelemetry-exporter-otlp>=1.25,<2",
+  "httpx>=0.27,<0.28",
+]
+
+[project.optional-dependencies]
+redis = ["redis>=5.0,<6"]
+email = ["aiosmtplib>=2.0,<3"]
+# Future extras (e.g., search, messaging) can be appended here.
+
+# Development & quality tooling
+[tool.uv]
+# uv reads dependencies from [project] & dev-dependencies below; run: `uv lock` then export
+dev-dependencies = [
+  "pytest>=8.2,<9",
+  "pytest-asyncio>=1.2.0",
+  "hypothesis>=6.100,<7",
+  "coverage>=7.5,<8",
+  "ruff>=0.5,<0.6",
+  "mypy>=1.10,<2",
+  "types-redis>=4.6,<5",
+  "safety>=3.1,<4",
+  "radon>=6.0,<7",
+  "xenon>=0.9,<1",  # complexity enforcement wrapper for radon
+  "pyyaml>=6.0,<7",
+  # jscpd duplication tool typically via node; consider container stage if needed
+]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+exclude = ["build/"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I", "B", "UP", "PERF", "Q", "S", "C90"]
+ignore = ["S101"]
+
+target-version = "py312"
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 85
+
+[tool.xenon]
+max-absolute = "C"
+max-modules = "B"
+max-average = "B"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[project.scripts]
+app-bootstrap = "scripts.bootstrap:main"
+
+# Documentation for dependency workflow
+[tool.project-notes]
+workflow = "Use uv for locking (uv lock) then export portable pinned requirements: `uv export --all-extras --no-dev --format requirements-txt > requirements.txt`; dev lock: `uv export --all-extras --format requirements-txt > requirements-dev.txt`"

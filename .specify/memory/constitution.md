@@ -226,7 +226,7 @@ Rationale: Ensures low friction onboarding, consistent environments, and future-
 7. Configuration: 12‑Factor compliance. Secrets via env / vault; no defaults for critical secrets.  
 8. Data Validation: Pydantic for boundary validation; domain invariants inside entities (raise DomainError).  
 9. Error Model: Structured error envelope {trace_id, code, message, details?, docs_url}. No raw tracebacks to clients.  
-10. Identities: UUIDv7 (time sortable) for new primary identifiers.  
+10. Identities: UUIDv5 (deterministic namespace-based) for new primary identifiers to enable idempotent seeding, stable test fixtures, and reproducible migrations. Rationale: Deterministic IDs simplify cross-environment comparison and bootstrap idempotency; time-ordering provided via created_at fields and audit logs. (Changed from UUIDv7 in v1.6.0 before any production data persisted.)  
 11. Rate Limiting & Abuse Controls: Global + per-tenant + per-user where appropriate (pluggable provider).  
 12. Infrastructure Parity: Local dev via docker-compose; test env mimics prod-critical services.  
 13. Zero Trust on Input: All external integrations validated + sanitized.  

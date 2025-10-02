@@ -134,7 +134,7 @@ All previously implicit or ambiguous parameters are now explicitly defined to re
 - **C-006 Log Export Bounds (FR-072)**: Time window ≤ 24h, maximum uncompressed size 100MB. If size exceeded mid-stream, export truncates at record boundary and includes `truncated=true` plus `reason=size_limit` metadata.
 - **C-007 Redaction Set (FR-073)**: Case-insensitive key match for: password, password_hash, passwd, token, access_token, refresh_token, secret, api_key, authorization, set-cookie, mfa_secret, email (hashed variant stored), pii_hint. Values replaced with `REDACTED`. Redaction violations emit `redaction_violation` audit event.
 - **C-008 Password Reset Token (FR-060–FR-065)**: Expiry default 30 minutes; single-use; stored as SHA-256 hash; attempts after consumption or expiry return uniform `invalid_token` response without enumeration of success state.
-- **C-009 Seed Baseline (FR-069, FR-052)**: Deterministic TestTenant slug `test-tenant` with UUID v5 derived from namespace + slug; users: superadmin (email: `superadmin at test.local`), tenant_admin (`tenant_admin at test.local`), standard (`user at test.local`). Reruns skip existing by deterministic identifiers. Hash parameters may upgrade on seed rerun.
+- **C-009 Seed Baseline (FR-069, FR-052)**: Deterministic TestTenant slug `test-tenant` with UUIDv5 derived from a fixed namespace + slug; baseline users (superadmin, tenant_admin, standard) also use deterministic UUIDv5 (namespace + normalized email). Reruns are idempotent (upsert by deterministic identifiers). Hash parameters may upgrade on seed rerun.
 - **C-010 Role Hierarchy (FR-066–FR-068)**: Predefined roles: superadmin, tenant_admin, analyst, standard. Only superadmin may grant/revoke superadmin or tenant_admin. Implicit tenant_admin allowances exclude destructive purge and cross-tenant actions.
 - **C-011 Code Quality Thresholds (FR-070, FR-076)**: Duplication overall < 8%; any single file duplication < 15%; cyclomatic complexity ≤ 10 per function. Justification marker pattern: `JUSTIFY:<ID>` inline comment adjacent to function or block. CI fails if metrics exceed thresholds without matching justification ID recorded in a justification registry artifact (to be defined in planning phase) – keeps developer friction low while enabling exceptions.
 - **C-012 Embed Mode (FR-053–FR-059)**: Default origin allowlist empty in non-dev; in dev mode (`DEV_MODE=true`) wildcard `http://localhost:*` allowed. Embed token TTL default 5 minutes; non-refreshable; exchange invalidates token. Separate rate limit bucket label `embed`.
@@ -144,6 +144,27 @@ All previously implicit or ambiguous parameters are now explicitly defined to re
 - **C-016 Security Testing Cadence (FR-075)**: OWASP dynamic suite executes per release cycle boundary (tag or main merge). Waiver requires `WAIVER:<ID>` reference plus risk justification artifact.
 - **C-017 Rate Limit Configuration Source (FR-023, FR-058)**: All rate limit parameters reside in centralized configuration (no inline constants) supporting environment overrides without code changes.
 - **C-018 Justification Registry (FR-070, FR-076)**: Stored as machine-readable YAML (`quality_justifications.yml`) mapping JUSTIFY IDs to rationale, owner, expiry date to avoid permanent degradation.
+- **C-019 Audit Metadata Fields (FR-077)**: Mutable entities (Tenant, User, Policy, FeatureFlag) require created_at, created_by, updated_at, updated_by; append-only entities (AuditEvent, KeyRotationRecord, PolicyEvaluationLog) record created_at & actor context only. Any exception must be explicitly justified in data-model.md.
+- **C-020 Replay Detection Strategy (FR-028, FR-033)**: JWT `jti` (UUIDv4) stored as SHA-256 hash in revocation/replay store with TTL = token_expiry + 10% buffer. Replay = second validation attempt with same jti after revocation or previously seen jti; triggers security.audit token_replay_detected + immediate revocation. Eviction: TTL pruning + approximate LRU under memory pressure; expired entries removed only after TTL to reduce false negatives.
+- **C-021 OIDC Stub Scope (FR-007)**: Initial OIDC provider stub limits to discovery (fetch & cache metadata) + ID token signature/claim validation for already obtained tokens; no full authorization code exchange implemented in Phase 2 (explicit backlog). Downstream principal normalization limited to subject + email claims.
+- **C-022 Regression Evaluation Window (FR-074)**: Performance regression detector evaluates rolling window of last 5 minutes (or ≥100 samples, whichever larger) before emitting performance.regression to reduce false positives from transient spikes. Window size configurable via `PERF_REGRESSION_WINDOW_MINUTES`.
+- **C-023 Hashing Algorithm Exclusivity (FR-049, FR-051)**: Argon2id is the ONLY supported password hashing algorithm; bcrypt (passlib) dependency removed to reduce attack surface and ambiguity. Any future alternative hash introduction requires new clarification ID and migration plan.
+**C-024 Pluggable Auth Provider Deferral (FR-007, FR-061, FR-062)**: Authentication provider architecture ships in Phase 2 with ONLY the password provider enabled. OIDC / external SSO and advanced MFA provider implementations are explicitly deferred (DEFER-AUTH-15/16, DEFER-MFA-ENROLL). The interface & registry MUST NOT assume password semantics; adding a new provider later MUST require no changes to existing password provider logic or downstream authorization code. Tests cover registry integrity & MFA conditional branching only (no external IdP flows).
+**C-025 Tenant Non-Destructive Update Scope (FR-001)**: "Update (non-destructive)" allows modifying: display name, metadata fields, feature flag defaults, and soft deletion state. Prohibited (new FR required): hard delete, tenant_id reassignment, cross-tenant resource reassociation, irreversible purges. Out-of-scope attempts emit error code `tenant_update_forbidden` and audit denial.
+**C-026 Admin Defense-in-Depth Layers (FR-036)**: Protected admin endpoints MUST enforce gates: (1) Authentication (principal) (2) Role check (superadmin OR tenant_admin in-scope) (3) Policy evaluation (DENY overrides) (4) Explicit admin scope indicator (header `X-Admin-Action: true` or endpoint-specific flag) (5) Audit emission with scope_reason. Missing any layer → 403 `admin_scope_missing_layer`.
+**C-027 Token Revocation / Validation Log Fields (FR-028)**: Each revocation or failed validation log/audit event MUST include: correlation_id, hashed_jti, tenant_id (nullable), user_id (nullable), reason (`user_logout|rotation|replay_detected|expired|invalid_signature|unknown_jti`), key_version (if applicable). `hashed_jti = hex(SHA256(jti))`. Adding a new reason requires a new clarification ID + test. Sensitive claim data excluded or redacted.
+**C-028 Key Rotation Dual Validation Strategy (FR-022)**: During grace both old & new signing keys (KID-distinguished) are accepted; validator attempts verification using active keys newest-first. After grace expiry retired key removed. Audit event fields: previous_active_kid, new_active_kid, grace_minutes, initiated_by, expires_at.
+**C-029 Tenant Configuration Export Format (FR-035)**: Export bundle = deterministic gzip tar `tenant-config-{tenant_id}-{version}.tar.gz` containing: `roles.json`, `policies.json` (versioned entries), `feature_flags.json`, `metadata.json` (export_version, generated_at, sha256 hash of concatenated sorted file contents). Integrity = SHA256(lowercase hex). Adding new files requires including them in hash computation.
+**C-030 Per-Tenant Metrics Enumeration (FR-016)**: Minimum required metrics exposed (per tenant and global aggregation where applicable) via `/metrics` (Prometheus) and internal snapshot: `active_users`, `auth_failures_total`, `policy_denials_total`, `rate_limit_hits_total`, `config_drift_events_total`, `performance_regressions_total`. Each counter/histogram name MUST include tenant label `tenant_id` when not global. Adding a new metric requires documentation update & test assertion.
+**C-031 Error Envelope Schema (FR-017)**: Standard error response body: `{ "trace_id": str, "correlation_id": str, "code": str, "message": str, "details": object|null, "docs_url": str|null }`. `trace_id` aligns with tracing system; `correlation_id` echoes request header; no stack traces or internal exception strings included. Tests MUST assert absence of extraneous keys and presence of required fields.
+**C-032 Role Downgrade Invalidation Mechanism (FR-021)**: Each session token embeds `session_version`. User record maintains current `session_version`. Role downgrade increments version and persists change; validator rejects tokens whose embedded version < current within ≤60s. A transient allow window (max 60s) is implemented by immediate version bump + optional async revocation for long-lived refresh tokens.
+**C-033 Password Hash Upgrade Audit (FR-051)**: On successful login where `needs_rehash` is True, system MUST rehash and emit audit event `auth.password.hash_upgraded` with fields: `user_id`, `old_time_cost`, `new_time_cost`, `old_memory_cost`, `new_memory_cost`, `algorithm="argon2id"`.
+**C-034 Bootstrap Duration Measurement (FR-052)**: Bootstrap command logs structured line category `infra.bootstrap` with `duration_ms`, `success=true|false`, `service_count`, and `config_hash`. Acceptance: `duration_ms < 120000` on baseline hardware (C-015). Test reads log output and asserts threshold.
+**C-035 Embed vs Primary Rate Limit Response (FR-058)**: Distinct response headers: `RateLimit-Context: embed|primary`. When exceeded, embed context returns error code `embed_rate_limited`; primary returns `rate_limited`. Shared headers: `RateLimit-Limit`, `RateLimit-Remaining`, `Retry-After` (optional). Logging differentiates via context label.
+**C-036 OIDC Deferral Assertion (FR-007)**: Until OIDC tasks exit DEFERRED state, auth provider registry MUST contain only `password`. Introduction of any additional provider name MUST be coupled with enabling tasks and new tests citing this clarification.
+**C-037 Config Hash Secret Omission Rule (FR-043, FR-071)**: Hash input only includes descriptor entries with `secret=false`. Additionally, env vars with prefix `SECRET_` are forcibly excluded even if descriptor misconfigured. Secrets are never hashed nor logged. Prevents accidental disclosure via configuration hash.
+**C-038 Deterministic Namespace UUID (FR-069)**: Fixed namespace UUID constant `9b4f53c4-2e74-5e5b-9e33-3d4c0fd84c11`. Deterministic entity IDs use `UUIDv5(namespace, normalized_identifier)`; normalization = lowercase + trim. C-009 references this constant for tenant & seed user IDs.
+**C-039 Policy Extension Registry Shape (FR-038)**: Registry entry: `resource_type` (str), `predicate_ref` (import path), `version` (semver), `created_at` (timestamp). Unique constraint (resource_type, version). Duplicate registration raises `extension_conflict` and is audited. Removal requires future clarification.
 
 ### Traceability Mapping (Selected)
 
@@ -167,10 +188,31 @@ All previously implicit or ambiguous parameters are now explicitly defined to re
 | C-016 | FR-075 |
 | C-017 | FR-023, FR-058 |
 | C-018 | FR-070, FR-076 |
+| C-019 | FR-077 |
+| C-020 | FR-028, FR-033 |
+| C-021 | FR-007 |
+| C-022 | FR-074 |
+| C-023 | FR-049, FR-051 |
+| C-024 | FR-007, FR-061, FR-062 |
+| C-025 | FR-001 |
+| C-026 | FR-036 |
+| C-027 | FR-028 |
+| C-028 | FR-022 |
+| C-029 | FR-035 |
+| C-030 | FR-016 |
+| C-031 | FR-017 |
+| C-032 | FR-021 |
+| C-033 | FR-051 |
+| C-034 | FR-052 |
+| C-035 | FR-058 |
+| C-036 | FR-007 |
+| C-037 | FR-043, FR-071 |
+| C-038 | FR-069 |
+| C-039 | FR-038 |
 
 ### Open Items
 
-None at this time. Future ambiguities will be appended with next available ID (C-019+).
+None at this time. Future ambiguities will be appended with next available ID (C-040+).
 
 ---
 
@@ -184,7 +226,7 @@ None at this time. Future ambiguities will be appended with next available ID (C
 - **FR-004**: System MUST implement role-based access control with policy registration API for domain modules.
 - **FR-005**: System MUST audit all security-sensitive events (tenant create, role assignment, cross-tenant access, key rotation, failed privilege escalation, policy change).
 - **FR-006**: System MUST support user invitation lifecycle: invite → accept → activate.
-- **FR-007**: System MUST allow password-based login and support pluggable SSO (OIDC google,facebook,x, etc)
+- **FR-007**: System MUST allow password-based login and provide a pluggable authentication provider architecture (only password provider shipped in Phase 2; OIDC / other SSO providers added later without core rewrite) (see C-024, C-036).
 - **FR-008**: System MUST provide token issuance, validation, refresh, and revocation endpoints.
 - **FR-009**: System MUST allow configurable password policy (length, complexity, disallowed substrings). DEFAULT: minimum length 12, at least 1 letter and 1 digit; complexity rules adjustable via configuration layer.
 - **FR-010**: System MUST expose endpoint to list tenant users with pagination, filtering, and role-based column restrictions.
@@ -193,12 +235,12 @@ None at this time. Future ambiguities will be appended with next available ID (C
 - **FR-013**: System MUST maintain idempotency for tenant creation retry (same name within retry window returns original tenant_id).
 - **FR-014**: System MUST provide API versioning through URI prefix /v1 and embed deprecation headers when needed.
 - **FR-015**: System MUST expose health/status endpoint including migration state and key rotation version.
-- **FR-016**: System MUST store and expose per-tenant metrics (active users, auth failures, policy denials) .
-- **FR-017**: System MUST implement structured error envelope for all non-2xx responses.
+- **FR-016**: System MUST store and expose per-tenant metrics (active users, auth failures, policy denials) (see C-030) .
+- **FR-017**: System MUST implement structured error envelope for all non-2xx responses (see C-031).
 - **FR-018**: System MUST support soft delete and restore for users and tenants.
 - **FR-019**: System MUST prevent assignment of undefined roles and reject ambiguous role expansion.
 - **FR-020**: System MUST support policy dry-run mode (simulate decision) for debugging.
-- **FR-021**: System MUST invalidate sessions upon role downgrade within max 60 seconds.
+- **FR-021**: System MUST invalidate sessions upon role downgrade within max 60 seconds (see C-032).
 - **FR-022**: System MUST allow rotating signing keys without downtime (grace overlap window) (DEFAULT grace 15m).
 - **FR-023**: System MUST enforce configurable rate limiting on auth endpoints. DEFAULT: 500 requests/minute per tenant + 50 requests/minute per IP (burst tokens allowed via leaky bucket); limits adjustable via configuration.
 - **FR-024**: System MUST export OpenAPI documentation with security schemes defined for all protected endpoints.
@@ -212,7 +254,7 @@ None at this time. Future ambiguities will be appended with next available ID (C
 - **FR-032**: System MUST expose audit query endpoint filtered by tenant and event type with pagination.
 - **FR-033**: System MUST detect and reject token replay attempts.
 - **FR-034**: System MUST provide instrumentation endpoints/metrics (Prometheus format) including policy evaluation latency distribution.
-- **FR-035**: System MUST allow exporting tenant configuration (roles, policies) as versioned bundle.
+- **FR-035**: System MUST allow exporting tenant configuration (roles, policies) as versioned bundle (see C-029).
 - **FR-036**: System MUST secure all admin endpoints via defense-in-depth (role + policy + explicit admin scope claim).
 - **FR-037**: System MUST provide standardized correlation_id header passthrough.
 - **FR-038**: System MUST provide domain extension registry enabling future modules to register resource types.
@@ -228,14 +270,14 @@ None at this time. Future ambiguities will be appended with next available ID (C
 - **FR-048**: System MUST prohibit direct environment access outside configuration layer (enforced via static scan/CI rule).
 - **FR-049**: System MUST hash user passwords using Argon2id with configurable memory, time, and parallelism parameters with secure defaults (upgrade path without forced reset).
 - **FR-050**: System MUST hash sensitive tokens (invitation, reset, API keys) using SHA-256 (or stronger) before storage; only the hash is persisted.
-- **FR-051**: System MUST support transparent password hash rehash on login when stored hash parameters fall below current policy.
-- **FR-052**: System MUST provide a single bootstrap command that installs dependencies, applies migrations, seeds superadmin, and starts services (with mocks for optional infrastructure) in < 2 minutes on a standard laptop.
+- **FR-051**: System MUST support transparent password hash rehash on login when stored hash parameters fall below current policy (see C-033).
+- **FR-052**: System MUST provide a single bootstrap command that installs dependencies, applies migrations, seeds superadmin, and starts services (with mocks for optional infrastructure) in < 2 minutes on a standard laptop (see C-034).
 - **FR-053**: System MUST support embed mode with origin allowlist controlling which domains may initiate embedded sessions.
 - **FR-054**: System MUST issue short-lived (configurable, default 5m) one-time embed tokens exchanged for standard session credentials; unused tokens expire automatically.
 - **FR-055**: System MUST set cookies for embedded sessions with attributes: Secure, HttpOnly, SameSite=None.
 - **FR-056**: System MUST log embed session establishment including origin, tenant_id, and correlation_id.
 - **FR-057**: System MUST deny and audit attempts from non-allowlisted origins with a distinct error code (origin_not_allowed).
-- **FR-058**: System MUST provide configuration to isolate rate limits for embedded vs primary application contexts.
+- **FR-058**: System MUST provide configuration to isolate rate limits for embedded vs primary application contexts (see C-035).
 - **FR-059**: System MUST document (generated artifact) the steps for embedding including CSP examples and required headers.
 - **FR-060**: System MUST provide password reset initiation endpoint issuing a single-use reset token (hashed at rest) with configurable expiry (default 30m).
 - **FR-061**: System MUST allow password reset completion without MFA when user has no MFA factors enrolled.
@@ -246,7 +288,7 @@ None at this time. Future ambiguities will be appended with next available ID (C
 - **FR-066**: System MUST grant tenant_admin implicit ALLOW for all non-high-risk tenant-scoped actions without needing explicit policy grants (excluding restricted actions like superadmin creation, cross-tenant operations, destructive purges requiring explicit policies).
 - **FR-067**: System MUST deny and audit any attempt by tenant_admin (or lower roles) to create, assign, or revoke superadmin roles/users.
 - **FR-068**: System MUST enforce role hierarchy: superadmin > tenant_admin > other roles; evaluation MUST reject policies that would grant cross-tenant capabilities to non-superadmin roles.
-- **FR-069**: System MUST provide an idempotent seed operation that creates TestTenant (deterministic identifier), one superadmin, one tenant_admin for TestTenant, and at least one standard user; reruns skip existing records.
+- **FR-069**: System MUST provide an idempotent seed operation that creates TestTenant (deterministic UUIDv5 from slug), one superadmin, one tenant_admin for TestTenant, and at least one standard user (deterministic UUIDv5 from normalized emails); reruns skip existing records using deterministic IDs.
 - **FR-070**: System MUST expose code quality metrics (duplication %, cyclomatic complexity hotspots) per build and fail merges if thresholds (duplication >= 8% overall OR file duplication >= 15% OR function complexity > 10) are exceeded without inline justification.
 - **FR-071**: System MUST provide centralized logging configuration controlling LOG_LEVEL, LOG_FORMAT (json|text), LOG_SINK (stdout|otlp|file), and LOG_FIELDS_EXTRA (comma-separated) exclusively via the configuration layer (no runtime code overrides).
 - **FR-072**: System MUST support filtered log export (time window ≤ 24h, tenant_id, category, correlation_id) with maximum uncompressed size 100MB; partial exports MUST indicate boundary metadata and produce an export audit event.
@@ -254,6 +296,7 @@ None at this time. Future ambiguities will be appended with next available ID (C
 - **FR-074**: System MUST emit a performance.regression event when measured p95 or p99 latency exceeds budget (CRUD p95 ≥ 200ms OR p99 ≥ 500ms; heavy ops p95 ≥ 400ms OR p99 ≥ 800ms) outside an approved maintenance window.
 - **FR-075**: System MUST run an OWASP Top 10 dynamic security test suite each release cycle and block release on unwaived high severity findings.
 - **FR-076**: System MUST fail CI if code quality thresholds (duplication %, file duplication %, function complexity) are exceeded without an inline justification marker referencing a tracking ID.
+- **FR-077**: System MUST ensure mutable domain entities (Tenant, User, Policy, FeatureFlag) include created_at, created_by, updated_at, updated_by fields; append-only entities (AuditEvent, KeyRotationRecord, PolicyEvaluationLog) MUST record created_at and actor context where applicable without update fields. Exceptions MUST be justified in data-model.md.
 
 ### Key Entities *(include if feature involves data)*
 

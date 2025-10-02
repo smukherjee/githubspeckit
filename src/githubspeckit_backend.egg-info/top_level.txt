@@ -1,0 +1,5 @@
+adapters
+auth_core
+cli
+domain
+services
