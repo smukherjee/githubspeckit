@@ -6,6 +6,7 @@ and key rotation version placeholders.
 from __future__ import annotations
 
 from fastapi import FastAPI
+from domain.config.loader import load_config
 
 
 def create_app() -> FastAPI:
@@ -19,6 +20,15 @@ def create_app() -> FastAPI:
             "migrations_applied": True,
             "key_rotation_version": 1,
         }
+
+    @app.get("/v1/config", tags=["system"])
+    async def export_config():  # pragma: no cover - simple serialization
+        cfg = load_config({
+            "APP_NAME": ("modern-backend", False),
+            "PASSWORD_MIN_LENGTH": (12, False),
+            "PASSWORD_COMPLEXITY_STRICT": (False, False),
+        })
+        return cfg.export()
 
     return app
 

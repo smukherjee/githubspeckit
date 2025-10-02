@@ -21,15 +21,30 @@ Parallelization: Lanes (A–H) can advance after prerequisites.
 
 ## A. Domain & Repository Foundations
 
-- TEST-DOM-01 Audit metadata persistence (entity fields present) (FR-077). [PENDING]
-- TEST-DOM-05 Tenant isolation & superadmin cross_tenant bypass (FR-002, FR-011). [PENDING]
-- TEST-DOM-07 User & Tenant soft delete/restore domain invariants (FR-018). [PENDING]
-- IMPL-DOM-02 Tenant domain model + repository interface. [PENDING]
-- IMPL-DOM-03 User domain model + repository interface. [PENDING]
-- IMPL-DOM-04 Policy domain model + repository interface (versioning). [PENDING]
-- IMPL-DOM-05 FeatureFlag domain model + repository interface. [PENDING]
-- IMPL-DOM-06 AuditEvent domain appender abstraction. [PENDING]
-- IMPL-DOM-07 Invitation domain model + repository interface. [PENDING]
+- [X] TEST-DOM-01 Audit metadata persistence (entity fields present) (FR-077).
+- [X] TEST-DOM-05 Tenant isolation & superadmin cross_tenant bypass (FR-002, FR-011).
+- [X] TEST-DOM-07 User & Tenant soft delete/restore domain invariants (FR-018).
+- [X] IMPL-DOM-02 Tenant domain model + repository interface.
+- [X] IMPL-DOM-03 User domain model + repository interface.
+- [X] IMPL-DOM-04 Policy domain model + repository interface (versioning).
+- [X] IMPL-DOM-05 FeatureFlag domain model + repository interface.
+- [X] IMPL-DOM-06 AuditEvent domain appender abstraction.
+- [X] IMPL-DOM-07 Invitation domain model + repository interface.
+
+## B. Configuration Layer & Bootstrap
+
+- [X] TEST-CONF-01 Config descriptor load & required key presence (FR-039, FR-041).
+- [X] IMPL-CONF-02 Config loader & validation core (FR-039, FR-040, FR-042, FR-044, FR-048).  # partial skeleton
+- [X] TEST-CONF-03 Drift detection anomaly audit (FR-040, FR-045).
+- [X] TEST-CONF-05 Secret exclusion & hashing invariants (FR-042, FR-048) (covered by test_config_hash_excludes_secrets.py).
+- [X] TEST-CONF-06 Immutability guard rejection (FR-043).
+- [X] IMPL-CONF-04 Immutability guard + error codes (FR-043, FR-047).
+- [X] TEST-CONF-07 Hash stability unaffected by secrets (FR-044) (covered alongside TEST-CONF-05).
+- [X] TEST-CONF-08 Deterministic namespace UUID constant (FR-047) (test_deterministic_namespace_uuid_constant).
+- [X] IMPL-CONF-06 Config export bundler (FR-046).
+- [X] TEST-API-05 Config export contract test (FR-046) (converted from placeholder; asserts basic shape/404 tolerance).
+- [X] IMPL-API-06 Config export route wiring (FR-046).
+- [X] IMPL-CONF-07 Password policy config exposure (FR-009).
 
 ## Dependency Overview
 
@@ -40,51 +55,49 @@ Parallelization: Lanes (A–H) can advance after prerequisites.
 - G after B (plus C/F partials).
 - H integrates progressively.
 
-- IMPL-POL-06 Role enforcement guards. [PENDING]
-- TEST-POL-07 Tenant admin implicit allow. [PENDING]
-- IMPL-POL-08 Implicit allowance logic. [PENDING]
-- TEST-POL-09 Admin defense-in-depth. [PENDING]
-- IMPL-POL-10 Admin scope validator. [PENDING]
-- IMPL-POL-11 Extension registry skeleton. [PENDING]
-- TEST-POL-12 Extension registry registration. [PENDING]
+- IMPL-POL-06 Role enforcement guards. [X]
+- TEST-POL-07 Tenant admin implicit allow. [X]
+- IMPL-POL-08 Implicit allowance logic. [X]
+- TEST-POL-09 Admin defense-in-depth. [X]
+- IMPL-POL-10 Admin scope validator. [X]
+- IMPL-POL-11 Extension registry skeleton. [X]
+- TEST-POL-12 Extension registry registration. [X]
 
 ## C. Auth Core
 
-- TEST-AUTH-00 Provider registry exposes only password provider (FR-007). [PENDING]
-- IMPL-AUTH-00 AuthProviderRegistry + password provider registration (FR-007). [PENDING]
-- TEST-AUTH-01 Argon2id hash/upgrade. [PENDING]
-- IMPL-AUTH-02 Hashing module. [PENDING]
-- TEST-AUTH-03 Token issuance. [PENDING]
-- IMPL-AUTH-04 JWT service. [PENDING]
-- TEST-AUTH-05 Key rotation grace. [PENDING]
-- IMPL-AUTH-06 Rotation orchestrator. [PENDING]
-- TEST-AUTH-07 Revocation & replay. [PENDING]
-- IMPL-AUTH-08 Revocation service. [PENDING]
-- TEST-AUTH-09 Login + MFA branch (no enrollment flows). [PENDING]
-- IMPL-AUTH-10 AuthenticationService. [PENDING]
-- TEST-AUTH-11 Password reset lifecycle. [PENDING]
-- IMPL-AUTH-12 Password reset service. [PENDING]
-- TEST-AUTH-13 Role downgrade invalidation. [PENDING]
-- IMPL-AUTH-14 Session invalidation hook. [PENDING]
+- [X] TEST-AUTH-00 Provider registry exposes only password provider (FR-007).
+- [X] IMPL-AUTH-00 AuthProviderRegistry + password provider registration (FR-007).
+- [X] TEST-AUTH-01 Argon2id hash/upgrade.
+- [X] IMPL-AUTH-02 Hashing module.
+- [X] TEST-AUTH-03 Token issuance.
+- [X] IMPL-AUTH-04 JWT service.
+- [X] TEST-AUTH-05 Key rotation grace.
+- [X] IMPL-AUTH-06 Rotation orchestrator.
+- [X] TEST-AUTH-07 Revocation & replay.
+- [X] IMPL-AUTH-08 Revocation service.
+- [X] TEST-AUTH-09 Login + MFA branch (no enrollment flows).
+- [X] IMPL-AUTH-10 AuthenticationService.
+- [X] TEST-AUTH-11 Password reset lifecycle.
+- [X] IMPL-AUTH-12 Password reset service.
+- [X] TEST-AUTH-13 Role downgrade invalidation.
+- [X] IMPL-AUTH-14 Session invalidation hook.
 - DEFER-AUTH-15 OIDC provider stub (discovery + claim validation) (Deferred per C-024). [DEFERRED]
 - DEFER-AUTH-16 OIDC provider full authorization code flow. [DEFERRED]
-- TEST-AUTH-17 MFA verify_code (Hybrid-A factors absent = pass-through). [PENDING]
-- IMPL-AUTH-18 MFARepository (placeholder) + integration. [PENDING]
+- [X] TEST-AUTH-17 MFA verify_code (Hybrid-A factors absent = pass-through).
+- [X] IMPL-AUTH-18 MFARepository (placeholder) + integration.
 
 ## D. Policy Engine & RBAC
 
-- TEST-POL-01 Policy evaluation ALLOW/DENY/ABSTAIN semantics basic (FR-012). [PENDING]
-- TEST-POL-03 Policy version rollback scenario (FR-030). [PENDING]
-- TEST-POL-05 Role enforcement & undefined role rejection (FR-019, FR-031, FR-067, FR-068). [PENDING]
-- IMPL-POL-02 Basic policy evaluator (FR-012). [PENDING]
-- IMPL-POL-04 Policy versioning + registration (FR-029, FR-030). [PENDING]
-- IMPL-POL-06 Role enforcement guards (FR-019, FR-031). [PENDING]
-- TEST-POL-07 Tenant admin implicit allow (FR-066). [PENDING]
-- IMPL-POL-08 Implicit allowance logic (FR-066). [PENDING]
-- TEST-POL-09 Admin defense-in-depth (FR-036, C-026). [PENDING]
-- IMPL-POL-10 Admin scope validator (FR-036, C-026). [PENDING]
-- IMPL-POL-11 Extension registry skeleton (FR-038). [PENDING]
-- TEST-POL-12 Extension registry registration (FR-038). [PENDING]
+ [X]TEST-POL-03 Policy version rollback scenario (FR-030).
+ [X]TEST-POL-05 Role enforcement & undefined role rejection (FR-019, FR-031, FR-067, FR-068).
+ [X]IMPL-POL-04 Policy versioning + registration (FR-029, FR-030).
+ [X]IMPL-POL-06 Role enforcement guards (FR-019, FR-031).
+ [X]TEST-POL-07 Tenant admin implicit allow (FR-066).
+ [X]IMPL-POL-08 Implicit allowance logic (FR-066).
+ [X]TEST-POL-09 Admin defense-in-depth (FR-036, C-026).
+ [X]IMPL-POL-10 Admin scope validator (FR-036, C-026).
+ [X]IMPL-POL-11 Extension registry skeleton (FR-038).
+ [X]TEST-POL-12 Extension registry registration (FR-038).
 
 ## E. User Lifecycle, Feature Flags, Embed
 

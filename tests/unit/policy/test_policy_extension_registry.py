@@ -1,5 +1,5 @@
 import pytest
-from src.domain.policy.extension_registry import (
+from domain.policy.extension_registry import (
     PolicyExtensionRegistry,
     ExtensionConflictError,
     default_policy_extension_registry,

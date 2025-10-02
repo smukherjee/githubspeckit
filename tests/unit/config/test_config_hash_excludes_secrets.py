@@ -1,9 +1,14 @@
 import re
-from src.domain.config.loader import load_config, DETERMINISTIC_NAMESPACE_UUID
+from domain.config.loader import load_config, DETERMINISTIC_NAMESPACE_UUID
 
 
 def test_config_hash_excludes_secret_entries():
     cfg = load_config({
+        # Required baseline keys
+        "APP_NAME": ("svc", False),
+        "PASSWORD_MIN_LENGTH": (12, False),
+        "PASSWORD_COMPLEXITY_STRICT": (False, False),
+        # Test-specific keys
         "PUBLIC_VALUE": ("abc", False),
         "SECRET_DB_PASSWORD": ("supersecret", False),  # forced exclude due to SECRET_ prefix
         "API_KEY": ("should_hide", True),  # secret=True flag
