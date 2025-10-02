@@ -93,6 +93,7 @@ As a platform superadmin, I can provision a new tenant, configure its base roles
 23. **Given** an audit user requests a log export for tenant A between two timestamps with category=security, **When** export executes, **Then** only matching events are returned, sensitive fields are redacted, and an export audit event is recorded.
 24. **Given** performance test results show p95 latency exceeding 200ms threshold for a CRUD endpoint, **When** results are ingested, **Then** a performance.regression event is emitted and visible in metrics/logs.
 25. **Given** a release cycle boundary, **When** the OWASP dynamic security test suite runs, **Then** results (pass/fail counts and high severity findings) are recorded and failing high severity findings block release until remediated or explicitly waived.
+26. **Given** a merge attempt into main, **When** code quality metrics show duplication >= 8% overall or any file duplication >= 15% or any function complexity > 10 without a justification marker, **Then** the merge is blocked and a metrics_violation report is generated.
 
 ### Edge Cases
 
@@ -131,7 +132,7 @@ As a platform superadmin, I can provision a new tenant, configure its base roles
 - **FR-006**: System MUST support user invitation lifecycle: invite → accept → activate.
 - **FR-007**: System MUST allow password-based login and support pluggable SSO (OIDC google,facebook,x, etc)
 - **FR-008**: System MUST provide token issuance, validation, refresh, and revocation endpoints.
-- **FR-009**: System MUST allow configurable password policy (length, complexity) (DEFAULT - 6 characters, mix word and numbers)
+- **FR-009**: System MUST allow configurable password policy (length, complexity, disallowed substrings). DEFAULT: minimum length 12, at least 1 letter and 1 digit; complexity rules adjustable via configuration layer.
 - **FR-010**: System MUST expose endpoint to list tenant users with pagination, filtering, and role-based column restrictions.
 - **FR-011**: System MUST implement superadmin cross_tenant access gating with explicit query parameter and audit reason.
 - **FR-012**: System MUST enforce policy evaluation returning ALLOW/DENY with rationale code for denial responses.
@@ -145,11 +146,11 @@ As a platform superadmin, I can provision a new tenant, configure its base roles
 - **FR-020**: System MUST support policy dry-run mode (simulate decision) for debugging.
 - **FR-021**: System MUST invalidate sessions upon role downgrade within max 60 seconds.
 - **FR-022**: System MUST allow rotating signing keys without downtime (grace overlap window) (DEFAULT grace 15m).
-- **FR-023**: System MUST enforce configurable rate limiting on auth endpoints (DEFAULT 500 concurrent connections).
+- **FR-023**: System MUST enforce configurable rate limiting on auth endpoints. DEFAULT: 500 requests/minute per tenant + 50 requests/minute per IP (burst tokens allowed via leaky bucket); limits adjustable via configuration.
 - **FR-024**: System MUST export OpenAPI documentation with security schemes defined for all protected endpoints.
 - **FR-025**: System MUST provide seed script / initialization pathway for first superadmin creation.
 - **FR-026**: System MUST support feature flag evaluation per tenant for future domain modules.
-- **FR-027**: System MUST ensure p95 latency < 200ms for standard CRUD endpoints at reference load (TBD) 10 simultaneous users.
+- **FR-027**: System MUST ensure p95 latency < 200ms and p99 < 400ms for standard CRUD endpoints under reference load: 100 concurrent users, representative dataset (≥10k users, ≥50k audit events) on production-like hardware.
 - **FR-028**: System MUST log all token revocations and failed token validations.
 - **FR-029**: System MUST provide a policy registration endpoint (admin-only) for dynamic policy deployment.
 - **FR-030**: System MUST ensure policy changes are versioned and can be rolled back.
@@ -192,11 +193,11 @@ As a platform superadmin, I can provision a new tenant, configure its base roles
 - **FR-067**: System MUST deny and audit any attempt by tenant_admin (or lower roles) to create, assign, or revoke superadmin roles/users.
 - **FR-068**: System MUST enforce role hierarchy: superadmin > tenant_admin > other roles; evaluation MUST reject policies that would grant cross-tenant capabilities to non-superadmin roles.
 - **FR-069**: System MUST provide an idempotent seed operation that creates TestTenant (deterministic identifier), one superadmin, one tenant_admin for TestTenant, and at least one standard user; reruns skip existing records.
-- **FR-070**: System MUST expose code quality metrics (duplication %, cyclomatic complexity hotspots) per build and fail merges if thresholds (duplication <8%, file duplication <15%, function complexity <=10 or justified) are exceeded without justification.
-- **FR-071**: System MUST provide centralized logging configuration controlling level, format (json|text), sink, and extra structured fields exclusively via the configuration layer (no runtime code overrides).
-- **FR-072**: System MUST support filtered log export (time window, tenant_id, category, correlation_id) with enforced size/time bounds and produce an audit event for each export.
-- **FR-073**: System MUST redact configured sensitive keys (password, token, secret, api_key) from all logs; any detection of unredacted sensitive data MUST emit a redaction_violation audit event and metric.
-- **FR-074**: System MUST emit a performance.regression event when measured p95 or p99 latency exceeds defined budgets outside an approved maintenance window.
+- **FR-070**: System MUST expose code quality metrics (duplication %, cyclomatic complexity hotspots) per build and fail merges if thresholds (duplication >= 8% overall OR file duplication >= 15% OR function complexity > 10) are exceeded without inline justification.
+- **FR-071**: System MUST provide centralized logging configuration controlling LOG_LEVEL, LOG_FORMAT (json|text), LOG_SINK (stdout|otlp|file), and LOG_FIELDS_EXTRA (comma-separated) exclusively via the configuration layer (no runtime code overrides).
+- **FR-072**: System MUST support filtered log export (time window ≤ 24h, tenant_id, category, correlation_id) with maximum uncompressed size 100MB; partial exports MUST indicate boundary metadata and produce an export audit event.
+- **FR-073**: System MUST redact configured sensitive keys (password, passwd, token, access_token, refresh_token, secret, api_key, authorization, set-cookie) from all logs; any detection of unredacted sensitive data MUST emit a redaction_violation audit event and metric.
+- **FR-074**: System MUST emit a performance.regression event when measured p95 or p99 latency exceeds budget (CRUD p95 ≥ 200ms OR p99 ≥ 500ms; heavy ops p95 ≥ 400ms OR p99 ≥ 800ms) outside an approved maintenance window.
 - **FR-075**: System MUST run an OWASP Top 10 dynamic security test suite each release cycle and block release on unwaived high severity findings.
 - **FR-076**: System MUST fail CI if code quality thresholds (duplication %, file duplication %, function complexity) are exceeded without an inline justification marker referencing a tracking ID.
 
