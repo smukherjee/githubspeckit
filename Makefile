@@ -25,7 +25,7 @@ install: compile-requirements sync
 
 # Add dev/test tooling (keep runtime lock clean)
 dev: install
-	$(PIP) install pytest pytest-asyncio
+	$(PIP) install --editable . --group dev
 
 test: dev
 	$(PYTHON) -m pytest -q
@@ -74,6 +74,9 @@ openapi-html: openapi-bundle
 # Serve the generated HTML locally (requires Python http.server)
 openapi-serve: openapi-html
 	python3 -m http.server 9001 --directory docs/api
+
+# New target: Reset env, install dev, and run tests together without errors
+full-setup: reset dev test
 
 reset: clean venv install
 

@@ -29,8 +29,10 @@ dependencies = [
   "opentelemetry-instrumentation-sqlalchemy>=0.58b0,<0.59",
   "opentelemetry-exporter-otlp>=1.25,<2",
   "httpx>=0.28.1,<0.29",
-  "prometheus-client>=0.16,<0.19",
-]
+  "prometheus-client>=0.23.1",
+  "email-validator>=2.0,<3",
+  "pytest>=8.2,<9",
+  ]
 
 [project.optional-dependencies]
 redis = ["redis>=5.0,<6"]
@@ -38,20 +40,19 @@ email = ["aiosmtplib>=2.0,<3"]
 # Future extras (e.g., search, messaging) can be appended here.
 
 # Development & quality tooling
-[tool.uv]
-# uv reads dependencies from [project] & dev-dependencies below; run: `uv lock` then export
-dev-dependencies = [
+[dependency-groups]
+dev = [
   "pytest>=8.2,<9",
   "pytest-asyncio>=1.2.0",
   "hypothesis>=6.100,<7",
   "coverage>=7.5,<8",
-  "ruff>=0.5,<0.6",
+  "ruff>=0.13.2",
   "mypy>=1.10,<2",
   "types-redis>=4.6,<5",
   "safety>=3.1,<4",
   "radon>=6.0,<7",
   "xenon>=0.9,<1",  # complexity enforcement wrapper for radon
-  "pyyaml>=6.0,<7",
+  "pyyaml>=6.0.3,<7",
   # jscpd duplication tool typically via node; consider container stage if needed
 ]
 
