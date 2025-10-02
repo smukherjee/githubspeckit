@@ -4,7 +4,7 @@ UV := uv
 APP_MODULE := adapters.api.app:create_app
 DEFAULT_PORT ?= 8000
 ENV_FILE ?= .env
-EXTRA_ENV ?=
+EXTRA_ENV ?= .env.dev
 
 .PHONY: venv compile-requirements sync install dev test run api up migrate health env-show clean reset deps-check openapi-bundle openapi-validate openapi-html openapi-serve
 
@@ -76,7 +76,7 @@ openapi-serve: openapi-html
 	python3 -m http.server 9001 --directory docs/api
 
 # New target: Reset env, install dev, and run tests together without errors
-full-setup: reset dev test
+full-dev-setup: reset dev test
 
 reset: clean venv install
 
