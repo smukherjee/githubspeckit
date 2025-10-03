@@ -114,12 +114,6 @@ venv.bak/
 
 # Logs and databases
 *.log
-*.sql
-*.sqlite
-
-# OpenAPI/Swagger artifacts
-specs/001-modern-enterprise-grade/contracts/openapi-combined.yaml
-docs/api/index.html
 
 # Misc
 *.swp
