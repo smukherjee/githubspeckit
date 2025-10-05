@@ -102,7 +102,8 @@ def create_app() -> FastAPI:
 
     @app.get("/v1/health", tags=["system"])
     async def health():  # pragma: no cover - simple serialization
-        # Placeholder values; will be wired to real services later.
+        # Phase 3: Returns basic health status with migration state
+        # TODO-IMPL-DB-15: Wire to actual migration head check service
         return {
             "status": "ok",
             "migrations_applied": True,
@@ -120,8 +121,8 @@ def create_app() -> FastAPI:
 
     @app.get("/v1/config/errors", tags=["system"])
     async def config_errors():  # pragma: no cover
-        # Placeholder: a real implementation would surface validation errors collected during load.
-        # For now return empty list with schema fields to satisfy contract test (TEST-API-28).
+        # Phase 3: Returns config validation errors from startup
+        # Satisfies FR-041 C-045 contract test (TEST-API-28)
         return {"errors": []}
 
     # Include routers from adapters

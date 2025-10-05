@@ -19,6 +19,8 @@ dependencies = [
   "uvicorn[standard]>=0.30,<0.40",
   "pydantic>=2.6,<3",
   "sqlalchemy>=2.0,<3",
+  "asyncpg>=0.30,<1",  # PostgreSQL async driver for SQLAlchemy
+  "aiosqlite>=0.20.0,<1",  # SQLite async driver for SQLAlchemy (constitution: local dev/tests)
   "alembic>=1.13,<2",
   "argon2-cffi>=25.1,<26",
   "python-jose[cryptography]>=3.3.0,<4",
@@ -32,6 +34,7 @@ dependencies = [
   "prometheus-client>=0.23.1",
   "email-validator>=2.0,<3",
   "pytest>=8.2,<9",
+  "tomli>=2.2,<3",  # TOML parsing for config descriptor
   ]
 
 [project.optional-dependencies]

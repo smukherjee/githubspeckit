@@ -49,8 +49,8 @@
 #   * coverage-gate script loads this YAML, expands patterns, computes file
 #     coverage, and emits blocking failures for any <100% file.
 #
-version: 1
-last_updated: 2025-10-02
+version: 2
+last_updated: 2025-10-05
 owner: platform-security-and-architecture
 
 categories:
@@ -89,7 +89,9 @@ categories:
     patterns:
       - cli/commands/seed*.py
       - cli/commands/bootstrap*.py
-    notes: "Durable DB seed will extend patterns once persistence added (Phase 3)."
+      - cli/bootstrap.py
+      - cli/db_bootstrap.py
+    notes: "Both in-memory and durable DB seed must maintain 100% coverage for deterministic seeding guarantees (FR-025, FR-069)."
 
   - name: logging-redaction
     rationale: "PII / secret redaction & structured logging integrity must not regress; omissions risk data exfiltration."
@@ -142,5 +144,18 @@ categories:
       - domain/policies/**
       - domain/audit/**
     notes: "Exclude purely declarative __init__.py files automatically."
+
+  - name: persistence-adapters
+    rationale: "Repository implementations enforce tenant isolation, soft delete, and data integrity; bugs here compromise multi-tenancy guarantees (FR-002, FR-018)."
+    patterns:
+      - adapters/persistence/repositories.py
+      - adapters/persistence/models.py
+    notes: "ORM model-to-domain converters and query filters are security boundaries requiring full coverage. Alembic migrations excluded (tested via smoke tests)."
+
+  - name: database-migrations
+    rationale: "Migration environment orchestrates schema changes; correctness ensures zero-downtime deployments and data integrity (FR-015, FR-052)."
+    patterns:
+      - alembic/env.py
+    notes: "Individual migration files tested via smoke tests (test_migration_smoke.py). Alembic env.py requires coverage for async engine setup and connection handling."
 
 # End of file

@@ -25,14 +25,14 @@ The system uses a ports & adapters (hexagonal) architecture: domain layer (pure 
 Every change starts with: (1) contract (OpenAPI fragment / Pydantic model / domain interface) (2) failing tests (unit + contract + RBAC + negative). Red‑Green‑Refactor strictly enforced. No implementation without an asserting test. Mutation of public contracts requires version impact analysis + backward compatibility plan.
 
 Required Coverage Matrix (enforced in CI):
- 
+
 * Domain layer: >= 90% line coverage (hard fail below).
 * Overall repository: >= 85% line coverage (hard fail below).
 * Critical auth & multi‑tenancy enforcement paths: 100% statement coverage (no unexecuted branches) — failing lines block merge.
 * New/changed files: MUST NOT reduce aggregate coverage; any overall drop >0.5% requires justification (JUSTIFY ID) and >1.0% blocks until addressed.
 
 Enforcement Mechanics:
- 
+
 1. CI `coverage-gate` parses coverage XML → structured JSON summary consumed by quality gate.
 2. If any threshold violated: pipeline fails; merge blocked.
 3. Coverage decreases within thresholds but >0.5% overall produce a non-blocking warning requiring reviewer acknowledgment; >1.0% becomes blocking.

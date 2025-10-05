@@ -66,7 +66,7 @@ class AuthenticationService:
             except Exception:
                 pass
             raise MFACodeRequiredError("mfa_required")
-        # TODO: verify mfa_code when implemented
+        # TODO-DEFER-MFA-ENROLL: verify mfa_code when MFA enrollment implemented (deferred task)
 
         upgrade = False
         if self.hasher.needs_rehash(stored_hash):

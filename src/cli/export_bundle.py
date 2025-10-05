@@ -1,7 +1,8 @@
-"""Tenant configuration export bundle generator (FR-035 C-029 placeholder).
+"""Tenant configuration export bundle generator (FR-035 C-029).
 
-Generates a deterministic structure with metadata.json including sha256 hash
-computed over sorted file contents (roles.json, policies.json, feature_flags.json, metadata.json excluded from its own hash contribution).
+Implements deterministic bundle generation with metadata.json including sha256 hash
+computed over sorted file contents (roles.json, policies.json, feature_flags.json).
+Completed in IMPL-CONF-06 and validated by TEST-CONF-EXPORT-BUNDLE.
 """
 from __future__ import annotations
 import json, hashlib, tarfile, io, time

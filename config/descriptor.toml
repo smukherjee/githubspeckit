@@ -1,0 +1,257 @@
+# Configuration Descriptor (FR-039, FR-041, FR-043)
+#
+# Purpose: Single source of truth for all environment variables.
+# Generates: .env.example file for documentation
+# Validation: Enforced at startup (fail-fast on missing required keys)
+# Hash: Computed excluding secrets (C-037, FR-043)
+#
+# Schema:
+#   [section.VARIABLE_NAME]
+#   type = "string" | "int" | "bool" | "float"
+#   required = true | false
+#   secret = true | false
+#   default = <value> (optional)
+#   description = "Human-readable description"
+#   scope = "backend" | "frontend" | "shared" | "infra"
+
+# ============================================================================
+# Application Core
+# ============================================================================
+
+[app.APP_NAME]
+type = "string"
+required = true
+secret = false
+default = "githubspeckit-backend"
+description = "Application name for logging and observability"
+scope = "backend"
+
+[app.ENVIRONMENT]
+type = "string"
+required = true
+secret = false
+default = "development"
+description = "Environment name (development, staging, production)"
+scope = "backend"
+
+[app.DEBUG]
+type = "bool"
+required = false
+secret = false
+default = false
+description = "Enable debug mode (verbose logging, error details in responses)"
+scope = "backend"
+
+[app.LOG_LEVEL]
+type = "string"
+required = false
+secret = false
+default = "INFO"
+description = "Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL)"
+scope = "backend"
+
+# ============================================================================
+# Database Configuration (Phase 3)
+# ============================================================================
+
+[database.DATABASE_URL]
+type = "string"
+required = true
+secret = true
+default = "postgresql+asyncpg://postgres:postgres@localhost:5432/githubspeckit_dev"
+description = "PostgreSQL connection URL (async driver)"
+scope = "backend"
+
+[database.DB_POOL_SIZE]
+type = "int"
+required = false
+secret = false
+default = 10
+description = "Database connection pool size"
+scope = "backend"
+
+[database.DB_MAX_OVERFLOW]
+type = "int"
+required = false
+secret = false
+default = 20
+description = "Maximum overflow connections beyond pool size"
+scope = "backend"
+
+[database.DB_POOL_TIMEOUT]
+type = "int"
+required = false
+secret = false
+default = 30
+description = "Connection pool timeout in seconds"
+scope = "backend"
+
+[database.DB_SLOW_QUERY_THRESHOLD_MS]
+type = "int"
+required = false
+secret = false
+default = 100
+description = "Threshold in milliseconds for slow query logging (FR-034, FR-074, IMPL-DB-09)"
+scope = "backend"
+
+[database.DB_ECHO_SQL]
+type = "bool"
+required = false
+secret = false
+default = false
+description = "Echo SQL queries to stdout (development only)"
+scope = "backend"
+
+# ============================================================================
+# Authentication & Security
+# ============================================================================
+
+[auth.SECRET_KEY]
+type = "string"
+required = true
+secret = true
+description = "Secret key for JWT signing and session management"
+scope = "backend"
+
+[auth.PASSWORD_MIN_LENGTH]
+type = "int"
+required = true
+secret = false
+default = 12
+description = "Minimum password length (C-001, FR-009)"
+scope = "backend"
+
+[auth.PASSWORD_COMPLEXITY_STRICT]
+type = "bool"
+required = true
+secret = false
+default = false
+description = "Enforce strict password complexity rules (uppercase, lowercase, digit, special)"
+scope = "backend"
+
+[auth.JWT_ALGORITHM]
+type = "string"
+required = false
+secret = false
+default = "HS256"
+description = "JWT signing algorithm"
+scope = "backend"
+
+[auth.JWT_ACCESS_TOKEN_EXPIRE_MINUTES]
+type = "int"
+required = false
+secret = false
+default = 60
+description = "Access token expiration in minutes"
+scope = "backend"
+
+[auth.JWT_REFRESH_TOKEN_EXPIRE_DAYS]
+type = "int"
+required = false
+secret = false
+default = 30
+description = "Refresh token expiration in days"
+scope = "backend"
+
+# ============================================================================
+# Rate Limiting
+# ============================================================================
+
+[rate_limiting.RATE_LIMIT_ENABLED]
+type = "bool"
+required = false
+secret = false
+default = true
+description = "Enable rate limiting"
+scope = "backend"
+
+[rate_limiting.RATE_LIMIT_PER_MINUTE]
+type = "int"
+required = false
+secret = false
+default = 60
+description = "Default rate limit (requests per minute per user)"
+scope = "backend"
+
+[rate_limiting.REDIS_URL]
+type = "string"
+required = false
+secret = true
+description = "Redis URL for distributed rate limiting (optional, fallback to in-memory)"
+scope = "backend"
+
+# ============================================================================
+# Observability
+# ============================================================================
+
+[observability.OTEL_ENABLED]
+type = "bool"
+required = false
+secret = false
+default = false
+description = "Enable OpenTelemetry tracing and metrics"
+scope = "backend"
+
+[observability.OTEL_ENDPOINT]
+type = "string"
+required = false
+secret = false
+description = "OpenTelemetry collector endpoint (e.g., http://localhost:4318)"
+scope = "backend"
+
+[observability.METRICS_ENABLED]
+type = "bool"
+required = false
+secret = false
+default = true
+description = "Enable Prometheus metrics endpoint"
+scope = "backend"
+
+[observability.METRICS_PORT]
+type = "int"
+required = false
+secret = false
+default = 9090
+description = "Prometheus metrics endpoint port"
+scope = "backend"
+
+# ============================================================================
+# CORS & Security Headers
+# ============================================================================
+
+[security.CORS_ORIGINS]
+type = "string"
+required = false
+secret = false
+default = "*"
+description = "Comma-separated list of allowed CORS origins"
+scope = "backend"
+
+[security.ALLOWED_HOSTS]
+type = "string"
+required = false
+secret = false
+default = "*"
+description = "Comma-separated list of allowed host headers"
+scope = "backend"
+
+# ============================================================================
+# Testing (Phase 3)
+# ============================================================================
+
+[testing.TEST_DATABASE_URL]
+type = "string"
+required = false
+secret = true
+default = "postgresql+asyncpg://postgres:postgres@localhost:5432/githubspeckit_test"
+description = "Test database connection URL"
+scope = "backend"
+
+# ============================================================================
+# Future Phases (Planned)
+# ============================================================================
+
+# [email.SMTP_HOST]
+# [email.SMTP_PORT]
+# [embed.ALLOWED_ORIGINS]
+# [feature_flags.DEFAULT_STATE]
