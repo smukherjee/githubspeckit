@@ -69,6 +69,8 @@ async def seeded_database(db_engine):
     Creates:
     - Tenant: infysight
     - Superadmin: infysightsa@infysight.com / infysightsa123
+    - Tenant Admin: infysightadmin@infysight.com / infysightadmin123
+    - Standard User: infysightuser@infysight.com / infysightuser123
     """
     from datetime import datetime, timezone
     import uuid
@@ -94,8 +96,9 @@ async def seeded_database(db_engine):
     )
     
     tenant_id = deterministic_uuid("tenant:infysight")
-    user_id = deterministic_uuid("user:infysightsa@infysight.com")
-    password_hash = default_hasher.hash("infysightsa123")
+    superadmin_id = deterministic_uuid("user:infysightsa@infysight.com")
+    tenant_admin_id = deterministic_uuid("user:infysightadmin@infysight.com")
+    standard_user_id = deterministic_uuid("user:infysightuser@infysight.com")
     
     async with async_session_maker() as session:
         async with session.begin():
@@ -116,22 +119,59 @@ async def seeded_database(db_engine):
             await tenant_repo.upsert(tenant)
             
             # Create superadmin user
-            user = User(
-                user_id=user_id,
+            superadmin = User(
+                user_id=superadmin_id,
                 tenant_id=tenant_id,
                 email="infysightsa@infysight.com",
                 status=UserStatus.active,
                 roles=["superadmin"],
-                password_hash=password_hash,
+                password_hash=default_hasher.hash("infysightsa123"),
                 last_login_at=None,
                 created_at=datetime.now(timezone.utc),
                 updated_at=datetime.now(timezone.utc),
                 created_by=None,
                 updated_by=None,
             )
-            await user_repo.upsert(user)
+            await user_repo.upsert(superadmin)
+            
+            # Create tenant_admin user
+            tenant_admin = User(
+                user_id=tenant_admin_id,
+                tenant_id=tenant_id,
+                email="infysightadmin@infysight.com",
+                status=UserStatus.active,
+                roles=["tenant_admin"],
+                password_hash=default_hasher.hash("infysightadmin123"),
+                last_login_at=None,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+                created_by=None,
+                updated_by=None,
+            )
+            await user_repo.upsert(tenant_admin)
+            
+            # Create standard user
+            standard_user = User(
+                user_id=standard_user_id,
+                tenant_id=tenant_id,
+                email="infysightuser@infysight.com",
+                status=UserStatus.active,
+                roles=["standard"],
+                password_hash=default_hasher.hash("infysightuser123"),
+                last_login_at=None,
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+                created_by=None,
+                updated_by=None,
+            )
+            await user_repo.upsert(standard_user)
     
-    return {"tenant_id": tenant_id, "user_id": user_id}
+    return {
+        "tenant_id": tenant_id,
+        "user_id": superadmin_id,
+        "tenant_admin_id": tenant_admin_id,
+        "standard_user_id": standard_user_id,
+    }
 
 
 @pytest_asyncio.fixture

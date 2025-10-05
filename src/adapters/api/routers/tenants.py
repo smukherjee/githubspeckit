@@ -65,7 +65,17 @@ async def create_tenant(
     session: AsyncSession = Depends(get_db_session),
     x_actor_id: str | None = Header(default=None, alias="X-Actor-ID")
 ) -> TenantResponse:
-    """Create tenant with duplicate detection (Phase 3 database-backed)."""
+    """Create tenant with duplicate detection (Phase 3 database-backed).
+    
+    Only superadmins can create tenants (FR-019 RBAC enforcement).
+    """
+    # RBAC: Only superadmins can create tenants
+    if not current_user.is_superadmin():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only superadmins can create tenants"
+        )
+    
     tenant_repo = SQLAlchemyTenantRepository(session)
     
     # Check if tenant with this name already exists - return 409 Conflict

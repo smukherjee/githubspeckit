@@ -25,8 +25,8 @@ Analysis of 40 skipped tests reveals **4 critical endpoint gaps** and **3 infras
 | **E3** | Coverage Gap | **HIGH** | FR-016: Log Export | Log export endpoint exists but needs bounds/truncation | ✅ **DONE** (2025-10-05) |
 | **E4** | Coverage Gap | **MEDIUM** | FR-032: Metrics Snapshot | Metrics snapshot needs policy histogram | ✅ **DONE** (2025-10-05) |
 | **I1** | Infrastructure | **MEDIUM** | FR-077: Audit Metadata | created_by/updated_by fields defined but not populated | Add middleware/service hooks for metadata |
-| **I2** | Infrastructure | **LOW** | Invitation Accept | Invitation acceptance needs async refactoring | Update test to use async/await properly |
-| **I3** | Infrastructure | **LOW** | RBAC Fixtures | Tenant admin and standard user fixtures missing | Create test fixtures for RBAC scenarios |
+| **I2** | Infrastructure | **LOW** | Invitation Accept | Invitation acceptance needs async refactoring | ✅ **DONE** (2025-10-05) |
+| **I3** | Infrastructure | **LOW** | RBAC Fixtures | Tenant admin and standard user fixtures missing | ✅ **DONE** (2025-10-05) |
 
 ---
 

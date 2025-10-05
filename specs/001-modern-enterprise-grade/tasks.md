@@ -190,7 +190,7 @@ IMPL-API-29 Config error report formatter (FR-041 C-045) [DONE]
 - DEFER-EMBED-WS Embed real-time channel. [DEFERRED]
 
 - TEST-AUTH-07B Replay detection near expiry boundary (FR-028, C-020) [PENDING]
-- TEST-OBS-01A Metrics key set compliance (FR-016, C-030) [PENDING]
+- TEST-OBS-01A Metrics key set compliance (FR-016, C-030) [CONSOLIDATED - See TEST-MET-KEYS-01]
 - TEST-AUTH-00A OIDC absence assertion (FR-007, C-036) [PENDING]
 - TEST-SEC-XX Justification registry cross-ref lint (FR-070, C-018) [PENDING]
 - TEST-API-XX Deprecation header emission contract (FR-014) [PENDING]
@@ -318,7 +318,7 @@ Addressed analysis findings:
 - C1: FR-003 now explicitly lists a test task (TEST-AUTH-03) in mapping.
 - C2/G1: IMPL-DB-13 & TEST-DB-13A annotated with Principle II (coverage gate governance).
 - A1: Slow query threshold (100ms default; configurable) captured; TEST-DB-09A added.
-- I3: FR-052 mapping comment clarifies Phase 2 in-memory bootstrap per C-050.
+- I3: ✅ RBAC Fixtures complete (2025-10-05) - tenant_admin and standard user fixtures implemented in tests/api/integration/conftest.py.
 
 ### Phase 3 Completion Status
 

@@ -95,7 +95,6 @@ class TestRoleBasedPermissions:
         assert delete_response.status_code == 204
     
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Tenant admin fixture not yet implemented")
     async def test_tenant_admin_can_create_users_in_own_tenant(
         self,
         api_client: AsyncClient,
@@ -119,7 +118,6 @@ class TestRoleBasedPermissions:
         assert response.status_code == 201
     
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Tenant admin fixture not yet implemented")
     async def test_tenant_admin_cannot_create_tenant(
         self,
         api_client: AsyncClient,
@@ -139,7 +137,6 @@ class TestRoleBasedPermissions:
         assert response.status_code == 403
     
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Standard user fixture not yet implemented")
     async def test_standard_user_cannot_create_users(
         self,
         api_client: AsyncClient,
@@ -164,7 +161,6 @@ class TestRoleBasedPermissions:
         assert response.status_code == 403
     
     @pytest.mark.asyncio
-    @pytest.mark.skip(reason="Standard user fixture not yet implemented")
     async def test_standard_user_can_view_own_profile(
         self,
         api_client: AsyncClient,

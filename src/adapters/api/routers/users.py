@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
 from typing import List, Optional
 from uuid import uuid4
@@ -84,6 +84,17 @@ async def create_user(
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session)
 ) -> UserResponse:
+    """Create user with RBAC enforcement.
+    
+    Only tenant_admin or superadmin can create users (FR-019 RBAC enforcement).
+    """
+    # RBAC: Only tenant_admin or superadmin can create users
+    if not (current_user.has_role("tenant_admin") or current_user.is_superadmin()):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only tenant admins and superadmins can create users"
+        )
+    
     user_repo = SQLAlchemyUserRepository(session)
     tenant_repo = SQLAlchemyTenantRepository(session)
     
@@ -114,6 +125,35 @@ async def create_user(
     )
     await user_repo.upsert(user)
     await session.commit()
+    
+    return UserResponse(
+        user_id=user.user_id,
+        tenant_id=user.tenant_id,
+        email=user.email,
+        status=user.status,
+        roles=user.roles,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+    )
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_profile(
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session)
+) -> UserResponse:
+    """Get current authenticated user's profile (FR-003).
+    
+    Returns profile information for the currently authenticated user.
+    """
+    user_repo = SQLAlchemyUserRepository(session)
+    user = await user_repo.get(current_user.user_id)
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Current user not found"
+        )
     
     return UserResponse(
         user_id=user.user_id,
