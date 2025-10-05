@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from domain.users.models import UserRepository, User, UserStatus
 
 
 class UserLifecycleService:
-    def __init__(self, repo: Optional[UserRepository] = None, audit_service=None, metrics_adapter=None):
+    def __init__(self, repo: Optional[UserRepository] = None, audit_service: Any = None, metrics_adapter: Any = None) -> None:
         self._repo = repo or UserRepository()
         self._audit = audit_service
         # optional PromClientAdapter-compatible adapter

@@ -1,6 +1,6 @@
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
-from typing import List, Dict, Any, Optional
+from typing import Any, List, Dict, Optional
 
 from adapters.logging.redaction import redact_dict
 
@@ -16,10 +16,10 @@ class AuditEvent:
 
 
 class InMemoryAuditStore:
-    def __init__(self):
+    def __init__(self) -> None:
         self.events: List[AuditEvent] = []
 
-    def append(self, event: AuditEvent):
+    def append(self, event: AuditEvent) -> None:
         self.events.append(event)
 
     def list(self) -> List[AuditEvent]:
@@ -27,14 +27,14 @@ class InMemoryAuditStore:
 
 
 class AuditService:
-    def __init__(self, store: InMemoryAuditStore | None = None, exporter: Optional[object] = None, metrics_adapter=None):
+    def __init__(self, store: InMemoryAuditStore | None = None, exporter: Any = None, metrics_adapter: Any = None) -> None:
         self.store = store or InMemoryAuditStore()
         # optional exporter with .export(list_of_events)
         self.exporter = exporter
         # optional prometheus-like adapter for emitting redaction_violation metric
         self._metrics = metrics_adapter
 
-    def emit(self, actor: str, action: str, target: Dict[str, Any], metadata: Dict[str, Any] | None = None):
+    def emit(self, actor: str, action: str, target: Dict[str, Any], metadata: Dict[str, Any] | None = None) -> None:
         metadata = metadata or {}
         # redact metadata defensively
         redacted_meta, had_secret = redact_dict(metadata)

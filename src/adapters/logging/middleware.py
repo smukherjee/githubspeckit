@@ -21,7 +21,7 @@ from __future__ import annotations
 import time
 from opentelemetry import trace
 from datetime import datetime, timezone
-from typing import Callable, Awaitable, Dict, Any, List
+from typing import Any, Dict, List, Callable, Awaitable
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -30,19 +30,19 @@ from .redaction import redact_dict
 
 
 class InMemoryStructuredLogSink:
-    def __init__(self):
+    def __init__(self) -> None:
         self.records: List[Dict[str, Any]] = []
 
-    def emit(self, record: Dict[str, Any]):
+    def emit(self, record: Dict[str, Any]) -> None:
         self.records.append(record)
 
 
 class StructuredLoggingMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, *, sink: InMemoryStructuredLogSink | None = None):
+    def __init__(self, app: Any, *, sink: InMemoryStructuredLogSink | None = None) -> None:
         super().__init__(app)
         self.sink = sink or InMemoryStructuredLogSink()
 
-    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]):
+    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         start = time.perf_counter()
         tenant_id = request.headers.get("X-Tenant-ID")
         # correlation id placeholder (will integrate with correlation middleware later)

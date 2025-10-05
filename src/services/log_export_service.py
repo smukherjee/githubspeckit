@@ -17,7 +17,7 @@ class LogExportResult:
 
 
 class LogExportService:
-    def __init__(self, *, sink, max_limit: int = 500):
+    def __init__(self, *, sink: Any, max_limit: int = 500) -> None:
         self.sink = sink
         self.max_limit = max_limit
 

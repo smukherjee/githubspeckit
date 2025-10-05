@@ -43,10 +43,11 @@ def deterministic_uuid(name: str) -> str:
 async def seed_infysight():
     """Seed infysight tenant and superadmin user."""
     
-    # Database connection
-    database_url = "postgresql+asyncpg://infysight_dbadmin:infysight_dbadmin123@localhost/infysight_users"
+    # Database connection from environment or default
+    import os
+    database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://infysight_dbadmin:infysight_dbadmin123@localhost/infysight_users")
     
-    print(f"🔌 Connecting to database: {database_url.split('@')[1]}")
+    print(f"🔌 Connecting to database: {database_url.split('@')[1] if '@' in database_url else database_url}")
     
     # Create async engine and session
     engine = create_async_engine(database_url, echo=False)

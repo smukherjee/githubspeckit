@@ -17,7 +17,7 @@ async def list_events(
     until: Optional[str] = Query(None, description="ISO8601 upper bound (exclusive)"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-):
+) -> dict[str, int | list[dict[str, object]]]:
     events = _audit.query()
     # filtering
     def parse(ts: str) -> datetime:

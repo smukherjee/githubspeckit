@@ -28,7 +28,7 @@ class EmbedSession(BaseModel):
 
 
 @router.post("/exchange", response_model=EmbedSession)
-async def exchange(payload: EmbedExchangeRequest):
+async def exchange(payload: EmbedExchangeRequest) -> EmbedSession:
     # Minimal validation: origin check (development permissive) + token presence.
     if payload.origin and not service.validate_origin(payload.origin):
         raise HTTPException(status_code=400, detail="origin_not_allowed")

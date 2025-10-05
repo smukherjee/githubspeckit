@@ -171,6 +171,11 @@ class TestDatabaseReplayStoreCleanup:
     
     async def test_count_active_records(self, db_session):
         """Test count_active returns correct count of non-expired tokens."""
+        # Clean up any residual data for test isolation
+        from sqlalchemy import delete
+        await db_session.execute(delete(TokenReplayRecordModel))
+        await db_session.commit()
+        
         store = DatabaseReplayStore(db_session)
         
         # Register mixed tokens
@@ -191,6 +196,11 @@ class TestDatabaseReplayStoreCleanup:
     
     async def test_count_active_by_tenant(self, db_session):
         """Test count_active filters by tenant."""
+        # Clean up any residual data for test isolation
+        from sqlalchemy import delete
+        await db_session.execute(delete(TokenReplayRecordModel))
+        await db_session.commit()
+        
         store = DatabaseReplayStore(db_session)
         
         tenant_a = uuid.uuid4()

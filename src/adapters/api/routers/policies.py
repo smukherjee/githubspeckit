@@ -52,7 +52,7 @@ def _evaluate(action: str) -> tuple[str, List[str]]:
 
 
 @router.post("/dry-run", response_model=DryRunResponse)
-def dry_run(req: DryRunRequest):
+def dry_run(req: DryRunRequest) -> DryRunResponse:
     decision, rationales = _evaluate(req.action)
     # Guard: any rationale not starting with allowed prefixes triggers error
     for r in rationales:
@@ -66,7 +66,7 @@ _POLICIES: dict[str, PolicyResponse] = {}
 
 
 @router.post("/register", response_model=PolicyResponse, status_code=201)
-def register_policy(req: PolicyRegistrationRequest):
+def register_policy(req: PolicyRegistrationRequest) -> PolicyResponse:
     # Basic validation: effect value
     if req.effect not in {"ALLOW", "DENY"}:
         raise HTTPException(status_code=400, detail="invalid_effect")

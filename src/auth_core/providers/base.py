@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable, Optional
+from typing import Any, Protocol, runtime_checkable, Optional
 
 
 @dataclass(slots=True)
@@ -40,7 +40,7 @@ class AuthProvider(Protocol):  # pragma: no cover - structural typing
     def name(self) -> str:  # unique registry key
         ...
 
-    async def authenticate(self, **credentials) -> AuthResult:
+    async def authenticate(self, **credentials: Any) -> AuthResult:
         """Attempt authentication.
 
         Implementations should raise AuthError with stable `code` values.

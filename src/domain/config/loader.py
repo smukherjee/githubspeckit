@@ -63,7 +63,7 @@ class AppConfig:
     def freeze(self) -> None:
         self._immutable = True
 
-    def export(self) -> dict:
+    def export(self) -> dict[str, object]:
         return {
             "hash": self.hash_excluding_secrets,
             "entries": {

@@ -1,10 +1,17 @@
 """FastAPI application factory and health endpoint (implements part of FR-015).
 
-Currently includes only a minimal health/status endpoint returning migration state
+Currently includes only a minimal    async def export_config() -> dict[str, object]:  # pragma: no cover - simple serialization
+        cfg = load_config({
+            \"APP_NAME\": (\"modern-backend\", False),
+            \"PASSWORD_MIN_LENGTH\": (12, False),
+            \"PASSWORD_COMPLEXITY_STRICT\": (False, False),
+        })
+        return cfg.export()/status endpoint returning migration state
 and key rotation version placeholders.
 """
 from __future__ import annotations
 
+from typing import Any
 from fastapi import FastAPI, Response, Request
 from fastapi.responses import JSONResponse
 from domain.config.loader import load_config, ConfigValidationError
@@ -63,7 +70,7 @@ def create_app() -> FastAPI:
     
     # Security/Error middleware (TEST-SEC-03 / IMPL-SEC-04) ensuring consistent envelope
     @app.middleware("http")
-    async def error_envelope_middleware(request: Request, call_next):  # pragma: no cover small wrapper
+    async def error_envelope_middleware(request: Request, call_next: Any) -> Response:  # pragma: no cover small wrapper
         try:
             return await call_next(request)
         except Exception as exc:  # noqa: PIE786
@@ -78,14 +85,14 @@ def create_app() -> FastAPI:
     
     # Lightweight span capture middleware (placeholder instrumentation)
     @app.middleware("http")
-    async def tracing_capture_middleware(request: Request, call_next):  # pragma: no cover - thin logic
+    async def tracing_capture_middleware(request: Request, call_next: Any) -> Response:  # pragma: no cover - thin logic
         span_name = f"HTTP {request.method} {request.url.path}"
         app.state._test_spans.append({"name": span_name})  # noqa: SLF001
         return await call_next(request)
 
     # Error envelope handler (TEST-SEC-12) minimal: unify unhandled exceptions
     @app.exception_handler(Exception)
-    async def unhandled_exception_handler(request: Request, exc: Exception):  # pragma: no cover - simple path
+    async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:  # pragma: no cover - simple path
         # Basic envelope structure per FR-017/C-031 draft: {error: {code, message}}
         # Code derived from exception type name; message sanitized.
         code = getattr(exc, "code", exc.__class__.__name__)
@@ -101,7 +108,7 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/v1/health", tags=["system"])
-    async def health():  # pragma: no cover - simple serialization
+    async def health() -> dict[str, str | bool | int]:  # pragma: no cover - simple serialization
         # Phase 3: Returns basic health status with migration state
         # TODO-IMPL-DB-15: Wire to actual migration head check service
         return {
@@ -111,7 +118,7 @@ def create_app() -> FastAPI:
         }
 
     @app.get("/v1/config", tags=["system"])
-    async def export_config():  # pragma: no cover - simple serialization
+    async def export_config() -> dict[str, object]:  # pragma: no cover - simple serialization
         cfg = load_config({
             "APP_NAME": ("modern-backend", False),
             "PASSWORD_MIN_LENGTH": (12, False),
@@ -120,7 +127,7 @@ def create_app() -> FastAPI:
         return cfg.export()
 
     @app.get("/v1/config/errors", tags=["system"])
-    async def config_errors():  # pragma: no cover
+    async def config_errors() -> dict[str, list[str]]:  # pragma: no cover
         # Phase 3: Returns config validation errors from startup
         # Satisfies FR-041 C-045 contract test (TEST-API-28)
         return {"errors": []}
@@ -152,13 +159,13 @@ def create_app() -> FastAPI:
     app.state.quality_metrics = qm
 
     @app.get("/metrics", tags=["system"])
-    async def metrics_prometheus():
+    async def metrics_prometheus() -> Response:
         # Expose prometheus_client generated metrics bytes
         data = app.state.prom.generate_latest()
         return Response(content=data, media_type="text/plain; version=0.0.4")
 
     @app.get("/v1/metrics/snapshot", tags=["system"])
-    async def metrics_snapshot():  # pragma: no cover - lightweight serialization
+    async def metrics_snapshot() -> dict[str, list[str]]:  # pragma: no cover - lightweight serialization
         # Provide a JSON snapshot of current required metric names present for quick checks
         raw = app.state.prom.generate_latest().decode("utf-8")
         present = []
@@ -170,7 +177,7 @@ def create_app() -> FastAPI:
         return {"metrics": sorted(set(present))}
 
     @app.get("/v1/logs/export", tags=["system"])
-    async def export_logs(limit: int = 100):
+    async def export_logs(limit: int = 100) -> dict[str, list[dict[str, object]] | bool | int]:
         res = app.state.log_exporter.export_latest(limit)
         return {
             "records": res.records,

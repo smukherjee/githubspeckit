@@ -70,7 +70,7 @@ def bootstrap(tenant_slug: str = "primary", admin_email: str = "admin@example.co
     return BootstrapResult(tenant_id=tenant_id, admin_user_id=user_id, created=created, summary=summary)
 
 
-def main():  # pragma: no cover - thin wrapper
+def main() -> None:  # pragma: no cover - thin wrapper
     res = bootstrap()
     print({"tenant_id": res.tenant_id, "admin_user_id": res.admin_user_id, "created": res.created})
 

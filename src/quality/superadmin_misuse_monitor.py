@@ -7,7 +7,7 @@ class SuperadminMisuseMonitor:
         self._count = 0
         self._alerted = False
 
-    def record_cross_tenant_action(self, actor: str, action: str, tenant_id: str):  # noqa: D401
+    def record_cross_tenant_action(self, actor: str, action: str, tenant_id: str) -> bool:  # noqa: D401
         if self._alerted:
             return True
         self._count += 1

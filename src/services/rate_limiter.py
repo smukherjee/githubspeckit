@@ -2,7 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from time import monotonic
-from typing import Dict
+from typing import Any, Dict
 
 
 @dataclass
@@ -14,7 +14,7 @@ class Bucket:
 
 
 class RateLimiter:
-    def __init__(self, capacity: int = 20, refill_rate_per_sec: float = 1.0, metrics_adapter=None):
+    def __init__(self, capacity: int = 20, refill_rate_per_sec: float = 1.0, metrics_adapter: Any = None) -> None:
         self.capacity = capacity
         self.refill_rate = refill_rate_per_sec
         self._buckets: Dict[str, Bucket] = {}

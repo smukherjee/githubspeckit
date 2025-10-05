@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from hashlib import sha256
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional
 
 from domain.invitations.models import Invitation, InvitationRepository, InvitationStatus
 from uuid import uuid4
@@ -10,7 +10,7 @@ from datetime import timedelta
 
 
 class InvitationService:
-    def __init__(self, repo: Optional[InvitationRepository] = None, audit_service=None, metrics_adapter=None):
+    def __init__(self, repo: Optional[InvitationRepository] = None, audit_service: Any = None, metrics_adapter: Any = None) -> None:
         self._repo = repo or InvitationRepository()
         self._audit = audit_service
         self._metrics = metrics_adapter

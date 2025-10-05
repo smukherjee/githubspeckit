@@ -19,10 +19,10 @@ class QualityMetrics:
             else:
                 self._prom.gauge_set(name, value=0)
 
-    def record_gate_failure(self, tenant_id: str | None = None):
+    def record_gate_failure(self, tenant_id: str | None = None) -> None:
         self._prom.counter_inc("quality_gates_fail_total", tenant_id=tenant_id, amount=1)
 
-    def set_justifications(self, count: int):
+    def set_justifications(self, count: int) -> None:
         self._prom.gauge_set("justifications_count", value=count)
 
 __all__ = ["QualityMetrics"]

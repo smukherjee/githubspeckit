@@ -40,7 +40,7 @@ class EvalResult:
 
 
 class PolicyEvaluator:
-    def __init__(self, policies: Optional[List[Policy]] = None, *, valid_roles: Optional[List[str]] = None, metrics_adapter=None) -> None:
+    def __init__(self, policies: Optional[List[Policy]] = None, *, valid_roles: Optional[List[str]] = None, metrics_adapter: Any = None) -> None:
         # policies keyed by resource_type -> list(policy) sorted by version desc
         self._policies: Dict[str, List[Policy]] = {}
         self.valid_roles = set(valid_roles or [])

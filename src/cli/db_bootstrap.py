@@ -189,7 +189,7 @@ def format_summary_json(result: SeedResult) -> str:
     return json.dumps(summary, indent=2)
 
 
-async def main_async():
+async def main_async() -> None:
     """Async main entry point."""
     parser = argparse.ArgumentParser(description="Seed database with baseline tenant and admin")
     parser.add_argument(
@@ -250,7 +250,7 @@ async def main_async():
         sys.exit(1)
 
 
-def main():
+def main() -> None:
     """Sync main wrapper."""
     asyncio.run(main_async())
 

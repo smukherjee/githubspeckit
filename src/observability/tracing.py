@@ -7,21 +7,22 @@ from __future__ import annotations
 import os
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter
+from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter, SpanExporter
 try:  # optional dependency present in pyproject
-    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter  # type: ignore
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 except Exception:  # pragma: no cover - fallback if package not available
-    OTLPSpanExporter = None  # type: ignore
+    OTLPSpanExporter = None  # type: ignore[assignment,misc]
 
 _initialized = False
 
 
-def init_tracing():  # pragma: no cover simple init
+def init_tracing() -> None:  # pragma: no cover simple init
     global _initialized
     if _initialized:
         return
     provider = TracerProvider()
     endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+    exporter: SpanExporter
     if endpoint and OTLPSpanExporter is not None:
         exporter = OTLPSpanExporter(endpoint=endpoint)
     else:
@@ -31,7 +32,7 @@ def init_tracing():  # pragma: no cover simple init
     _initialized = True
 
 
-def get_tracer(name: str = "app"):
+def get_tracer(name: str = "app") -> trace.Tracer:
     return trace.get_tracer(name)
 
 __all__ = ["init_tracing", "get_tracer"]

@@ -74,9 +74,9 @@ class FlagStateEnum(str, enum.Enum):
 
 class DecisionEnum(str, enum.Enum):
     """Policy evaluation decision (FR-030)."""
-    allow = "ALLOW"
-    deny = "DENY"
-    abstain = "ABSTAIN"
+    ALLOW = "ALLOW"
+    DENY = "DENY"
+    ABSTAIN = "ABSTAIN"
 
 
 class MFAFactorTypeEnum(str, enum.Enum):
@@ -333,12 +333,10 @@ class AuditEventModel(Base):
     event_id: Mapped[UUID] = mapped_column(PortableUUID(), primary_key=True)
     tenant_id: Mapped[Optional[UUID]] = mapped_column(
         PortableUUID(),
-        ForeignKey("tenants.tenant_id", ondelete="SET NULL"),
         nullable=True
     )
     actor_user_id: Mapped[Optional[UUID]] = mapped_column(
         PortableUUID(),
-        ForeignKey("users.user_id", ondelete="SET NULL"),
         nullable=True
     )
     action_type: Mapped[str] = mapped_column(String(100), nullable=False)

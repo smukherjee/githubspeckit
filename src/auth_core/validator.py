@@ -19,7 +19,7 @@ class SessionInvalidatedError(Exception):
 
 
 class TokenValidator:
-    def __init__(self, *, jwt_service: JWTService, revocations: RevocationService, log_sink=None, key_version_provider=None) -> None:
+    def __init__(self, *, jwt_service: JWTService, revocations: RevocationService, log_sink: Any = None, key_version_provider: Any = None) -> None:
         self.jwt_service = jwt_service
         self.revocations = revocations
         self._log_sink = log_sink  # expects .append(dict) or list-like
@@ -61,7 +61,7 @@ class TokenValidator:
                 raise SessionInvalidatedError("session_version_stale")
         return claims
 
-    def _log_failure(self, jti: str, *, reason: str):
+    def _log_failure(self, jti: str, *, reason: str) -> None:
         try:
             hashed = self.revocations._hash_jti(jti)  # reuse hashing logic
             rec = {

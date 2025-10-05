@@ -7,7 +7,7 @@ from __future__ import annotations
 import sys, json
 from domain.config.loader import load_config, ConfigValidationError
 
-def main():  # pragma: no cover thin wrapper
+def main() -> None:  # pragma: no cover thin wrapper
     # Simulate missing required key scenario by providing empty raw dict to force validation fail.
     try:
         load_config(raw={})  # missing required keys triggers ConfigValidationError

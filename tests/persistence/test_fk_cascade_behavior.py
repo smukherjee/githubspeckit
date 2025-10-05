@@ -407,19 +407,17 @@ class TestForeignKeyCascadeBehavior:
 class TestForeignKeySetNullBehavior:
     """Validate FK SET NULL behavior for audit trail preservation."""
 
-    @pytest.mark.skipif(
-        DB_CONFIG.is_sqlite,
-        reason="SQLite doesn't fully support ON DELETE SET NULL cascades"
-    )
     async def test_delete_tenant_preserves_audit_events_with_set_null(
         self, async_session: AsyncSession
     ):
         """
         Given a tenant with audit events,
         When the tenant is physically deleted,
-        Then audit_events.tenant_id is SET NULL (history preserved).
+        Then the audit event persists with tenant_id intact (orphaned FK).
         
-        Rationale: FR-018 requires audit trail persistence even after tenant deletion.
+        Rationale: FR-018 requires audit trail persistence. Audit tables have NO FK constraints
+        to allow historical records to persist independently. Application layer handles
+        referential integrity and validation.
         """
         # Arrange: Create tenant + audit event
         tenant = TenantModel(
@@ -441,39 +439,36 @@ class TestForeignKeySetNullBehavior:
         await async_session.commit()
 
         event_id = audit_event.event_id
+        original_tenant_id = tenant.tenant_id
 
-        # Act: Physically delete tenant
+        # Act: Physically delete tenant (no FK constraint prevents this)
         await async_session.delete(tenant)
         await async_session.commit()
 
-        # Assert: Audit event still exists with tenant_id SET NULL
+        # Assert: Audit event still exists with original tenant_id intact
         result = await async_session.execute(
             select(AuditEventModel).where(AuditEventModel.event_id == event_id)
         )
         audit = result.scalar_one_or_none()
-        assert audit is not None, "Audit event should persist after tenant deletion"
-        assert (
-            audit.tenant_id is None
-        ), "Audit event tenant_id should be SET NULL (FK ondelete='SET NULL')"
+        assert audit is not None, "Audit event must persist after tenant deletion"
+        assert audit.tenant_id == original_tenant_id, "Audit event tenant_id must remain unchanged (orphaned FK)"
 
-    @pytest.mark.skipif(
-        DB_CONFIG.is_sqlite,
-        reason="SQLite doesn't fully support ON DELETE SET NULL cascades"
-    )
     async def test_delete_user_preserves_audit_events_with_set_null(
         self, async_session: AsyncSession
     ):
         """
         Given a user who performed actions (audit events),
         When the user is physically deleted,
-        Then audit_events.actor_user_id is SET NULL (history preserved).
+        Then the audit event persists with actor_user_id intact (orphaned FK).
         
-        Rationale: Audit trail must persist even if actor deleted.
+        Rationale: Audit trail must persist independently. Audit tables have NO FK constraints
+        to ensure historical records are never lost. Application layer validates references.
         """
         # Arrange: Create tenant + user + audit event
+        tenant_id = uuid.uuid4()
         tenant = TenantModel(
-            tenant_id=uuid.uuid4(),
-            name="UserAuditTenant",
+            tenant_id=tenant_id,
+            name=f"UserAuditTenant-{tenant_id}",
             status="active",
         )
         async_session.add(tenant)
@@ -500,20 +495,19 @@ class TestForeignKeySetNullBehavior:
         await async_session.commit()
 
         event_id = audit_event.event_id
+        original_user_id = user.user_id
 
-        # Act: Physically delete user (not soft delete)
+        # Act: Physically delete user (no FK constraint prevents this)
         await async_session.delete(user)
         await async_session.commit()
 
-        # Assert: Audit event still exists with actor_user_id SET NULL
+        # Assert: Audit event still exists with original actor_user_id intact
         result = await async_session.execute(
             select(AuditEventModel).where(AuditEventModel.event_id == event_id)
         )
         audit = result.scalar_one_or_none()
-        assert audit is not None, "Audit event should persist after user deletion"
-        assert (
-            audit.actor_user_id is None
-        ), "Audit event actor_user_id should be SET NULL (FK ondelete='SET NULL')"
+        assert audit is not None, "Audit event must persist after user deletion"
+        assert audit.actor_user_id == original_user_id, "Audit event actor_user_id must remain unchanged (orphaned FK)"
 
 
 @pytest.mark.asyncio

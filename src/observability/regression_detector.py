@@ -1,5 +1,5 @@
 from collections import deque
-from typing import Deque, Tuple
+from typing import Any, Deque, Tuple
 import statistics
 
 
@@ -9,7 +9,7 @@ class RegressionDetector:
     lightweight for unit testing the false-positive filtering behavior.
     """
 
-    def __init__(self, window_size: int = 3, threshold_ms: int = 200, metrics_adapter=None):
+    def __init__(self, window_size: int = 3, threshold_ms: int = 200, metrics_adapter: Any = None) -> None:
         self.window_size = window_size
         self.threshold_ms = threshold_ms
         # store recent windows as deque of lists

@@ -27,7 +27,7 @@ class AuthenticationService:
         registry: AuthProviderRegistry,
         hasher: Argon2PasswordHasher = default_hasher,
         mfa_repo: Optional[MFARepository] = None,
-        metrics_adapter=None,
+        metrics_adapter: Any = None,
     ) -> None:
         self.registry = registry
         self.hasher = hasher

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 import hashlib
 
 __all__ = [
@@ -34,7 +34,7 @@ class _Entry:
 
 
 class RevocationService:
-    def __init__(self, *, audit_service=None) -> None:
+    def __init__(self, *, audit_service: Any = None) -> None:
         # hashed_jti -> _Entry
         self._store: Dict[str, _Entry] = {}
         self._audit = audit_service

@@ -36,7 +36,7 @@ class FeatureFlagList(BaseModel):
 
 
 @router.post("", response_model=FeatureFlagResponse, status_code=201)
-def create_flag(payload: FeatureFlagCreate):
+def create_flag(payload: FeatureFlagCreate) -> FeatureFlagResponse:
     flag = FeatureFlag(
         flag_id=payload.flag_id or str(uuid4()),
         tenant_id=payload.tenant_id,
@@ -57,7 +57,7 @@ def create_flag(payload: FeatureFlagCreate):
 
 
 @router.get("", response_model=FeatureFlagList)
-def list_flags(tenant_id: str):
+def list_flags(tenant_id: str) -> FeatureFlagList:
     items = _repo.list_by_tenant(tenant_id)
     return FeatureFlagList(flags=[FeatureFlagResponse(flag_id=f.flag_id, tenant_id=f.tenant_id, key=f.key, state=f.state, variant=f.variant) for f in items])
 

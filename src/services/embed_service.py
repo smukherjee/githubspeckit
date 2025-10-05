@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional
+from typing import Any, List, Optional
 import hmac
 import hashlib
 import base64
@@ -19,7 +19,7 @@ class EmbedToken:
 
 
 class EmbedService:
-    def __init__(self, secret: bytes = b"dev-secret", allowed_origins: Optional[List[str]] = None, audit_service=None):
+    def __init__(self, secret: bytes = b"dev-secret", allowed_origins: Optional[List[str]] = None, audit_service: Any = None) -> None:
         self._secret = secret
         self._allowed_origins = set(allowed_origins or [])
         # lightweight repo usage for feature gate checks if needed

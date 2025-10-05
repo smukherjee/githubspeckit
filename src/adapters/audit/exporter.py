@@ -13,7 +13,7 @@ class FileAuditExporter:
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
-    def export(self, events: List[Dict[str, Any]]):
+    def export(self, events: List[Dict[str, Any]]) -> None:
         with self.path.open("a", encoding="utf-8") as f:
             for e in events:
                 f.write(json.dumps(e, default=str) + "\n")

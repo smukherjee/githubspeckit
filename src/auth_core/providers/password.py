@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Any, Optional
 
 from .base import AuthProvider, AuthResult, AuthError
 from ..hashers import default_hasher
@@ -22,7 +22,7 @@ class PasswordAuthProvider(AuthProvider):
     def name(self) -> str:  # unique key in registry
         return "password"
 
-    async def authenticate(self, **credentials) -> AuthResult:
+    async def authenticate(self, **credentials: Any) -> AuthResult:
         """Authenticate via password.
 
         Expected credentials: username (or email), password, and stored_hash (retrieved by higher layer).

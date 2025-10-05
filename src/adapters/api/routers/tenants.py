@@ -50,7 +50,7 @@ def create_tenant(payload: dict, x_actor_id: str | None = Header(default=None, a
 
 
 @router.get("")
-async def list_tenants():
+async def list_tenants() -> dict[str, list[dict[str, str]]]:
     out = []
     for t in _repo.list():
         out.append({"tenant_id": t.tenant_id, "name": t.name, "status": t.status.value})
@@ -58,7 +58,7 @@ async def list_tenants():
 
 
 @router.post("/{tenant_id}/delete")
-async def soft_delete_tenant(tenant_id: str):
+async def soft_delete_tenant(tenant_id: str) -> dict[str, str]:
     t = _repo.get(tenant_id)
     if not t:
         raise HTTPException(status_code=404, detail="not_found")
@@ -72,7 +72,7 @@ async def soft_delete_tenant(tenant_id: str):
 
 
 @router.post("/{tenant_id}/restore")
-async def restore_tenant(tenant_id: str):
+async def restore_tenant(tenant_id: str) -> dict[str, str]:
     t = _repo.get(tenant_id)
     if not t:
         raise HTTPException(status_code=404, detail="not_found")

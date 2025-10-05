@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, ConfigDict
 
@@ -19,7 +20,7 @@ class InvitationAcceptResponse(BaseModel):
 
 
 @router.post("/{invitation_id}/accept", response_model=InvitationAcceptResponse)
-def accept(invitation_id: str, invitation_service=Depends(_InvitationDep)):
+def accept(invitation_id: str, invitation_service: Any = Depends(_InvitationDep)) -> InvitationAcceptResponse:
     # simple rate limit: key per invitation
     if not _limiter.allow(f"invite:{invitation_id}"):
         raise HTTPException(status_code=429, detail="rate_limited")

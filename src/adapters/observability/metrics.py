@@ -1,4 +1,4 @@
-from typing import Dict, Set
+from typing import Any, Dict, Set
 
 
 class SimpleMetricsRegistry:
@@ -17,13 +17,13 @@ class SimpleMetricsRegistry:
         "policy_evaluations_total",
     }
 
-    def __init__(self, prom_adapter=None):
+    def __init__(self, prom_adapter: Any | None = None) -> None:
         self.counters: Dict[str, int] = {}
         self.registered: Set[str] = set()
         # optional PromClientAdapter-compatible object
         self.prom = prom_adapter
 
-    def register(self, name: str):
+    def register(self, name: str) -> None:
         self.registered.add(name)
         if name not in self.counters:
             self.counters[name] = 0
@@ -39,7 +39,7 @@ class SimpleMetricsRegistry:
         except Exception:
             pass
 
-    def inc(self, name: str, amount: int = 1):
+    def inc(self, name: str, amount: int = 1) -> None:
         if name not in self.counters:
             self.register(name)
         self.counters[name] += amount
@@ -54,16 +54,16 @@ class SimpleMetricsRegistry:
         except Exception:
             pass
 
-    def keys(self):
+    def keys(self) -> set[str]:
         return set(self.registered)
 
     def has_required(self) -> bool:
         return self.REQUIRED_METRICS.issubset(self.registered)
 
     # Compatibility methods for policy evaluator instrumentation
-    def histogram_observe(self, name: str, value: float, tenant_id=None, buckets=None):  # pragma: no cover simple adapter
+    def histogram_observe(self, name: str, value: float, tenant_id: str | None = None, buckets: list[float] | None = None) -> None:  # pragma: no cover simple adapter
         # For in-memory tests we don't store histogram data; presence indicates call path works.
         self.register(name)
 
-    def counter_inc(self, name: str, tenant_id=None, amount: int = 1):  # pragma: no cover
+    def counter_inc(self, name: str, tenant_id: str | None = None, amount: int = 1) -> None:  # pragma: no cover
         self.inc(name, amount)

@@ -3,8 +3,8 @@ from __future__ import annotations
 from time import time
 
 class InMemoryReplayStore:
-    def __init__(self):
-        self._entries = {}
+    def __init__(self) -> None:
+        self._entries: dict[str, tuple[float, float]] = {}
 
     def register(self, jti: str, ttl_seconds: int) -> bool:
         """Register a token JTI; returns False if replay detected (already present and not expired)."""

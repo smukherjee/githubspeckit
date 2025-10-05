@@ -80,7 +80,7 @@ class TestPolicyEvaluationLogPersistence:
             tenant_id=tenant_id,
             policy_id=policy_id,
             user_id=user_id,
-            decision=DecisionEnum.allow,  # Use enum value
+            decision=DecisionEnum.ALLOW,  # Use enum value
             latency_ms=42,
             correlation_id="test-correlation-123",
         )
@@ -97,7 +97,7 @@ class TestPolicyEvaluationLogPersistence:
         assert persisted_log.tenant_id == tenant_id
         assert persisted_log.policy_id == policy_id
         assert persisted_log.user_id == user_id
-        assert persisted_log.decision == DecisionEnum.allow
+        assert persisted_log.decision == DecisionEnum.ALLOW
         assert persisted_log.latency_ms == 42
         assert persisted_log.correlation_id == "test-correlation-123"
         assert persisted_log.created_at is not None
@@ -158,7 +158,7 @@ class TestPolicyEvaluationLogPersistence:
             tenant_id=tenant_a_id,
             policy_id=policy_a_id,
             user_id=user_a_id,
-            decision=DecisionEnum.allow,
+            decision=DecisionEnum.ALLOW,
             latency_ms=10,
             correlation_id="corr-a1",
         )
@@ -167,7 +167,7 @@ class TestPolicyEvaluationLogPersistence:
             tenant_id=tenant_a_id,
             policy_id=policy_a_id,
             user_id=user_a_id,
-            decision=DecisionEnum.allow,
+            decision=DecisionEnum.ALLOW,
             latency_ms=15,
             correlation_id="corr-a2",
         )
@@ -176,7 +176,7 @@ class TestPolicyEvaluationLogPersistence:
             tenant_id=tenant_b_id,
             policy_id=policy_b_id,
             user_id=user_b_id,
-            decision=DecisionEnum.deny,
+            decision=DecisionEnum.DENY,
             latency_ms=20,
             correlation_id="corr-b1",
         )
@@ -249,7 +249,7 @@ class TestPolicyEvaluationLogPersistence:
             tenant_id=tenant_id,
             policy_id=policy_id,
             user_id=user1_id,
-            decision=DecisionEnum.allow,
+            decision=DecisionEnum.ALLOW,
             latency_ms=10,
             correlation_id="corr-user1-1",
         )
@@ -258,7 +258,7 @@ class TestPolicyEvaluationLogPersistence:
             tenant_id=tenant_id,
             policy_id=policy_id,
             user_id=user1_id,
-            decision=DecisionEnum.allow,
+            decision=DecisionEnum.ALLOW,
             latency_ms=12,
             correlation_id="corr-user1-2",
         )
@@ -267,7 +267,7 @@ class TestPolicyEvaluationLogPersistence:
             tenant_id=tenant_id,
             policy_id=policy_id,
             user_id=user2_id,
-            decision=DecisionEnum.deny,
+            decision=DecisionEnum.DENY,
             latency_ms=8,
             correlation_id="corr-user2-1",
         )
@@ -328,11 +328,11 @@ class TestPolicyEvaluationLogPersistence:
         ]
         
         decisions = [
-            DecisionEnum.allow,
-            DecisionEnum.deny,
-            DecisionEnum.abstain,
-            DecisionEnum.allow,
-            DecisionEnum.deny,
+            DecisionEnum.ALLOW,
+            DecisionEnum.DENY,
+            DecisionEnum.ABSTAIN,
+            DecisionEnum.ALLOW,
+            DecisionEnum.DENY,
         ]
         
         for i, (corr_id, decision) in enumerate(zip(correlation_ids, decisions)):

@@ -66,6 +66,8 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 warn_unreachable = true
 exclude = ["build/"]
+mypy_path = "src"
+explicit_package_bases = true
 
 [tool.ruff]
 line-length = 100

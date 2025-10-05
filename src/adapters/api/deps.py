@@ -9,7 +9,7 @@ from domain.users.models import UserRepository
 from domain.invitations.models import InvitationRepository
 from services.user_lifecycle_service import UserLifecycleService
 from services.invitations_service import InvitationService
-from auth_core.registry import default_registry
+from auth_core.registry import default_registry, AuthProviderRegistry
 from auth_core.auth_service import AuthenticationService
 from auth_core.jwt import JWTService, JWTKeySet
 
@@ -19,10 +19,10 @@ class InMemoryAuditService:
 
     Real implementation will append to an audit repository & structured log.
     """
-    def __init__(self):
-        self.events = []
+    def __init__(self) -> None:
+        self.events: list[dict[str, object]] = []
 
-    def log(self, *, action_type: str, tenant_id: str | None, metadata: dict | None = None):  # pragma: no cover simple storage
+    def log(self, *, action_type: str, tenant_id: str | None, metadata: dict[str, object] | None = None) -> None:  # pragma: no cover simple storage
         self.events.append({
             "action_type": action_type,
             "tenant_id": tenant_id,
@@ -51,7 +51,7 @@ def get_invitation_service() -> InvitationService:
 
 
 @lru_cache
-def get_auth_registry():
+def get_auth_registry() -> AuthProviderRegistry:
     return default_registry()
 
 

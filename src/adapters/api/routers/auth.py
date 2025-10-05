@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from typing import Any, Optional
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, ConfigDict
-from typing import Optional
 from datetime import datetime, timezone, timedelta
 
 from auth_core.hashers import default_hasher
@@ -35,7 +35,7 @@ class RevokeRequest(BaseModel):
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(payload: LoginRequest, user_repo=Depends(_UserRepoDep), auth_service=Depends(_AuthServiceDep), jwt_service=Depends(_JWTDep), audit=Depends(get_audit_service)):
+async def login(payload: LoginRequest, user_repo: Any = Depends(_UserRepoDep), auth_service: Any = Depends(_AuthServiceDep), jwt_service: Any = Depends(_JWTDep), audit: Any = Depends(get_audit_service)) -> LoginResponse:
     user = user_repo.get(payload.user_id)
     if not user or not user.password_hash or user.status != UserStatus.active:
         raise HTTPException(status_code=401, detail="invalid_credentials")
@@ -58,7 +58,7 @@ async def login(payload: LoginRequest, user_repo=Depends(_UserRepoDep), auth_ser
 
 
 @router.post("/revoke")
-def revoke(payload: RevokeRequest, user_repo=Depends(_UserRepoDep)):
+def revoke(payload: RevokeRequest, user_repo: Any = Depends(_UserRepoDep)) -> dict[str, bool]:
     # placeholder: stateless tokens not tracked yet
     # simulate revoke success
     if not user_repo.get(payload.user_id):

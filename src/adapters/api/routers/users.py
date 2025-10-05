@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr, ConfigDict
-from typing import List, Optional
+from typing import Any, List, Optional
 from uuid import uuid4
 from datetime import datetime, timezone
 
@@ -37,7 +37,7 @@ class UserListResponse(BaseModel):
 
 
 @router.post("", response_model=UserResponse, status_code=201)
-def create_user(payload: UserCreateRequest, user_repo=Depends(_UserRepoDep)):
+def create_user(payload: UserCreateRequest, user_repo: Any = Depends(_UserRepoDep)) -> UserResponse:
     # simplistic create: no duplicate email check
     user = User(
         user_id=str(uuid4()),
@@ -60,13 +60,13 @@ def create_user(payload: UserCreateRequest, user_repo=Depends(_UserRepoDep)):
 
 
 @router.get("", response_model=UserListResponse)
-def list_users(tenant_id: str, user_repo=Depends(_UserRepoDep)):  # tenant_id required per multi-tenancy principle
+def list_users(tenant_id: str, user_repo: Any = Depends(_UserRepoDep)) -> UserListResponse:  # tenant_id required per multi-tenancy principle
     users = user_repo.list_by_tenant(tenant_id)
     return UserListResponse(users=[UserResponse(user_id=u.user_id, tenant_id=u.tenant_id, email=u.email, status=u.status, roles=u.roles) for u in users])
 
 
 @router.post("/{user_id}/disable")
-def disable_user(user_id: str, lifecycle=Depends(_LifecycleDep)):
+def disable_user(user_id: str, lifecycle: Any = Depends(_LifecycleDep)) -> dict[str, object]:
     try:
         u = lifecycle.disable(user_id=user_id, actor="system")
     except KeyError:
@@ -75,7 +75,7 @@ def disable_user(user_id: str, lifecycle=Depends(_LifecycleDep)):
 
 
 @router.post("/{user_id}/restore")
-def restore_user(user_id: str, lifecycle=Depends(_LifecycleDep)):
+def restore_user(user_id: str, lifecycle: Any = Depends(_LifecycleDep)) -> dict[str, object]:
     try:
         u = lifecycle.restore(user_id=user_id, actor="system")
     except KeyError:
