@@ -33,6 +33,8 @@ from adapters.persistence.models import (
     UserRoleModel,
     PolicyModel,
     FeatureFlagModel,
+    InvitationModel,
+    AuditEventModel,
     TenantStatusEnum,
     UserStatusEnum,
 )
@@ -40,6 +42,8 @@ from domain.tenants.models import Tenant, TenantStatus
 from domain.users.models import User, UserStatus
 from domain.policy.models import Policy, PolicyRule, Decision
 from domain.featureflags.models import FeatureFlag, FlagState
+from domain.invitations.models import Invitation, InvitationStatus
+from domain.audit.models import AuditEvent
 
 
 # Conversion utilities (ORM model ↔ Domain entity)
@@ -60,6 +64,16 @@ def tenant_model_to_domain(model: TenantModel) -> Tenant:
 
 def tenant_domain_to_model(entity: Tenant) -> TenantModel:
     """Convert Tenant (domain entity) to TenantModel (ORM)."""
+    def to_uuid_or_none(value: Optional[str]) -> Optional[UUID]:
+        """Convert string to UUID, return None if not a valid UUID."""
+        if not value:
+            return None
+        try:
+            return UUID(value)
+        except (ValueError, AttributeError):
+            # Not a valid UUID (e.g., "system"), store as NULL
+            return None
+    
     return TenantModel(
         tenant_id=UUID(entity.tenant_id),
         name=entity.name,
@@ -67,8 +81,8 @@ def tenant_domain_to_model(entity: Tenant) -> TenantModel:
         config_version=entity.config_version,
         created_at=entity.created_at,
         updated_at=entity.updated_at,
-        created_by=UUID(entity.created_by) if entity.created_by else None,
-        updated_by=UUID(entity.updated_by) if entity.updated_by else None,
+        created_by=to_uuid_or_none(entity.created_by),
+        updated_by=to_uuid_or_none(entity.updated_by),
     )
 
 
@@ -91,6 +105,16 @@ def user_model_to_domain(model: UserModel, roles: list[str]) -> User:
 
 def user_domain_to_model(entity: User) -> UserModel:
     """Convert User (domain entity) to UserModel (ORM)."""
+    def to_uuid_or_none(value: Optional[str]) -> Optional[UUID]:
+        """Convert string to UUID, return None if not a valid UUID."""
+        if not value:
+            return None
+        try:
+            return UUID(value)
+        except (ValueError, AttributeError):
+            # Not a valid UUID (e.g., "system"), store as NULL
+            return None
+    
     return UserModel(
         user_id=UUID(entity.user_id),
         tenant_id=UUID(entity.tenant_id),
@@ -100,8 +124,8 @@ def user_domain_to_model(entity: User) -> UserModel:
         last_login_at=entity.last_login_at,
         created_at=entity.created_at,
         updated_at=entity.updated_at,
-        created_by=UUID(entity.created_by) if entity.created_by else None,
-        updated_by=UUID(entity.updated_by) if entity.updated_by else None,
+        created_by=to_uuid_or_none(entity.created_by),
+        updated_by=to_uuid_or_none(entity.updated_by),
     )
 
 
@@ -175,6 +199,14 @@ def featureflag_domain_to_model(entity: FeatureFlag) -> FeatureFlagModel:
     """Convert FeatureFlag (domain entity) to FeatureFlagModel (ORM)."""
     from adapters.persistence.models import FlagStateEnum
     
+    def to_uuid_or_none(value: Optional[str]) -> Optional[UUID]:
+        if not value:
+            return None
+        try:
+            return UUID(value)
+        except (ValueError, AttributeError):
+            return None
+    
     return FeatureFlagModel(
         flag_id=UUID(entity.flag_id),
         tenant_id=UUID(entity.tenant_id),
@@ -184,8 +216,8 @@ def featureflag_domain_to_model(entity: FeatureFlag) -> FeatureFlagModel:
         rules=entity.rules,
         created_at=entity.created_at,
         updated_at=entity.updated_at,
-        created_by=UUID(entity.created_by) if entity.created_by else None,
-        updated_by=UUID(entity.updated_by) if entity.updated_by else None,
+        created_by=to_uuid_or_none(entity.created_by),
+        updated_by=to_uuid_or_none(entity.updated_by),
     )
 
 
@@ -230,6 +262,17 @@ class SQLAlchemyTenantRepository:
         """Get tenant by ID."""
         result = await self.session.execute(
             select(TenantModel).where(TenantModel.tenant_id == UUID(tenant_id))
+        )
+        model = result.scalar_one_or_none()
+        return tenant_model_to_domain(model) if model else None
+
+    async def get_by_name(self, name: str) -> Optional[Tenant]:
+        """Get tenant by name (case-insensitive)."""
+        result = await self.session.execute(
+            select(TenantModel).where(
+                TenantModel.name.ilike(name),
+                TenantModel.status != TenantStatusEnum.soft_deleted
+            )
         )
         model = result.scalar_one_or_none()
         return tenant_model_to_domain(model) if model else None
@@ -315,6 +358,23 @@ class SQLAlchemyUserRepository:
         """Get user by ID."""
         result = await self.session.execute(
             select(UserModel).where(UserModel.user_id == UUID(user_id))
+        )
+        model = result.scalar_one_or_none()
+        
+        if not model:
+            return None
+        
+        # Fetch roles
+        roles = await self._get_user_roles(model.user_id)
+        return user_model_to_domain(model, roles)
+
+    async def get_by_email(self, email: str) -> Optional[User]:
+        """Get user by email address (case-insensitive)."""
+        result = await self.session.execute(
+            select(UserModel).where(
+                UserModel.email.ilike(email),  # Case-insensitive match
+                UserModel.status != UserStatusEnum.disabled
+            )
         )
         model = result.scalar_one_or_none()
         
@@ -492,3 +552,204 @@ class SQLAlchemyFeatureFlagRepository:
         )
         models = result.scalars().all()
         return [featureflag_model_to_domain(m) for m in models]
+
+
+# Invitation conversion utilities
+
+def invitation_model_to_domain(model: InvitationModel) -> Invitation:
+    """Convert InvitationModel to Invitation domain entity."""
+    
+    # Map accepted_at to status
+    if model.accepted_at:
+        status = InvitationStatus.accepted
+    elif datetime.now(timezone.utc) >= model.expires_at:
+        status = InvitationStatus.expired
+    else:
+        status = InvitationStatus.pending
+    
+    return Invitation(
+        invitation_id=str(model.invitation_id),
+        tenant_id=str(model.tenant_id),
+        email=model.email,
+        expires_at=model.expires_at,
+        status=status,
+        accepted_at=model.accepted_at,
+        created_at=getattr(model, 'created_at', datetime.now(timezone.utc)),
+        updated_at=getattr(model, 'updated_at', datetime.now(timezone.utc)),
+        created_by=str(getattr(model, 'created_by', None)) if getattr(model, 'created_by', None) else None,
+        updated_by=str(getattr(model, 'updated_by', None)) if getattr(model, 'updated_by', None) else None,
+    )
+
+
+def invitation_domain_to_model(invitation: Invitation) -> InvitationModel:
+    """Convert Invitation domain entity to InvitationModel."""
+    import hashlib
+    
+    # For token_hash, we'll use a placeholder since domain doesn't store raw token
+    # The actual token hashing should happen at the service layer
+    token_hash = hashlib.sha256(invitation.invitation_id.encode()).hexdigest()
+    
+    return InvitationModel(
+        invitation_id=UUID(invitation.invitation_id),
+        tenant_id=UUID(invitation.tenant_id),
+        email=invitation.email,
+        token_hash=token_hash,
+        expires_at=invitation.expires_at,
+        accepted_at=invitation.accepted_at,
+    )
+
+
+class SQLAlchemyInvitationRepository:
+    """
+    Database-backed invitation repository (Phase 3 debt).
+    
+    Implements async CRUD operations with tenant isolation.
+    Token stored as SHA-256 hash per FR-050.
+    """
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def upsert(self, invitation: Invitation) -> Invitation:
+        """Insert or update invitation."""
+        
+        # Check if exists
+        result = await self.session.execute(
+            select(InvitationModel).where(
+                InvitationModel.invitation_id == UUID(invitation.invitation_id)
+            )
+        )
+        existing = result.scalar_one_or_none()
+        
+        if existing:
+            # Update existing
+            existing.email = invitation.email
+            existing.expires_at = invitation.expires_at
+            existing.accepted_at = invitation.accepted_at
+            await self.session.flush()
+            return invitation_model_to_domain(existing)
+        else:
+            # Insert new
+            model = invitation_domain_to_model(invitation)
+            self.session.add(model)
+            await self.session.flush()
+            return invitation_model_to_domain(model)
+
+    async def get(self, invitation_id: str) -> Optional[Invitation]:
+        """Get invitation by ID."""
+        
+        result = await self.session.execute(
+            select(InvitationModel).where(
+                InvitationModel.invitation_id == UUID(invitation_id)
+            )
+        )
+        model = result.scalar_one_or_none()
+        return invitation_model_to_domain(model) if model else None
+
+    async def list_by_tenant(self, tenant_id: str) -> list[Invitation]:
+        """List invitations filtered by tenant (FR-002: tenant isolation)."""
+        
+        result = await self.session.execute(
+            select(InvitationModel).where(
+                InvitationModel.tenant_id == UUID(tenant_id)
+            )
+        )
+        models = result.scalars().all()
+        return [invitation_model_to_domain(m) for m in models]
+
+
+# Audit event conversion utilities
+
+def audit_event_model_to_domain(model: AuditEventModel) -> AuditEvent:
+    """Convert AuditEventModel to AuditEvent domain entity."""
+    
+    return AuditEvent(
+        event_id=str(model.event_id),
+        tenant_id=str(model.tenant_id) if model.tenant_id else None,
+        category=model.action_type.split('.')[0] if '.' in model.action_type else 'system',
+        action=model.action_type,
+        actor_user_id=str(model.actor_user_id) if model.actor_user_id else None,
+        target_type=model.target_ref.split(':')[0] if ':' in model.target_ref else None,
+        target_id=model.target_ref.split(':')[1] if ':' in model.target_ref else model.target_ref,
+        metadata=model.event_metadata or {},
+        created_at=model.created_at,
+    )
+
+
+def audit_event_domain_to_model(event: AuditEvent) -> AuditEventModel:
+    """Convert AuditEvent domain entity to AuditEventModel."""
+    
+    # Combine target_type and target_id into target_ref
+    target_ref = f"{event.target_type}:{event.target_id}" if event.target_type else event.target_id or "system"
+    
+    return AuditEventModel(
+        event_id=UUID(event.event_id),
+        tenant_id=UUID(event.tenant_id) if event.tenant_id else None,
+        actor_user_id=UUID(event.actor_user_id) if event.actor_user_id else None,
+        action_type=event.action,
+        target_ref=target_ref,
+        event_metadata=event.metadata,
+        created_at=event.created_at,
+    )
+
+
+class SQLAlchemyAuditAppender:
+    """
+    Database-backed audit event appender (Phase 3 debt).
+    
+    Implements append-only audit log with tenant isolation.
+    Metadata redacted per FR-073, C-007.
+    """
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def append(self, event: AuditEvent) -> None:
+        """Append audit event to database."""
+        model = audit_event_domain_to_model(event)
+        self.session.add(model)
+        await self.session.flush()
+
+    async def list(
+        self,
+        tenant_id: Optional[str] = None,
+        action: Optional[str] = None,
+        since: Optional[datetime] = None,
+        until: Optional[datetime] = None,
+        limit: int = 100,
+        offset: int = 0
+    ) -> list[AuditEvent]:
+        """List audit events with filtering (FR-027).
+        
+        Args:
+            tenant_id: Filter by tenant ID
+            action: Filter by action type (e.g., "user.login")
+            since: Filter events created at or after this timestamp (inclusive)
+            until: Filter events created before this timestamp (exclusive)
+            limit: Maximum number of results to return
+            offset: Number of results to skip
+        
+        Returns:
+            List of audit events matching the filters
+        """
+        query = select(AuditEventModel).order_by(AuditEventModel.created_at.desc())
+        
+        # Apply filters in SQL for efficiency (FR-027)
+        if tenant_id:
+            query = query.where(AuditEventModel.tenant_id == UUID(tenant_id))
+        
+        if action:
+            query = query.where(AuditEventModel.action_type == action)
+        
+        if since:
+            query = query.where(AuditEventModel.created_at >= since)
+        
+        if until:
+            query = query.where(AuditEventModel.created_at < until)
+        
+        # Apply pagination after filtering
+        query = query.limit(limit).offset(offset)
+        
+        result = await self.session.execute(query)
+        models = result.scalars().all()
+        return [audit_event_model_to_domain(m) for m in models]

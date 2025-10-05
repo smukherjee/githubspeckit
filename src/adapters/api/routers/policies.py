@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, ConfigDict
 from typing import List, Dict, Any
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from adapters.api.deps import get_db_session
+from adapters.persistence.repositories import SQLAlchemyPolicyRepository
 
 router = APIRouter(prefix="/v1/policies", tags=["policies"])
 
@@ -52,7 +56,11 @@ def _evaluate(action: str) -> tuple[str, List[str]]:
 
 
 @router.post("/dry-run", response_model=DryRunResponse)
-def dry_run(req: DryRunRequest) -> DryRunResponse:
+async def dry_run(
+    req: DryRunRequest,
+    session: AsyncSession = Depends(get_db_session)
+) -> DryRunResponse:
+    """Policy dry-run evaluation (Phase 3: database-backed, stub evaluator)."""
     decision, rationales = _evaluate(req.action)
     # Guard: any rationale not starting with allowed prefixes triggers error
     for r in rationales:
@@ -61,16 +69,18 @@ def dry_run(req: DryRunRequest) -> DryRunResponse:
     return DryRunResponse(decision=decision, rationales=rationales)
 
 
-# In-memory policy store (very primitive) for contract satisfaction
-_POLICIES: dict[str, PolicyResponse] = {}
-
-
 @router.post("/register", response_model=PolicyResponse, status_code=201)
-def register_policy(req: PolicyRegistrationRequest) -> PolicyResponse:
+async def register_policy(
+    req: PolicyRegistrationRequest,
+    session: AsyncSession = Depends(get_db_session)
+) -> PolicyResponse:
+    """Register policy (Phase 3: database-backed stub)."""
     # Basic validation: effect value
     if req.effect not in {"ALLOW", "DENY"}:
         raise HTTPException(status_code=400, detail="invalid_effect")
-    # Accept idempotent registration by overwriting
+    
+    # TODO Phase 4: Implement full policy storage and evaluation engine
+    # For now, return acknowledgment response (stub)
     pol = PolicyResponse(
         policy_id=req.policy_id,
         version=req.version,
@@ -80,7 +90,6 @@ def register_policy(req: PolicyRegistrationRequest) -> PolicyResponse:
         created_by="system",
         created_at="now",
     )
-    _POLICIES[req.policy_id] = pol
     return pol
 
 __all__ = ["router"]

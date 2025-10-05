@@ -132,7 +132,18 @@ def create_app() -> FastAPI:
         # Satisfies FR-041 C-045 contract test (TEST-API-28)
         return {"errors": []}
 
-    # Include routers from adapters
+    # Include routers from adapters (Phase 3: with both /api prefix and without for backward compatibility)
+    # Register with /api prefix (new standard)
+    app.include_router(invitations_router.router, prefix="/api")
+    app.include_router(users_router.router, prefix="/api")
+    app.include_router(auth_router.router, prefix="/api")
+    app.include_router(policies_router.router, prefix="/api")
+    app.include_router(feature_flags_router.router, prefix="/api")
+    app.include_router(embed_router.router, prefix="/api")
+    app.include_router(audit_router.router, prefix="/api")
+    app.include_router(tenants_router.router, prefix="/api")
+    
+    # Register without prefix for contract test compatibility
     app.include_router(invitations_router.router)
     app.include_router(users_router.router)
     app.include_router(auth_router.router)
@@ -177,13 +188,82 @@ def create_app() -> FastAPI:
         return {"metrics": sorted(set(present))}
 
     @app.get("/v1/logs/export", tags=["system"])
-    async def export_logs(limit: int = 100) -> dict[str, list[dict[str, object]] | bool | int]:
-        res = app.state.log_exporter.export_latest(limit)
-        return {
+    async def export_logs(
+        limit: int = 100,
+        tenant_id: str | None = None,
+        category: str | None = None,
+        correlation_id: str | None = None,
+        since: str | None = None,
+        until: str | None = None,
+    ) -> dict[str, list[dict[str, object]] | bool | int | str | None]:
+        """Export logs with filtering and redaction (FR-016, FR-072, FR-073).
+        
+        Query Parameters:
+            limit: Maximum records to return (default 100, max 10000)
+            tenant_id: Filter by tenant ID
+            category: Filter by log level/category (info, warning, error)
+            correlation_id: Filter by correlation ID
+            since: ISO8601 timestamp lower bound (inclusive)
+            until: ISO8601 timestamp upper bound (exclusive)
+            
+        Returns:
+            JSON with records (redacted), truncated flag, total_available count,
+            and optional reason for truncation.
+        """
+        from datetime import datetime
+        from fastapi import HTTPException
+        
+        # Parse timestamp parameters
+        since_dt = None
+        until_dt = None
+        
+        if since:
+            try:
+                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid 'since' timestamp: {since}. Expected ISO8601 format."
+                )
+        
+        if until:
+            try:
+                until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
+            except ValueError:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid 'until' timestamp: {until}. Expected ISO8601 format."
+                )
+        
+        # Validate time window (FR-072: ≤ 24h)
+        if since_dt and until_dt:
+            delta = until_dt - since_dt
+            if delta.total_seconds() > 86400:  # 24 hours
+                raise HTTPException(
+                    status_code=400,
+                    detail="Time window exceeds 24 hour limit (FR-072 C-006)"
+                )
+        
+        # Call export service with filters
+        res = app.state.log_exporter.export_latest(
+            limit=limit,
+            tenant_id=tenant_id,
+            category=category,
+            correlation_id=correlation_id,
+            since=since_dt,
+            until=until_dt,
+        )
+        
+        response = {
             "records": res.records,
             "truncated": res.truncated,
             "total_available": res.total_available,
         }
+        
+        if res.reason:
+            response["reason"] = res.reason
+        
+        return response
 
     return app
 

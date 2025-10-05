@@ -3,6 +3,7 @@ from __future__ import annotations
 from hashlib import sha256
 from datetime import datetime, timezone
 from typing import Any, Optional
+import inspect
 
 from domain.invitations.models import Invitation, InvitationRepository, InvitationStatus
 from uuid import uuid4
@@ -19,7 +20,7 @@ class InvitationService:
         # store invitation as-is
         return self._repo.upsert(invitation)
 
-    def create_invitation(self, *, tenant_id: str, email: str, actor: str, ttl_minutes: int = 60) -> Invitation:
+    async def create_invitation(self, *, tenant_id: str, email: str, actor: str, ttl_minutes: int = 60) -> Invitation:
         """Convenience factory used by early API tests prior to full contract exposure.
 
         Generates an invitation_id + expiry and persists it.
@@ -33,10 +34,14 @@ class InvitationService:
             created_by=actor,
             updated_by=actor,
         )
-        return self._repo.upsert(invitation)
+        result = self._repo.upsert(invitation)  # type: ignore[misc]
+        if inspect.iscoroutine(result):
+            return await result
+        return result  # type: ignore[return-value]
 
-    def accept(self, invitation_id: str, actor: str) -> Invitation:
-        inv = self._repo.get(invitation_id)
+    async def accept(self, invitation_id: str, actor: str) -> Invitation:
+        result = self._repo.get(invitation_id)  # type: ignore[misc]
+        inv = await result if inspect.iscoroutine(result) else result
         if not inv:
             # increment auth_failures_total for telemetry
             try:
@@ -59,7 +64,9 @@ class InvitationService:
         if inv.is_expired():
             inv.status = InvitationStatus.expired
             inv.updated_at = datetime.now(timezone.utc)
-            self._repo.upsert(inv)
+            result = self._repo.upsert(inv)  # type: ignore[misc]
+            if inspect.iscoroutine(result):
+                await result
             try:
                 if self._metrics and getattr(inv, "tenant_id", None):
                     self._metrics.counter_inc("auth_failures_total", tenant_id=getattr(inv, "tenant_id", None), amount=1)
@@ -70,7 +77,9 @@ class InvitationService:
         inv.accepted_at = datetime.now(timezone.utc)
         inv.updated_by = actor
         inv.updated_at = datetime.now(timezone.utc)
-        self._repo.upsert(inv)
+        result = self._repo.upsert(inv)  # type: ignore[misc]
+        if inspect.iscoroutine(result):
+            await result
         if self._audit:
             try:
                 self._audit.emit(actor=actor, action="invitation.accept", target={"invitation_id": invitation_id, "tenant_id": getattr(inv, "tenant_id", None)})

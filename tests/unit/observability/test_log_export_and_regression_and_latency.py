@@ -2,20 +2,39 @@ import pytest
 
 
 def test_log_export_bounds_and_truncation():
+    """Test log export with filtering, bounds, and redaction (FR-016, FR-072, FR-073)."""
     from fastapi.testclient import TestClient
     from adapters.api.app import create_app
 
     app = create_app()
     client = TestClient(app)
-    # generate > max_limit logs (middleware logs each request)
+    
+    # Generate > limit logs (middleware logs each request)
     for i in range(30):
         client.get("/v1/health")
+    
+    # Test basic limit and truncation
     resp = client.get("/v1/logs/export", params={"limit": 10})
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["records"]) == 10
     assert data["truncated"] is True
     assert data["total_available"] >= 30
+    
+    # Test category filter
+    resp = client.get("/v1/logs/export", params={"category": "info", "limit": 5})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert all(r.get("level") == "info" for r in data["records"])
+    
+    # Test redaction - sensitive fields should be redacted
+    resp = client.get("/v1/logs/export", params={"limit": 5})
+    assert resp.status_code == 200
+    data = resp.json()
+    for record in data["records"]:
+        # If authorization header was present, it should be redacted
+        if "headers" in record and "authorization" in record["headers"]:
+            assert record["headers"]["authorization"] == "REDACTED"
 
 
 def test_regression_trigger():
@@ -56,18 +75,49 @@ def test_token_validation_failure_logging():
 
 
 def test_metrics_snapshot_and_policy_latency_histogram():
+    """Test policy evaluation histogram is exposed (FR-032, FR-034, C-044)."""
     from fastapi.testclient import TestClient
     from adapters.api.app import create_app
     from domain.policy.evaluator import PolicyEvaluator, Policy, Decision
 
     app = create_app()
     client = TestClient(app)
-    # register policy and evaluate to produce latency sample
-    p = Policy(policy_id="p1", version=1, resource_type="doc", condition=lambda ctx: True, effect=Decision.ALLOW)
+    
+    # Register policy and evaluate to produce latency samples
+    p = Policy(
+        policy_id="p1",
+        version=1,
+        resource_type="doc",
+        condition=lambda ctx: True,
+        effect=Decision.ALLOW
+    )
     pe = PolicyEvaluator(policies=[p], metrics_adapter=app.state.prom)
-    pe.evaluate("doc", {"tenant_id": "t-1"})
-    # Perform multiple evaluations to ensure histogram buckets recorded
-    for _ in range(3):
+    
+    # Perform multiple evaluations to ensure histogram buckets are recorded
+    for _ in range(5):
         pe.evaluate("doc", {"tenant_id": "t-1"})
-    metrics_text = client.get("/metrics").text
-    assert "policy_eval_latency_ms_bucket" in metrics_text
+    
+    # Check Prometheus metrics text format
+    metrics_resp = client.get("/metrics")
+    assert metrics_resp.status_code == 200
+    metrics_text = metrics_resp.text
+    
+    # Verify policy evaluation latency histogram is present (C-044)
+    # Metric name: policy_evaluation_latency_seconds (not policy_eval_latency_ms)
+    assert "policy_evaluation_latency_seconds" in metrics_text
+    assert "policy_evaluation_latency_seconds_bucket" in metrics_text
+    
+    # Verify companion counter is present
+    assert "policy_evaluations_total" in metrics_text
+    
+    # Check metrics snapshot endpoint
+    snapshot_resp = client.get("/v1/metrics/snapshot")
+    assert snapshot_resp.status_code == 200
+    snapshot = snapshot_resp.json()
+    assert "metrics" in snapshot
+    
+    # Verify required metrics are present
+    # Note: Prometheus histograms expose _bucket, _count, _sum, _created suffixes
+    metric_names = snapshot["metrics"]
+    assert any("policy_evaluation_latency_seconds" in m for m in metric_names)
+    assert any("policy_evaluations_total" in m for m in metric_names)

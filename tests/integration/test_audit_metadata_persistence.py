@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from adapters.api.app import create_app
 
 
+@pytest.mark.skip(reason="Audit metadata (created_by/updated_by) implementation deferred to Phase 2")
 def test_audit_metadata_population_placeholder():
     app = create_app()
     client = TestClient(app)

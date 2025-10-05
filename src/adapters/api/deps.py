@@ -1,11 +1,28 @@
-"""FastAPI dependency providers (Phase 2 incremental DI refactor).
+"""FastAPI dependency providers (Phase 3 database-backed DI).
 
-Centralizes in-memory singletons so routers do not construct services directly.
-Will be replaced/extended with persistence adapters in Phase 3.
+Provides database session management and repository injection.
+Uses SQLAlchemy async repositories with proper session lifecycle management.
 """
 from functools import lru_cache
+from typing import AsyncGenerator
 from datetime import datetime
+
+from fastapi import Depends
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from adapters.persistence.db_config import DatabaseConfig
+from adapters.persistence.repositories import (
+    SQLAlchemyTenantRepository,
+    SQLAlchemyUserRepository,
+    SQLAlchemyPolicyRepository,
+    SQLAlchemyFeatureFlagRepository,
+    SQLAlchemyInvitationRepository,
+    SQLAlchemyAuditAppender,
+)
+from domain.tenants.models import TenantRepository
 from domain.users.models import UserRepository
+from domain.policy.models import PolicyRepository
+from domain.featureflags.models import FeatureFlagRepository
 from domain.invitations.models import InvitationRepository
 from services.user_lifecycle_service import UserLifecycleService
 from services.invitations_service import InvitationService
@@ -14,40 +31,117 @@ from auth_core.auth_service import AuthenticationService
 from auth_core.jwt import JWTService, JWTKeySet
 
 
-class InMemoryAuditService:
-    """Minimal audit service placeholder for Phase 2.
+class AuditService:
+    """Database-backed audit service (Phase 3).
 
-    Real implementation will append to an audit repository & structured log.
+    Appends audit events to database via SQLAlchemyAuditAppender.
     """
-    def __init__(self) -> None:
-        self.events: list[dict[str, object]] = []
+    def __init__(self, appender: SQLAlchemyAuditAppender) -> None:
+        self.appender = appender
 
-    def log(self, *, action_type: str, tenant_id: str | None, metadata: dict[str, object] | None = None) -> None:  # pragma: no cover simple storage
-        self.events.append({
-            "action_type": action_type,
-            "tenant_id": tenant_id,
-            "metadata": metadata or {},
-        })
-
-
-@lru_cache
-def get_user_repo() -> UserRepository:
-    return UserRepository()
-
-
-@lru_cache
-def get_invitation_repo() -> InvitationRepository:
-    return InvitationRepository()
-
-
-@lru_cache
-def get_user_lifecycle() -> UserLifecycleService:
-    return UserLifecycleService(repo=get_user_repo())
+    async def log(self, *, action_type: str, tenant_id: str | None, metadata: dict[str, object] | None = None) -> None:
+        """Log audit event to database."""
+        from domain.audit.models import AuditEvent
+        from uuid import uuid4
+        
+        event = AuditEvent(
+            event_id=str(uuid4()),
+            tenant_id=tenant_id,
+            category=action_type.split('.')[0] if '.' in action_type else 'system',
+            action=action_type,
+            actor_user_id=None,  # TODO: Extract from request context
+            target_type=None,
+            target_id=None,
+            metadata=metadata or {},
+        )
+        await self.appender.append(event)
 
 
-@lru_cache
-def get_invitation_service() -> InvitationService:
-    return InvitationService(repo=get_invitation_repo())
+# Database session management
+
+_db_config: DatabaseConfig | None = None
+_session_maker: async_sessionmaker[AsyncSession] | None = None
+
+
+def get_db_config() -> DatabaseConfig:
+    """Get database configuration singleton."""
+    global _db_config
+    if _db_config is None:
+        _db_config = DatabaseConfig.from_env()
+    return _db_config
+
+
+def get_session_maker() -> async_sessionmaker[AsyncSession]:
+    """Get async session maker singleton."""
+    global _session_maker
+    if _session_maker is None:
+        db_config = get_db_config()
+        engine = db_config.create_engine()
+        _session_maker = async_sessionmaker(
+            engine,
+            class_=AsyncSession,
+            expire_on_commit=False
+        )
+    return _session_maker
+
+
+async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Provide database session for request scope.
+    
+    Usage in router:
+        async def endpoint(session: AsyncSession = Depends(get_db_session)):
+            ...
+    """
+    session_maker = get_session_maker()
+    async with session_maker() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+
+# Repository dependencies (request-scoped via session)
+
+async def get_tenant_repo(session: AsyncSession = Depends(get_db_session)) -> SQLAlchemyTenantRepository:
+    """Get tenant repository for current request."""
+    return SQLAlchemyTenantRepository(session)
+
+
+async def get_user_repo(session: AsyncSession = Depends(get_db_session)) -> SQLAlchemyUserRepository:
+    """Get user repository for current request."""
+    return SQLAlchemyUserRepository(session)
+
+
+async def get_policy_repo(session: AsyncSession = Depends(get_db_session)) -> SQLAlchemyPolicyRepository:
+    """Get policy repository for current request."""
+    return SQLAlchemyPolicyRepository(session)
+
+
+async def get_feature_flag_repo(session: AsyncSession = Depends(get_db_session)) -> SQLAlchemyFeatureFlagRepository:
+    """Get feature flag repository for current request."""
+    return SQLAlchemyFeatureFlagRepository(session)
+
+
+async def get_invitation_repo(session: AsyncSession = Depends(get_db_session)) -> SQLAlchemyInvitationRepository:
+    """Get invitation repository for current request (database-backed)."""
+    return SQLAlchemyInvitationRepository(session)
+
+
+# Service dependencies
+
+async def get_user_lifecycle(user_repo: SQLAlchemyUserRepository = Depends(get_user_repo)) -> UserLifecycleService:
+    """Get user lifecycle service with database-backed repository."""
+    return UserLifecycleService(repo=user_repo)  # type: ignore[arg-type]
+
+
+async def get_invitation_service(
+    invitation_repo: SQLAlchemyInvitationRepository = Depends(get_invitation_repo)
+) -> InvitationService:
+    """Get invitation service (database-backed)."""
+    return InvitationService(repo=invitation_repo)  # type: ignore[arg-type]
 
 
 @lru_cache
@@ -67,12 +161,12 @@ def get_auth_service() -> AuthenticationService:
     return AuthenticationService(registry=get_auth_registry())
 
 
-_audit_singleton = None
+async def get_audit_appender(session: AsyncSession = Depends(get_db_session)) -> SQLAlchemyAuditAppender:
+    """Get audit appender for current request (database-backed)."""
+    return SQLAlchemyAuditAppender(session)
 
 
-def get_audit_service() -> InMemoryAuditService:
-    global _audit_singleton
-    if _audit_singleton is None:
-        _audit_singleton = InMemoryAuditService()
-    return _audit_singleton
+async def get_audit_service(appender: SQLAlchemyAuditAppender = Depends(get_audit_appender)) -> AuditService:
+    """Get audit service (database-backed)."""
+    return AuditService(appender)
 
