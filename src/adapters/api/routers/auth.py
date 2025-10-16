@@ -26,10 +26,21 @@ class LoginRequest(BaseModel):
     mfa_code: Optional[str] = None
 
 
+class UserInfo(BaseModel):
+    """User information returned in login response"""
+    user_id: str
+    email: str
+    tenant_id: str
+    roles: list[str]
+    status: str
+    model_config = ConfigDict()
+
+
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    expires_at: datetime
+    expires_in: int  # Token lifetime in seconds
+    user: UserInfo  # Current user object
     model_config = ConfigDict()
 
 
@@ -84,7 +95,23 @@ async def login(
             pass
         await user_repo.upsert(user)
     
-    return LoginResponse(access_token=token, expires_at=datetime.now(timezone.utc) + timedelta(minutes=30))
+    # Create user info for response
+    user_info = UserInfo(
+        user_id=user.user_id,
+        email=user.email,
+        tenant_id=user.tenant_id,
+        roles=user.roles,
+        status=user.status.value  # Convert enum to string
+    )
+    
+    # Token expires in 15 minutes (900 seconds)
+    expires_in = 900
+    
+    return LoginResponse(
+        access_token=token,
+        expires_in=expires_in,
+        user=user_info
+    )
 
 
 @router.post("/revoke", status_code=200)

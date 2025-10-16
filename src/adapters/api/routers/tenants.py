@@ -5,7 +5,7 @@ Idempotency rule: creating a tenant with an existing exact lowercase name return
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status, Header, Depends
+from fastapi import APIRouter, HTTPException, status, Header, Depends, Response
 from pydantic import BaseModel, field_validator, ConfigDict
 from uuid import uuid4, UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,6 +44,7 @@ class TenantCreateRequest(BaseModel):
 
 
 class TenantResponse(BaseModel):
+    id: str  # React-Admin requires 'id' field
     tenant_id: str
     name: str
     status: str
@@ -55,7 +56,8 @@ class TenantResponse(BaseModel):
 
 
 class TenantListResponse(BaseModel):
-    tenants: list[TenantResponse]
+    data: list[TenantResponse]  # React-Admin expects 'data' field
+    total: int  # React-Admin expects 'total' field for pagination
 
 
 @router.post("", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
@@ -93,6 +95,7 @@ async def create_tenant(
     await session.commit()
     
     return TenantResponse(
+        id=t.tenant_id,  # Use tenant_id as id for React-Admin
         tenant_id=t.tenant_id,
         name=t.name,
         status=t.status.value,
@@ -103,16 +106,18 @@ async def create_tenant(
     )
 
 
-@router.get("", response_model=TenantListResponse)
+@router.get("", response_model=list[TenantResponse])
 async def list_tenants(
+    response: Response,
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session)
-) -> TenantListResponse:
+) -> list[TenantResponse]:
     """List all tenants (Phase 3 database-backed)."""
     tenant_repo = SQLAlchemyTenantRepository(session)
     tenants = await tenant_repo.list()
-    return TenantListResponse(tenants=[
+    tenant_responses = [
         TenantResponse(
+            id=t.tenant_id,  # Use tenant_id as id for React-Admin
             tenant_id=t.tenant_id,
             name=t.name,
             status=t.status.value,
@@ -120,7 +125,13 @@ async def list_tenants(
             created_at=t.created_at,
             updated_at=t.updated_at
         ) for t in tenants
-    ])
+    ]
+    
+    # Add Content-Range header for React-Admin pagination
+    total = len(tenant_responses)
+    response.headers["Content-Range"] = f"tenants 0-{total-1 if total > 0 else 0}/{total}"
+    
+    return tenant_responses
 
 
 @router.delete("/{tenant_id}", status_code=204)

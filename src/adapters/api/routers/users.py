@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Depends, status
+from fastapi import APIRouter, HTTPException, Depends, status, Response
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
 from typing import List, Optional
 from uuid import uuid4
@@ -64,6 +64,7 @@ class UserCreateRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
+    id: str  # React-Admin requires 'id' field
     user_id: str
     tenant_id: str
     email: EmailStr
@@ -75,7 +76,8 @@ class UserResponse(BaseModel):
 
 
 class UserListResponse(BaseModel):
-    users: List[UserResponse]
+    data: List[UserResponse]  # React-Admin expects 'data' field
+    total: int  # React-Admin expects 'total' field for pagination
 
 
 @router.post("", response_model=UserResponse, status_code=201)
@@ -127,6 +129,7 @@ async def create_user(
     await session.commit()
     
     return UserResponse(
+        id=user.user_id,  # Use user_id as id for React-Admin
         user_id=user.user_id,
         tenant_id=user.tenant_id,
         email=user.email,
@@ -156,6 +159,7 @@ async def get_current_user_profile(
         )
     
     return UserResponse(
+        id=user.user_id,  # Use user_id as id for React-Admin
         user_id=user.user_id,
         tenant_id=user.tenant_id,
         email=user.email,
@@ -166,12 +170,13 @@ async def get_current_user_profile(
     )
 
 
-@router.get("", response_model=UserListResponse)
+@router.get("", response_model=list[UserResponse])
 async def list_users(
+    response: Response,
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session),
     tenant_id: Optional[str] = None
-) -> UserListResponse:
+) -> list[UserResponse]:
     """List users. Defaults to current user's tenant unless tenant_id specified (superadmin only)."""
     # Use current user's tenant if not specified
     effective_tenant_id = tenant_id or current_user.tenant_id
@@ -182,8 +187,9 @@ async def list_users(
     
     user_repo = SQLAlchemyUserRepository(session)
     users = await user_repo.list_by_tenant(effective_tenant_id)
-    return UserListResponse(users=[
+    user_responses = [
         UserResponse(
+            id=u.user_id,  # Use user_id as id for React-Admin
             user_id=u.user_id,
             tenant_id=u.tenant_id,
             email=u.email,
@@ -192,7 +198,13 @@ async def list_users(
             created_at=u.created_at,
             updated_at=u.updated_at
         ) for u in users
-    ])
+    ]
+    
+    # Add Content-Range header for React-Admin pagination
+    total = len(user_responses)
+    response.headers["Content-Range"] = f"users 0-{total-1 if total > 0 else 0}/{total}"
+    
+    return user_responses
 
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -212,6 +224,7 @@ async def get_user(
         raise HTTPException(status_code=404, detail="user_not_found")
     
     return UserResponse(
+        id=u.user_id,  # Use user_id as id for React-Admin
         user_id=u.user_id,
         tenant_id=u.tenant_id,
         email=u.email,

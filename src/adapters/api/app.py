@@ -14,6 +14,7 @@ from __future__ import annotations
 from typing import Any
 from fastapi import FastAPI, Response, Request
 from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
 from domain.config.loader import load_config, ConfigValidationError
 import os, sys, json
 from adapters.api.routers import invitations as invitations_router
@@ -68,6 +69,19 @@ def create_app() -> FastAPI:
     # Simple span collection list for TEST-XCUT-11
     app.state._test_spans = []  # noqa: SLF001
     
+    # CORS middleware for frontend development (http://localhost:5173)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://localhost:5173",  # Frontend dev server
+            "http://127.0.0.1:5173",  # Alternative localhost
+        ],
+        allow_credentials=True,  # Required for JWT tokens and HttpOnly cookies
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+        allow_headers=["*"],  # Includes Authorization header
+        expose_headers=["Content-Range"],  # Required for React-Admin pagination
+    )
+    
     # Security/Error middleware (TEST-SEC-03 / IMPL-SEC-04) ensuring consistent envelope
     @app.middleware("http")
     async def error_envelope_middleware(request: Request, call_next: Any) -> Response:  # pragma: no cover small wrapper
@@ -82,6 +96,7 @@ def create_app() -> FastAPI:
     app.add_middleware(CorrelationMiddleware)
     app.add_middleware(StructuredLoggingMiddleware, sink=sink)
     app.add_middleware(DeprecationMiddleware)
+    
     
     # Lightweight span capture middleware (placeholder instrumentation)
     @app.middleware("http")

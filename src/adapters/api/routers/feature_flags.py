@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Response
 from pydantic import BaseModel, ConfigDict
 from typing import List, Optional
 from uuid import uuid4
@@ -24,6 +24,7 @@ class FeatureFlagCreate(BaseModel):
 
 
 class FeatureFlagResponse(BaseModel):
+    id: str  # React-Admin requires 'id' field
     flag_id: str
     tenant_id: str
     key: str
@@ -60,6 +61,7 @@ async def create_flag(
     await session.commit()
     
     return FeatureFlagResponse(
+        id=flag.flag_id,  # Use flag_id as id for React-Admin
         flag_id=flag.flag_id,
         tenant_id=flag.tenant_id,
         key=flag.key,
@@ -68,14 +70,30 @@ async def create_flag(
     )
 
 
-@router.get("", response_model=FeatureFlagList)
+@router.get("", response_model=list[FeatureFlagResponse])
 async def list_flags(
+    response: Response,
     tenant_id: str,
     session: AsyncSession = Depends(get_db_session)
-) -> FeatureFlagList:
+) -> list[FeatureFlagResponse]:
     """List feature flags by tenant (Phase 3: database-backed)."""
     flag_repo = SQLAlchemyFeatureFlagRepository(session)
     items = await flag_repo.list_by_tenant(tenant_id)
-    return FeatureFlagList(flags=[FeatureFlagResponse(flag_id=f.flag_id, tenant_id=f.tenant_id, key=f.key, state=f.state, variant=f.variant) for f in items])
+    flag_responses = [
+        FeatureFlagResponse(
+            id=f.flag_id,  # Use flag_id as id for React-Admin
+            flag_id=f.flag_id,
+            tenant_id=f.tenant_id,
+            key=f.key,
+            state=f.state,
+            variant=f.variant
+        ) for f in items
+    ]
+    
+    # Add Content-Range header for React-Admin pagination
+    total = len(flag_responses)
+    response.headers["Content-Range"] = f"feature-flags 0-{total-1 if total > 0 else 0}/{total}"
+    
+    return flag_responses
 
 __all__ = ["router"]

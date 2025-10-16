@@ -6,6 +6,7 @@ KEEP CHANGES BETWEEN MARKERS. Short, <150 lines, recent deltas at bottom.
 Always activate venv before running Python:
 - Activation: `source .venv/bin/activate`
 - Combined command: `source .venv/bin/activate && python script.py`
+- Terminal: Always start servers in seperate terminal and all curl commands in another terminal.
 
 <!-- BEGIN COPILOT CONTEXT -->
 ## Project Essence

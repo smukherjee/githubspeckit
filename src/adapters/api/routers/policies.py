@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Response
 from pydantic import BaseModel, ConfigDict
 from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -36,6 +36,7 @@ class PolicyRegistrationRequest(BaseModel):
 
 
 class PolicyResponse(BaseModel):
+    id: str  # React-Admin requires 'id' field
     policy_id: str
     version: int
     resource_type: str
@@ -82,6 +83,7 @@ async def register_policy(
     # TODO Phase 4: Implement full policy storage and evaluation engine
     # For now, return acknowledgment response (stub)
     pol = PolicyResponse(
+        id=req.policy_id,  # Use policy_id as id for React-Admin
         policy_id=req.policy_id,
         version=req.version,
         resource_type=req.resource_type,
@@ -91,5 +93,22 @@ async def register_policy(
         created_at="now",
     )
     return pol
+
+
+@router.get("", response_model=list[PolicyResponse])
+async def list_policies(
+    response: Response,
+    session: AsyncSession = Depends(get_db_session)
+) -> list[PolicyResponse]:
+    """List policies (Phase 3: database-backed stub)."""
+    # TODO Phase 4: Implement actual policy storage and retrieval
+    # For now, return empty list as policies are not yet stored in database
+    policy_responses = []
+    
+    # Add Content-Range header for React-Admin pagination
+    total = len(policy_responses)
+    response.headers["Content-Range"] = f"policies 0-{total-1 if total > 0 else 0}/{total}"
+    
+    return policy_responses
 
 __all__ = ["router"]
