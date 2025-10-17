@@ -175,7 +175,7 @@ async def seeded_database(db_engine):
                 tenant_id=tenant_id,
                 email="infysightuser@infysight.com",
                 status=UserStatus.active,
-                roles=["standard"],
+                roles=["user"],  # Use valid role 'user' instead of 'standard'
                 password_hash=default_hasher.hash("infysightuser123"),
                 last_login_at=None,
                 created_at=datetime.now(timezone.utc),
@@ -264,3 +264,39 @@ async def tenant_admin_headers(tenant_admin_token: str) -> dict:
 async def standard_user_headers(standard_user_token: str) -> dict:
     """Get authorization headers with standard user token."""
     return {"Authorization": f"Bearer {standard_user_token}"}
+
+
+@pytest_asyncio.fixture
+async def regular_user_headers(standard_user_token: str) -> dict:
+    """Alias for standard_user_headers - Get authorization headers with standard user token."""
+    return {"Authorization": f"Bearer {standard_user_token}"}
+
+
+@pytest_asyncio.fixture
+async def client(api_client: AsyncClient) -> AsyncClient:
+    """Alias for api_client - for compatibility with tests."""
+    return api_client
+
+
+@pytest.fixture
+def regular_user_id(seeded_database) -> str:
+    """Return standard user ID."""
+    return seeded_database["standard_user_id"]
+
+
+@pytest.fixture
+def test_user_id(seeded_database) -> str:
+    """Return superadmin user ID."""
+    return seeded_database["user_id"]
+
+
+@pytest.fixture
+def same_tenant_user_id(seeded_database) -> str:
+    """Return tenant admin user ID (same tenant as standard user)."""
+    return seeded_database["tenant_admin_id"]
+
+
+@pytest_asyncio.fixture
+async def superadmin_headers(superadmin_token: str) -> dict:
+    """Get authorization headers with superadmin token."""
+    return {"Authorization": f"Bearer {superadmin_token}"}

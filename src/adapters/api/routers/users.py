@@ -270,14 +270,15 @@ async def update_user(
 ) -> UserResponse:
     """Update user profile with RBAC enforcement.
     
-    Authorization rules:
-    - Users can update their own limited profile (email only for now - extended profile fields in user_details table)
-    - Tenant admins can update any user in their tenant (email, roles, status)
-    - Superadmins can update any user (all fields)
+    Authorization rules (frontend-agnostic, enforced at API layer):
+    - Superadmins: Can update ANY user across all tenants (email, roles, status)
+    - Tenant admins: Can update ANY user within their own tenant only (email, roles, status)
+    - Regular users: Can update ONLY their own profile (email only - no roles/status changes)
     
     Role escalation prevention:
     - Non-superadmins cannot assign 'superadmin' role
     - Users cannot change their own roles or status
+    - Non-superadmins cannot modify superadmin users
     
     Note: Extended profile fields (full_name, job_title, department, phone, timezone, language)
     are stored in the user_details table (feature 003-user-profile-details) and should be
@@ -291,26 +292,52 @@ async def update_user(
     # Determine if this is a self-update
     is_self_update = (user_id == current_user.user_id)
     
-    # RBAC enforcement
-    if is_self_update:
-        # Users can only update their own email, not roles or status
+    # RBAC enforcement - Three authorization levels
+    # 1. Superadmin: Can update any user across all tenants
+    if current_user.is_superadmin():
+        # Superadmin can update anyone, but cannot change their own roles/status
+        if is_self_update and (payload.roles is not None or payload.is_disabled is not None):
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot modify your own roles or account status"
+            )
+        # Superadmin allowed to proceed
+    
+    # 2. Tenant admin: Can update any user within their own tenant
+    elif current_user.has_role("tenant_admin"):
+        if u.tenant_id != current_user.tenant_id:
+            raise HTTPException(
+                status_code=403,
+                detail="Tenant admins can only update users in their own tenant"
+            )
+        # Prevent modifying superadmin users unless you are superadmin
+        if "superadmin" in u.roles:
+            raise HTTPException(
+                status_code=403,
+                detail="Only superadmins can modify superadmin users"
+            )
+        # Tenant admin cannot change their own roles/status
+        if is_self_update and (payload.roles is not None or payload.is_disabled is not None):
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot modify your own roles or account status"
+            )
+        # Tenant admin allowed to proceed
+    
+    # 3. Regular user: Can only update their own profile (email only)
+    else:
+        if not is_self_update:
+            raise HTTPException(
+                status_code=403,
+                detail="Regular users can only update their own profile"
+            )
+        # Regular users cannot update roles or status
         if payload.roles is not None or payload.is_disabled is not None:
             raise HTTPException(
                 status_code=403,
                 detail="Cannot modify your own roles or account status"
             )
-    elif u.tenant_id != current_user.tenant_id and not current_user.is_superadmin():
-        # Tenant isolation: non-superadmins cannot update users from other tenants
-        raise HTTPException(
-            status_code=403,
-            detail="Cannot update users in other tenants"
-        )
-    elif not (current_user.has_role("tenant_admin") or current_user.is_superadmin()):
-        # Only tenant admins and superadmins can update other users
-        raise HTTPException(
-            status_code=403,
-            detail="Only tenant admins and superadmins can update other users"
-        )
+        # Regular user allowed to proceed with limited updates
     
     # Track changes for audit logging
     changes_before = {

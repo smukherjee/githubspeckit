@@ -29,8 +29,9 @@ sync: venv
 install: compile-requirements sync
 
 # Add dev/test tooling (keep runtime lock clean)
+# Note: Installs dev dependency group which includes pytest-asyncio
 dev: install
-	$(PIP) install --editable . --group dev
+	$(UV) pip install --group dev --editable .
 
 test: dev
 	$(PYTHON) -m pytest -q

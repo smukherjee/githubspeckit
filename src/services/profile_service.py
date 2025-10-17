@@ -218,11 +218,15 @@ class ProfileService:
     ) -> bool:
         """Check if current user can edit target user's profile.
         
-        Rules:
-        - User can edit own profile
-        - Tenant admin can edit profiles in same tenant
-        - Superadmin cannot edit (for now - could be added later)
+        Rules (aligned with user update RBAC):
+        - Superadmin: Can edit any user's profile across all tenants
+        - Tenant admin: Can edit profiles in same tenant only
+        - Regular user: Can edit only their own profile
         """
+        # Superadmin can edit any profile
+        if current_user_role == "superadmin":
+            return True
+        
         # Users can edit their own profile
         if target_user_id == current_user_id:
             return True

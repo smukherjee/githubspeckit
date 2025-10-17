@@ -147,7 +147,7 @@ async def seeded_database(db_engine):
                 tenant_id=tenant_id,
                 email="infysightuser@infysight.com",
                 status=UserStatus.active,
-                roles=["standard"],
+                roles=["user"],  # Use valid role 'user' instead of 'standard'
                 password_hash=default_hasher.hash("infysightuser123"),
                 last_login_at=None,
                 created_at=datetime.now(timezone.utc),

@@ -67,6 +67,18 @@ async def login(
     # Look up user by email (case-insensitive)
     user = await user_repo.get_by_email(payload.email)
     if not user or not user.password_hash or user.status != UserStatus.active:
+        # Log failed login attempt
+        try:
+            await audit.log(
+                action_type="auth.login.failed",
+                tenant_id=user.tenant_id if user else None,
+                metadata={
+                    "email": payload.email,
+                    "reason": "user_not_found_or_inactive"
+                }
+            )
+        except Exception:
+            pass
         raise HTTPException(status_code=401, detail="invalid_credentials")
     
     try:
@@ -77,6 +89,19 @@ async def login(
             mfa_code=payload.mfa_code
         )
     except Exception:
+        # Log failed login attempt
+        try:
+            await audit.log(
+                action_type="auth.login.failed",
+                tenant_id=user.tenant_id,
+                metadata={
+                    "user_id": user.user_id,
+                    "email": user.email,
+                    "reason": "invalid_password_or_mfa"
+                }
+            )
+        except Exception:
+            pass
         raise HTTPException(status_code=401, detail="invalid_credentials")
     
     token = jwt_service.issue(sub=user.user_id, tenant_id=user.tenant_id, roles=user.roles)
@@ -86,7 +111,7 @@ async def login(
         user.password_hash = default_hasher.hash(payload.password)
         # Emit audit event (FR-051 C-033)
         try:
-            audit.log(
+            await audit.log(
                 action_type="auth.password.hash_upgraded",
                 tenant_id=user.tenant_id,
                 metadata={"user_id": user.user_id}
@@ -94,6 +119,21 @@ async def login(
         except Exception:
             pass
         await user_repo.upsert(user)
+    
+    # Log successful login audit event
+    try:
+        await audit.log(
+            action_type="auth.login.success",
+            tenant_id=user.tenant_id,
+            metadata={
+                "user_id": user.user_id,
+                "email": user.email,
+                "login_method": "password"
+            }
+        )
+    except Exception:
+        # Don't fail login if audit logging fails
+        pass
     
     # Create user info for response
     user_info = UserInfo(
@@ -194,11 +234,11 @@ async def revoke(
         # Commit the transaction
         await session.commit()
         
-        # Emit audit event for revocation
+        # Emit audit event for logout
         try:
             # Check if log method is async
             log_result = audit.log(
-                action_type="token.revoke",
+                action_type="auth.logout",
                 tenant_id=tenant_id,
                 metadata={
                     "jti": jti,
