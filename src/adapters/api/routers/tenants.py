@@ -5,7 +5,7 @@ Idempotency rule: creating a tenant with an existing exact lowercase name return
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status, Header, Depends, Response
+from fastapi import APIRouter, HTTPException, status, Header, Depends
 from pydantic import BaseModel, field_validator, ConfigDict
 from uuid import uuid4, UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -44,7 +44,6 @@ class TenantCreateRequest(BaseModel):
 
 
 class TenantResponse(BaseModel):
-    id: str  # React-Admin requires 'id' field
     tenant_id: str
     name: str
     status: str
@@ -56,8 +55,7 @@ class TenantResponse(BaseModel):
 
 
 class TenantListResponse(BaseModel):
-    data: list[TenantResponse]  # React-Admin expects 'data' field
-    total: int  # React-Admin expects 'total' field for pagination
+    tenants: list[TenantResponse]
 
 
 @router.post("", response_model=TenantResponse, status_code=status.HTTP_201_CREATED)
@@ -67,17 +65,7 @@ async def create_tenant(
     session: AsyncSession = Depends(get_db_session),
     x_actor_id: str | None = Header(default=None, alias="X-Actor-ID")
 ) -> TenantResponse:
-    """Create tenant with duplicate detection (Phase 3 database-backed).
-    
-    Only superadmins can create tenants (FR-019 RBAC enforcement).
-    """
-    # RBAC: Only superadmins can create tenants
-    if not current_user.is_superadmin():
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only superadmins can create tenants"
-        )
-    
+    """Create tenant with duplicate detection (Phase 3 database-backed)."""
     tenant_repo = SQLAlchemyTenantRepository(session)
     
     # Check if tenant with this name already exists - return 409 Conflict
@@ -95,7 +83,6 @@ async def create_tenant(
     await session.commit()
     
     return TenantResponse(
-        id=t.tenant_id,  # Use tenant_id as id for React-Admin
         tenant_id=t.tenant_id,
         name=t.name,
         status=t.status.value,
@@ -106,18 +93,16 @@ async def create_tenant(
     )
 
 
-@router.get("", response_model=list[TenantResponse])
+@router.get("", response_model=TenantListResponse)
 async def list_tenants(
-    response: Response,
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session)
-) -> list[TenantResponse]:
+) -> TenantListResponse:
     """List all tenants (Phase 3 database-backed)."""
     tenant_repo = SQLAlchemyTenantRepository(session)
     tenants = await tenant_repo.list()
-    tenant_responses = [
+    return TenantListResponse(tenants=[
         TenantResponse(
-            id=t.tenant_id,  # Use tenant_id as id for React-Admin
             tenant_id=t.tenant_id,
             name=t.name,
             status=t.status.value,
@@ -125,13 +110,7 @@ async def list_tenants(
             created_at=t.created_at,
             updated_at=t.updated_at
         ) for t in tenants
-    ]
-    
-    # Add Content-Range header for React-Admin pagination
-    total = len(tenant_responses)
-    response.headers["Content-Range"] = f"tenants 0-{total-1 if total > 0 else 0}/{total}"
-    
-    return tenant_responses
+    ])
 
 
 @router.delete("/{tenant_id}", status_code=204)

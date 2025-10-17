@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends, Response
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, ConfigDict
-from typing import List, Optional
 
 from services.rate_limiter import RateLimiter
 from adapters.persistence.repositories import SQLAlchemyInvitationRepository
@@ -13,17 +12,6 @@ from domain.invitations.models import InvitationStatus
 router = APIRouter(prefix="/v1/invitations", tags=["invitations"])
 
 _limiter = RateLimiter()
-
-
-class InvitationResponse(BaseModel):
-    id: str  # React-Admin requires 'id' field
-    invitation_id: str
-    status: str
-    email: Optional[str] = None
-    tenant_id: Optional[str] = None
-    created_at: Optional[str] = None
-    expires_at: Optional[str] = None
-    model_config = ConfigDict()
 
 
 class InvitationAcceptResponse(BaseModel):
@@ -73,20 +61,3 @@ async def accept(
     await invitation_repo.upsert(inv)
     
     return InvitationAcceptResponse(invitation_id=inv.invitation_id, status=inv.status.value)
-
-
-@router.get("", response_model=list[InvitationResponse])
-async def list_invitations(
-    response: Response,
-    invitation_repo: SQLAlchemyInvitationRepository = Depends(get_invitation_repo)
-) -> list[InvitationResponse]:
-    """List invitations (Phase 3: database-backed)."""
-    # TODO: Add filtering by tenant_id, status, etc.
-    # For now, return empty list as we don't have a list_all method
-    invitation_responses = []
-    
-    # Add Content-Range header for React-Admin pagination
-    total = len(invitation_responses)
-    response.headers["Content-Range"] = f"invitations 0-{total-1 if total > 0 else 0}/{total}"
-    
-    return invitation_responses

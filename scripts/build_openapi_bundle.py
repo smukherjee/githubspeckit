@@ -21,6 +21,9 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Set
 import yaml
+from script_logger import get_logger
+
+logger = get_logger("build_openapi_bundle")
 
 FRAG_ORDER = [
     "openapi-base.yaml",
@@ -132,7 +135,7 @@ def build(out_path: Path):
     )
     yaml_str = yaml.safe_dump(combined, sort_keys=False)
     out_path.write_text(header_comment + yaml_str, encoding="utf-8")
-    print(f"Wrote combined spec to {out_path}")
+    logger.success("bundle_created", output_path=str(out_path), fragments=len(FRAG_ORDER))
 
 
 def parse_args(argv: List[str]) -> argparse.Namespace:
@@ -146,7 +149,7 @@ def main(argv: List[str]) -> int:
     try:
         build(args.out)
     except Exception as e:  # noqa: BLE001
-        print(f"ERROR: {e}", file=sys.stderr)
+        logger.error("bundle_failed", error=str(e), error_type=type(e).__name__)
         return 1
     return 0
 

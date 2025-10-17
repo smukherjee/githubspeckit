@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Depends, status, Response
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
 from typing import List, Optional
 from uuid import uuid4
@@ -64,7 +64,6 @@ class UserCreateRequest(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: str  # React-Admin requires 'id' field
     user_id: str
     tenant_id: str
     email: EmailStr
@@ -76,8 +75,7 @@ class UserResponse(BaseModel):
 
 
 class UserListResponse(BaseModel):
-    data: List[UserResponse]  # React-Admin expects 'data' field
-    total: int  # React-Admin expects 'total' field for pagination
+    users: List[UserResponse]
 
 
 @router.post("", response_model=UserResponse, status_code=201)
@@ -86,17 +84,6 @@ async def create_user(
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session)
 ) -> UserResponse:
-    """Create user with RBAC enforcement.
-    
-    Only tenant_admin or superadmin can create users (FR-019 RBAC enforcement).
-    """
-    # RBAC: Only tenant_admin or superadmin can create users
-    if not (current_user.has_role("tenant_admin") or current_user.is_superadmin()):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only tenant admins and superadmins can create users"
-        )
-    
     user_repo = SQLAlchemyUserRepository(session)
     tenant_repo = SQLAlchemyTenantRepository(session)
     
@@ -129,7 +116,6 @@ async def create_user(
     await session.commit()
     
     return UserResponse(
-        id=user.user_id,  # Use user_id as id for React-Admin
         user_id=user.user_id,
         tenant_id=user.tenant_id,
         email=user.email,
@@ -140,43 +126,12 @@ async def create_user(
     )
 
 
-@router.get("/me", response_model=UserResponse)
-async def get_current_user_profile(
-    current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session)
-) -> UserResponse:
-    """Get current authenticated user's profile (FR-003).
-    
-    Returns profile information for the currently authenticated user.
-    """
-    user_repo = SQLAlchemyUserRepository(session)
-    user = await user_repo.get(current_user.user_id)
-    
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Current user not found"
-        )
-    
-    return UserResponse(
-        id=user.user_id,  # Use user_id as id for React-Admin
-        user_id=user.user_id,
-        tenant_id=user.tenant_id,
-        email=user.email,
-        status=user.status,
-        roles=user.roles,
-        created_at=user.created_at,
-        updated_at=user.updated_at,
-    )
-
-
-@router.get("", response_model=list[UserResponse])
+@router.get("", response_model=UserListResponse)
 async def list_users(
-    response: Response,
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session),
     tenant_id: Optional[str] = None
-) -> list[UserResponse]:
+) -> UserListResponse:
     """List users. Defaults to current user's tenant unless tenant_id specified (superadmin only)."""
     # Use current user's tenant if not specified
     effective_tenant_id = tenant_id or current_user.tenant_id
@@ -187,9 +142,8 @@ async def list_users(
     
     user_repo = SQLAlchemyUserRepository(session)
     users = await user_repo.list_by_tenant(effective_tenant_id)
-    user_responses = [
+    return UserListResponse(users=[
         UserResponse(
-            id=u.user_id,  # Use user_id as id for React-Admin
             user_id=u.user_id,
             tenant_id=u.tenant_id,
             email=u.email,
@@ -198,13 +152,7 @@ async def list_users(
             created_at=u.created_at,
             updated_at=u.updated_at
         ) for u in users
-    ]
-    
-    # Add Content-Range header for React-Admin pagination
-    total = len(user_responses)
-    response.headers["Content-Range"] = f"users 0-{total-1 if total > 0 else 0}/{total}"
-    
-    return user_responses
+    ])
 
 
 @router.get("/{user_id}", response_model=UserResponse)
@@ -224,7 +172,6 @@ async def get_user(
         raise HTTPException(status_code=404, detail="user_not_found")
     
     return UserResponse(
-        id=u.user_id,  # Use user_id as id for React-Admin
         user_id=u.user_id,
         tenant_id=u.tenant_id,
         email=u.email,

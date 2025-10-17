@@ -114,6 +114,9 @@ venv.bak/
 
 # Logs and databases
 *.log
+*.db
+*.sqlite
+*.sqlite3
 
 # Misc
 *.swp

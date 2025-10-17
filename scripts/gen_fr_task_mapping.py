@@ -12,6 +12,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 from collections import defaultdict
+from script_logger import get_logger
+
+logger = get_logger("gen_fr_task_mapping")
 
 TASK_LINE_RE = re.compile(r"^-\s+(?P<id>(TEST|IMPL|DEFER)-[A-Z0-9-]+)\s+.*?(?P<frs>\(FR-[0-9,\s-]+\))?", re.IGNORECASE)
 FR_RE = re.compile(r"FR-\d{3}")
@@ -32,9 +35,16 @@ def extract():
 
 def main():
     fr_to_tasks = extract()
+    mapping = []
     for fr in sorted(fr_to_tasks.keys()):
         tasks = ", ".join(sorted(fr_to_tasks[fr]))
-        print(f"- {fr}: {tasks}")
+        mapping.append(f"- {fr}: {tasks}")
+    
+    logger.json_output({
+        "mapping_count": len(mapping),
+        "fr_count": len(fr_to_tasks),
+        "mapping": mapping
+    })
 
 if __name__ == "__main__":
     main()

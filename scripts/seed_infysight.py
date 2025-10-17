@@ -30,6 +30,12 @@ from domain.tenants.models import Tenant, TenantStatus
 from domain.users.models import User, UserStatus
 from auth_core.hashers import default_hasher
 
+# Import script logger
+sys.path.insert(0, os.path.dirname(__file__))
+from script_logger import get_logger
+
+logger = get_logger("seed_infysight")
+
 
 # Deterministic UUID namespace for infysight
 INFYSIGHT_NAMESPACE = uuid.UUID("12345678-1234-5678-1234-567812345678")
@@ -44,10 +50,12 @@ async def seed_infysight():
     """Seed infysight tenant and superadmin user."""
     
     # Database connection from environment or default
-    import os
+    # NOTE: Script exception - direct os.getenv() allowed for operational scripts
     database_url = os.getenv("DATABASE_URL", "postgresql+asyncpg://infysight_dbadmin:infysight_dbadmin123@localhost/infysight_users")
     
-    print(f"🔌 Connecting to database: {database_url.split('@')[1] if '@' in database_url else database_url}")
+    # Mask sensitive parts of URL for logging
+    masked_url = database_url.split('@')[1] if '@' in database_url else database_url
+    logger.info("database_connection", url=masked_url)
     
     # Create async engine and session
     engine = create_async_engine(database_url, echo=False)
@@ -57,13 +65,11 @@ async def seed_infysight():
     tenant_id = deterministic_uuid("tenant:infysight")
     user_id = deterministic_uuid("user:infysightsa@infysight.com")
     
-    print(f"\n📋 Generated IDs:")
-    print(f"   Tenant ID: {tenant_id}")
-    print(f"   User ID: {user_id}")
+    logger.info("generated_ids", tenant_id=tenant_id, user_id=user_id)
     
     # Hash the password
     password_hash = default_hasher.hash("infysightsa123")
-    print(f"\n🔐 Password hashed successfully")
+    logger.info("password_hashed")
     
     async with async_session_maker() as session:
         async with session.begin():
@@ -74,7 +80,7 @@ async def seed_infysight():
             # Check and create tenant
             existing_tenant = await tenant_repo.get(tenant_id)
             if existing_tenant:
-                print(f"\n⚠️  Tenant 'infysight' already exists (idempotent)")
+                logger.warning("tenant_exists", tenant_id=tenant_id, name="infysight")
             else:
                 tenant = Tenant(
                     tenant_id=tenant_id,
@@ -87,16 +93,16 @@ async def seed_infysight():
                     updated_by=None,
                 )
                 await tenant_repo.upsert(tenant)
-                print(f"\n✅ Created tenant: infysight")
+                logger.success("tenant_created", tenant_id=tenant_id, name="infysight")
             
             # Check and create admin user
             existing_user = await user_repo.get(user_id)
             if existing_user:
-                print(f"⚠️  User 'infysightsa' already exists (idempotent)")
+                logger.warning("user_exists", user_id=user_id, email="infysightsa@infysight.com")
                 # Update password if user exists
                 existing_user.password_hash = password_hash
                 await user_repo.upsert(existing_user)
-                print(f"   Password updated for existing user")
+                logger.info("password_updated", user_id=user_id)
             else:
                 user = User(
                     user_id=user_id,
@@ -112,17 +118,23 @@ async def seed_infysight():
                     updated_by=None,
                 )
                 await user_repo.upsert(user)
-                print(f"✅ Created user: infysightsa (superadmin)")
+                logger.success("user_created", user_id=user_id, email="infysightsa@infysight.com", role="superadmin")
     
     await engine.dispose()
     
-    print(f"\n🎉 Seed complete!")
-    print(f"\n📝 Login credentials:")
-    print(f"   Username: infysightsa")
-    print(f"   Email: infysightsa@infysight.com")
-    print(f"   Password: infysightsa123")
-    print(f"   Role: superadmin")
-    print(f"   Tenant: infysight")
+    logger.success("seed_complete")
+    
+    # Output credentials in structured format
+    credentials = {
+        "username": "infysightsa",
+        "email": "infysightsa@infysight.com",
+        "password": "infysightsa123",
+        "role": "superadmin",
+        "tenant": "infysight",
+        "tenant_id": tenant_id,
+        "user_id": user_id
+    }
+    logger.json_output(credentials)
 
 
 async def main():
@@ -131,9 +143,9 @@ async def main():
         await seed_infysight()
         sys.exit(0)
     except Exception as e:
-        print(f"\n❌ Error: {e}", file=sys.stderr)
+        logger.error("seed_failed", error=str(e), error_type=type(e).__name__)
         import traceback
-        traceback.print_exc()
+        traceback.print_exc(file=sys.stderr)
         sys.exit(1)
 
 

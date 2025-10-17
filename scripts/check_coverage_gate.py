@@ -30,6 +30,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable
+from script_logger import get_logger
+
+logger = get_logger("check_coverage_gate")
 
 # Thresholds (align with constitution v1.5.1)
 OVERALL_MIN = 0.85
@@ -56,19 +59,20 @@ def _load_coverage_json(path: Path) -> dict:
         with path.open("r", encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
-        print("ERROR: coverage JSON file not found. Run tests with coverage xml/json first.", file=sys.stderr)
+        logger.error("coverage_not_found", path=str(path), message="Run tests with coverage xml/json first.")
         sys.exit(3)
 
 
 def _gather_file_coverages(report: dict) -> dict[str, PathCoverage]:
     files = {}
-    for file_rec in report.get("files", {}).values():
-        filename = Path(file_rec["filename"]) if isinstance(file_rec, dict) else None
-        if not filename:
+    # Coverage.json format 3 has files as dict[filename, file_data]
+    for filename, file_data in report.get("files", {}).items():
+        if not isinstance(file_data, dict):
             continue
-        summary = file_rec.get("summary", {})
-        files[str(filename)] = PathCoverage(
-            path=filename,
+        file_path = Path(filename)
+        summary = file_data.get("summary", {})
+        files[filename] = PathCoverage(
+            path=file_path,
             covered=summary.get("covered_lines", 0),
             total=summary.get("num_statements", 0),
         )
@@ -89,6 +93,7 @@ def _aggregate_namespace(files: Iterable[PathCoverage], namespace: Path) -> Path
 
 
 def main() -> None:
+    # NOTE: Script exception - direct os.environ.get() allowed for operational scripts
     coverage_file = Path(os.environ.get("COVERAGE_JSON", "coverage.json"))
     report = _load_coverage_json(coverage_file)
     file_cov_map = _gather_file_coverages(report)
@@ -134,7 +139,7 @@ def main() -> None:
         "critical_paths": critical_results,
     }
 
-    print(json.dumps(result, indent=2))
+    logger.json_output(result)
 
     if overall_pct < OVERALL_MIN or domain_cov.pct < DOMAIN_MIN or hard_fail:
         sys.exit(3)

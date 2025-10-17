@@ -15,6 +15,9 @@ from pathlib import Path
 from typing import Dict, Any, Set
 
 import yaml
+from script_logger import get_logger
+
+logger = get_logger("validate_openapi")
 
 BASE = Path("specs/001-modern-enterprise-grade/contracts")
 FRAGMENTS = [
@@ -38,7 +41,7 @@ def main() -> int:
     base_components = specs[0].get("components", {})
     for key in SHARED_COMPONENT_KEYS:
         if key not in base_components:
-            print(f"ERROR: base fragment missing shared component: {key}", file=sys.stderr)
+            logger.error("base_missing_component", component=key)
             return 1
 
     # Check duplicates of shared components in other fragments
@@ -46,7 +49,7 @@ def main() -> int:
         comp = spec.get("components", {})
         for key in SHARED_COMPONENT_KEYS:
             if key in comp:
-                print(f"ERROR: {p.name} should not redefine shared component '{key}'", file=sys.stderr)
+                logger.error("fragment_redefines_component", fragment=p.name, component=key)
                 return 1
 
     # Collect operationIds & component schema names
@@ -61,10 +64,10 @@ def main() -> int:
                     continue
                 op_id = op.get("operationId")
                 if not op_id:
-                    print(f"ERROR: Missing operationId for {method.upper()} {path}")
+                    logger.error("missing_operation_id", method=method.upper(), path=path)
                     return 1
                 if op_id in operation_ids:
-                    print(f"ERROR: Duplicate operationId '{op_id}' at {method.upper()} {path}")
+                    logger.error("duplicate_operation_id", operation_id=op_id, method=method.upper(), path=path)
                     return 1
                 operation_ids.add(op_id)
 
@@ -79,7 +82,7 @@ def main() -> int:
             if ref and ref.startswith("#/components/schemas/"):
                 target = ref.split("/")[-1]
                 if target not in schema_names:
-                    print(f"ERROR: Unknown schema reference: {ref}")
+                    logger.error("unknown_schema_ref", ref=ref)
                     raise SystemExit(1)
             for v in node.values():
                 walk(v)
@@ -91,11 +94,11 @@ def main() -> int:
         walk(spec.get("paths", {}))
         walk((spec.get("components", {}) or {}).get("responses", {}))
 
-    print(json.dumps({
+    logger.json_output({
         "status": "ok",
         "fragments": [p.name for p in FRAGMENTS],
         "operations": len(operation_ids)
-    }, indent=2))
+    })
     return 0
 
 

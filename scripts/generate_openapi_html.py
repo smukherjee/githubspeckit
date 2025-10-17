@@ -13,6 +13,9 @@ import argparse
 import json
 from pathlib import Path
 import yaml
+from script_logger import get_logger
+
+logger = get_logger("generate_openapi_html")
 
 REDOC_CDN = "https://cdn.jsdelivr.net/npm/redoc@next/bundles/redoc.standalone.js"
 
@@ -63,7 +66,7 @@ def main():
     html = build_html(data)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(html, encoding="utf-8")
-    print(f"Wrote HTML docs to {args.out}")
+    logger.success("html_generated", output_path=str(args.out), spec_path=str(args.spec))
 
 if __name__ == "__main__":  # pragma: no cover
     main()
