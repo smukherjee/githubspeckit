@@ -12,22 +12,22 @@ async def test_auth_login_success_and_error_shapes():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # create tenant and user
-        tr = await client.post("/v1/tenants", json={"name": "AuthLogin"})
+        tr = await client.post("/api/v1/tenants", json={"name": "AuthLogin"})
         tenant_id = tr.json()["tenant_id"]
         test_email = f"login-{uuid4()}@example.com"  # Unique email
-        ur = await client.post("/v1/users", json={"tenant_id": tenant_id, "email": test_email, "roles": ["standard"], "password": "StrongPass123"})
+        ur = await client.post("/api/v1/users", json={"tenant_id": tenant_id, "email": test_email, "roles": ["standard"], "password": "StrongPass123"})
         assert ur.status_code == 201, f"User creation failed: {ur.status_code} - {ur.text}"
         user_id = ur.json()["user_id"]
 
         # success
-        lr = await client.post("/v1/auth/login", json={"email": test_email, "password": "StrongPass123"})
+        lr = await client.post("/api/v1/auth/login", json={"email": test_email, "password": "StrongPass123"})
         assert lr.status_code == 200, f"Login failed: {lr.status_code} - {lr.text}"
         body = lr.json()
         assert set(["access_token", "token_type", "expires_at"]) <= set(body.keys())
         assert body["token_type"] == "bearer"
 
         # failure (bad password)
-        lf = await client.post("/v1/auth/login", json={"email": test_email, "password": "Wrong"})
+        lf = await client.post("/api/v1/auth/login", json={"email": test_email, "password": "Wrong"})
         assert lf.status_code == 401
         err = lf.json()
         # Accept either standardized envelope {error:{message}} or FastAPI detail field

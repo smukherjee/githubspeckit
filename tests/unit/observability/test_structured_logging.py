@@ -10,7 +10,7 @@ def test_structured_logging_fields_and_redaction():
 
     # Make a request with sensitive headers
     resp = client.get(
-        "/v1/health",
+        "/api/v1/health",
         headers={
             "X-Tenant-ID": "tenant-123",
             "Authorization": "Bearer secret-token",

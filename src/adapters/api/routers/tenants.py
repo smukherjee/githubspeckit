@@ -14,7 +14,7 @@ from datetime import datetime
 
 from domain.tenants.models import Tenant, TenantStatus
 from adapters.persistence.repositories import SQLAlchemyTenantRepository
-from adapters.api.deps import get_db_session
+from adapters.api.deps import get_db_session, get_audit_service, AuditService
 from adapters.api.auth_deps import CurrentUser
 
 router = APIRouter(prefix="/v1/tenants", tags=["tenants"])
@@ -63,9 +63,20 @@ async def create_tenant(
     payload: TenantCreateRequest,
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service),
     x_actor_id: str | None = Header(default=None, alias="X-Actor-ID")
 ) -> TenantResponse:
-    """Create tenant with duplicate detection (Phase 3 database-backed)."""
+    """Create tenant with duplicate detection (Phase 3 database-backed).
+    
+    RBAC: Only superadmins can create tenants (FR-019).
+    """
+    # RBAC enforcement: Only superadmin can create tenants
+    if not current_user.is_superadmin():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only superadmins can create tenants"
+        )
+    
     tenant_repo = SQLAlchemyTenantRepository(session)
     
     # Check if tenant with this name already exists - return 409 Conflict
@@ -81,6 +92,18 @@ async def create_tenant(
     t.updated_by = t.created_by
     await tenant_repo.upsert(t)
     await session.commit()
+    
+    # Audit logging: Tenant creation
+    await audit_service.log(
+        action_type="tenant.create",
+        tenant_id=t.tenant_id,
+        metadata={
+            "tenant_id": t.tenant_id,
+            "name": t.name,
+            "config_version": t.config_version,
+            "created_by": current_user.user_id
+        }
+    )
     
     return TenantResponse(
         tenant_id=t.tenant_id,
@@ -117,7 +140,8 @@ async def list_tenants(
 async def soft_delete_tenant(
     tenant_id: str,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
 ) -> None:
     """Soft-delete a tenant (Phase 3 database-backed)."""
     tenant_repo = SQLAlchemyTenantRepository(session)
@@ -129,6 +153,18 @@ async def soft_delete_tenant(
         return
     await tenant_repo.soft_delete(tenant_id)
     await session.commit()
+    
+    # Audit logging: Tenant soft delete
+    await audit_service.log(
+        action_type="tenant.disable",
+        tenant_id=tenant_id,
+        metadata={
+            "tenant_id": tenant_id,
+            "name": t.name,
+            "disabled_by": current_user.user_id,
+            "previous_status": t.status.value
+        }
+    )
     # 204 returns no content
 
 
@@ -136,7 +172,8 @@ async def soft_delete_tenant(
 async def restore_tenant(
     tenant_id: str,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
 ) -> dict[str, str]:
     """Restore a soft-deleted tenant (Phase 3 database-backed)."""
     tenant_repo = SQLAlchemyTenantRepository(session)
@@ -151,6 +188,19 @@ async def restore_tenant(
     t2 = await tenant_repo.get(tenant_id)
     if t2 is None:
         raise HTTPException(status_code=500, detail="tenant_missing")
+    
+    # Audit logging: Tenant restore
+    await audit_service.log(
+        action_type="tenant.restore",
+        tenant_id=tenant_id,
+        metadata={
+            "tenant_id": tenant_id,
+            "name": t.name,
+            "restored_by": current_user.user_id,
+            "previous_status": t.status.value
+        }
+    )
+    
     return {"tenant_id": t2.tenant_id, "status": t2.status.value}
 
 

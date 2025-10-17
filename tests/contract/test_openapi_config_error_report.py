@@ -10,7 +10,7 @@ from adapters.api.app import create_app
 def test_config_error_report_contract():
     app = create_app()
     client = TestClient(app)
-    r = client.get("/v1/config/errors")
+    r = client.get("/api/v1/config/errors")
     assert r.status_code == 200, f"Expected 200 OK for config error report endpoint, got {r.status_code}"
     data = r.json()
     assert "errors" in data and isinstance(data["errors"], list)

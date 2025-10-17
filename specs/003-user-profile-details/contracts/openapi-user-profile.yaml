@@ -1,0 +1,516 @@
+openapi: 3.1.0
+info:
+  title: User Profile Details API
+  version: 1.0.0
+  description: |
+    API endpoints for managing user profile details (name, phone, address, profile photo).
+    Part of feature spec 003-user-profile-details.
+    
+    **Multi-Tenancy**: All endpoints enforce tenant isolation via current_user.tenant_id.
+    **RBAC**: Users can manage own profile, admins can manage tenant users, superadmin can manage all.
+
+paths:
+  /api/v1/users/{user_id}/profile:
+    get:
+      summary: Get user profile details
+      description: |
+        Retrieve profile details for a user. Returns 404 if profile not created yet.
+        
+        **Authorization**:
+        - Users can view own profile
+        - Tenant admins can view profiles within their tenant
+        - Superadmin can view all profiles
+      operationId: getUserProfile
+      tags:
+        - User Profile
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: UUID of the user whose profile to retrieve
+          schema:
+            type: string
+            format: uuid
+          example: a5053ec7-a656-53ef-98c4-8713a68b2b9b
+      responses:
+        '200':
+          description: Profile details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+              examples:
+                complete_profile:
+                  summary: User with complete profile
+                  value:
+                    user_id: a5053ec7-a656-53ef-98c4-8713a68b2b9b
+                    full_name: John Smith
+                    phone: +1-555-123-4567
+                    address: "123 Main St\nApt 4B\nSan Francisco, CA 94102"
+                    photo_display_url: https://storage.example.com/photos/a5053ec7/display.jpg
+                    photo_thumbnail_url: https://storage.example.com/photos/a5053ec7/thumbnail.jpg
+                    photo_avatar_url: https://storage.example.com/photos/a5053ec7/avatar.jpg
+                    created_at: "2025-01-15T10:30:00Z"
+                    updated_at: "2025-01-17T14:22:00Z"
+                minimal_profile:
+                  summary: User with minimal profile (no photo)
+                  value:
+                    user_id: b6164fd8-b767-64f0-a9d5-9824b79c013c
+                    full_name: Jane Doe
+                    phone: null
+                    address: null
+                    photo_display_url: null
+                    photo_thumbnail_url: null
+                    photo_avatar_url: null
+                    created_at: "2025-01-16T09:15:00Z"
+                    updated_at: "2025-01-16T09:15:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+      security:
+        - BearerAuth: []
+
+    put:
+      summary: Update user profile details
+      description: |
+        Create or update profile details (upsert operation). All fields are optional.
+        Empty strings are converted to null. Photo URLs cannot be set directly (use photo upload endpoint).
+        
+        **Authorization**:
+        - Users can update own profile
+        - Tenant admins can update profiles within their tenant
+        - Superadmin can update all profiles
+      operationId: updateUserProfile
+      tags:
+        - User Profile
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: UUID of the user whose profile to update
+          schema:
+            type: string
+            format: uuid
+          example: a5053ec7-a656-53ef-98c4-8713a68b2b9b
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdateRequest'
+            examples:
+              full_update:
+                summary: Update all fields
+                value:
+                  full_name: John Smith
+                  phone: +1-555-123-4567
+                  address: "123 Main St\nApt 4B\nSan Francisco, CA 94102"
+              partial_update:
+                summary: Update only name
+                value:
+                  full_name: Jane Doe
+              clear_fields:
+                summary: Clear optional fields
+                value:
+                  phone: null
+                  address: null
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+      security:
+        - BearerAuth: []
+
+  /api/v1/users/{user_id}/profile/photo:
+    post:
+      summary: Upload profile photo
+      description: |
+        Upload a new profile photo. Accepted formats: JPEG, PNG, WebP, GIF (animated removed).
+        Max file size: 10MB. Processing is asynchronous (background job).
+        
+        **Processing**:
+        1. Validate file type (magic bytes), size, dimensions
+        2. Strip EXIF metadata (privacy)
+        3. Generate 3 variants (640x640 display, 96x96 thumbnail, 48x48 avatar)
+        4. Store in configured storage (local FS or S3)
+        5. Update user_details with URLs
+        
+        **Authorization**:
+        - Users can upload to own profile
+        - Tenant admins can upload for tenant users
+        - Superadmin can upload for all users
+      operationId: uploadProfilePhoto
+      tags:
+        - User Profile
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: UUID of the user whose photo to upload
+          schema:
+            type: string
+            format: uuid
+          example: a5053ec7-a656-53ef-98c4-8713a68b2b9b
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Photo file (JPEG, PNG, WebP, GIF; max 10MB)
+            encoding:
+              file:
+                contentType: image/jpeg, image/png, image/webp, image/gif
+      responses:
+        '202':
+          description: Photo upload accepted, processing in background
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotoUploadResponse'
+              examples:
+                accepted:
+                  summary: Upload accepted
+                  value:
+                    message: Photo upload started
+                    status: processing
+                    user_id: a5053ec7-a656-53ef-98c4-8713a68b2b9b
+        '400':
+          description: Invalid file (wrong format, too large, invalid image)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                file_too_large:
+                  summary: File exceeds 10MB
+                  value:
+                    error: validation_error
+                    message: File size exceeds 10MB limit
+                    details:
+                      - field: file
+                        issue: File size 15728640 bytes exceeds maximum 10485760 bytes
+                invalid_format:
+                  summary: Unsupported file format
+                  value:
+                    error: validation_error
+                    message: Invalid file format
+                    details:
+                      - field: file
+                        issue: File type application/pdf not supported. Allowed types JPEG, PNG, WebP, GIF
+                not_an_image:
+                  summary: File is not a valid image
+                  value:
+                    error: validation_error
+                    message: Invalid image file
+                    details:
+                      - field: file
+                        issue: Cannot identify image format (corrupted or not an image)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+        '413':
+          description: Payload too large (exceeds 10MB)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: payload_too_large
+                message: Request entity too large
+                details:
+                  - issue: Maximum request size is 10MB
+      security:
+        - BearerAuth: []
+
+    delete:
+      summary: Remove profile photo
+      description: |
+        Delete the user's profile photo (all 3 variants). Photo URLs set to null in database.
+        Physical files may be deleted asynchronously (garbage collection).
+        
+        **Authorization**:
+        - Users can delete own photo
+        - Tenant admins can delete photos within their tenant
+        - Superadmin can delete all photos
+      operationId: deleteProfilePhoto
+      tags:
+        - User Profile
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          description: UUID of the user whose photo to delete
+          schema:
+            type: string
+            format: uuid
+          example: a5053ec7-a656-53ef-98c4-8713a68b2b9b
+      responses:
+        '204':
+          description: Photo deleted successfully (no content)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/UserNotFound'
+      security:
+        - BearerAuth: []
+
+components:
+  schemas:
+    UserProfileResponse:
+      type: object
+      required:
+        - user_id
+        - created_at
+        - updated_at
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          description: User ID (FK to users table)
+          example: a5053ec7-a656-53ef-98c4-8713a68b2b9b
+        full_name:
+          type: string
+          nullable: true
+          maxLength: 100
+          description: User's display name
+          example: John Smith
+        phone:
+          type: string
+          nullable: true
+          maxLength: 20
+          description: Phone number (international format accepted)
+          example: +1-555-123-4567
+        address:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Multi-line address (unstructured)
+          example: "123 Main St\nApt 4B\nSan Francisco, CA 94102"
+        photo_display_url:
+          type: string
+          nullable: true
+          format: uri
+          description: Display photo URL (640x640px, ~200KB JPEG)
+          example: https://storage.example.com/photos/a5053ec7/display.jpg
+        photo_thumbnail_url:
+          type: string
+          nullable: true
+          format: uri
+          description: Thumbnail photo URL (96x96px, ~15KB JPEG)
+          example: https://storage.example.com/photos/a5053ec7/thumbnail.jpg
+        photo_avatar_url:
+          type: string
+          nullable: true
+          format: uri
+          description: Avatar photo URL (48x48px, ~5KB JPEG)
+          example: https://storage.example.com/photos/a5053ec7/avatar.jpg
+        created_at:
+          type: string
+          format: date-time
+          description: Profile creation timestamp (ISO 8601)
+          example: "2025-01-15T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Profile last update timestamp (ISO 8601)
+          example: "2025-01-17T14:22:00Z"
+
+    UserProfileUpdateRequest:
+      type: object
+      properties:
+        full_name:
+          type: string
+          nullable: true
+          maxLength: 100
+          description: User's display name (null to clear)
+          example: John Smith
+        phone:
+          type: string
+          nullable: true
+          minLength: 7
+          maxLength: 20
+          pattern: '^[+\d\s()-]{7,20}$'
+          description: Phone number (7-20 chars, mostly digits; null to clear)
+          example: +1-555-123-4567
+        address:
+          type: string
+          nullable: true
+          maxLength: 500
+          description: Multi-line address (null to clear)
+          example: "123 Main St\nApt 4B\nSan Francisco, CA 94102"
+      example:
+        full_name: John Smith
+        phone: +1-555-123-4567
+        address: "123 Main St\nApt 4B\nSan Francisco, CA 94102"
+
+    PhotoUploadResponse:
+      type: object
+      required:
+        - message
+        - status
+        - user_id
+      properties:
+        message:
+          type: string
+          description: Human-readable message
+          example: Photo upload started
+        status:
+          type: string
+          enum: [processing, complete, failed]
+          description: Processing status
+          example: processing
+        user_id:
+          type: string
+          format: uuid
+          description: User ID for tracking
+          example: a5053ec7-a656-53ef-98c4-8713a68b2b9b
+        photo_display_url:
+          type: string
+          nullable: true
+          format: uri
+          description: Display photo URL (available when status=complete)
+          example: https://storage.example.com/photos/a5053ec7/display.jpg
+        photo_thumbnail_url:
+          type: string
+          nullable: true
+          format: uri
+          description: Thumbnail photo URL (available when status=complete)
+          example: https://storage.example.com/photos/a5053ec7/thumbnail.jpg
+        photo_avatar_url:
+          type: string
+          nullable: true
+          format: uri
+          description: Avatar photo URL (available when status=complete)
+          example: https://storage.example.com/photos/a5053ec7/avatar.jpg
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error code
+          example: validation_error
+        message:
+          type: string
+          description: Human-readable error message
+          example: Validation failed
+        details:
+          type: array
+          items:
+            type: object
+            properties:
+              field:
+                type: string
+                description: Field name causing the error
+                example: phone
+              issue:
+                type: string
+                description: Specific validation issue
+                example: Phone must contain at least 7 digits
+          description: Detailed validation errors
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid authentication token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: unauthorized
+            message: Authentication required
+
+    Forbidden:
+      description: Insufficient permissions (tenant isolation or RBAC)
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            tenant_isolation:
+              summary: Cross-tenant access denied
+              value:
+                error: forbidden
+                message: Access denied - user belongs to different tenant
+            rbac:
+              summary: Insufficient role
+              value:
+                error: forbidden
+                message: Insufficient permissions to access this resource
+
+    NotFound:
+      description: User profile not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: not_found
+            message: User profile not found
+
+    UserNotFound:
+      description: User does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: not_found
+            message: User not found
+
+    ValidationError:
+      description: Request validation failed
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: validation_error
+            message: Validation failed
+            details:
+              - field: phone
+                issue: Phone must be 7-20 characters
+              - field: address
+                issue: Address must not exceed 500 characters
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from /api/v1/auth/token endpoint
+
+tags:
+  - name: User Profile
+    description: User profile details management (name, phone, address, photo)

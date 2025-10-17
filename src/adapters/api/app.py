@@ -15,6 +15,7 @@ from typing import Any
 from fastapi import FastAPI, Response, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from domain.config.loader import load_config, ConfigValidationError
 import os, sys, json
 from adapters.api.routers import invitations as invitations_router
@@ -25,17 +26,20 @@ from adapters.api.routers import audit as audit_router
 from adapters.api.routers import tenants as tenants_router
 from adapters.api.routers import policies as policies_router
 from adapters.api.routers import feature_flags as feature_flags_router
+from adapters.api.routers import profile as profile_router
 from adapters.api.deprecation import DeprecationMiddleware
 from adapters.observability.metrics import SimpleMetricsRegistry
 from adapters.observability.prometheus_client_adapter import PromClientAdapter
 from adapters.logging.middleware import StructuredLoggingMiddleware, InMemoryStructuredLogSink
 from services.log_export_service import LogExportService
 from adapters.api.middleware import CorrelationMiddleware
+from adapters.api.actor_middleware import ActorTrackingMiddleware
 from observability.tracing import init_tracing
 from fastapi import Request
 from fastapi.responses import JSONResponse
 import yaml
 from quality.metrics import QualityMetrics
+from pathlib import Path
 
 
 def create_app() -> FastAPI:
@@ -69,17 +73,45 @@ def create_app() -> FastAPI:
     # Simple span collection list for TEST-XCUT-11
     app.state._test_spans = []  # noqa: SLF001
     
-    # CORS middleware for frontend development (http://localhost:5173)
+    # CORS middleware - environment-aware configuration
+    cors_origins_str = os.getenv("CORS_ORIGINS", "*")
+    environment = os.getenv("ENVIRONMENT", "development")
+    
+    # Parse CORS origins
+    if cors_origins_str == "*":
+        # Wildcard - allow all origins (development only)
+        if environment == "production":
+            # In production, use specific origins for security
+            cors_origins = [
+                "https://yourdomain.com",  # Replace with actual production domain
+                "https://www.yourdomain.com",
+            ]
+        else:
+            # Development: allow common dev server ports
+            cors_origins = [
+                "http://localhost:3000",  # React/Next.js dev server
+                "http://localhost:5173",  # Vite dev server  
+                "http://127.0.0.1:3000",  # Alternative localhost
+                "http://127.0.0.1:5173",  # Alternative localhost
+                "http://localhost:8080",  # Vue dev server
+                "http://127.0.0.1:8080",  # Alternative localhost
+                "http://localhost:4200",  # Angular dev server
+                "http://127.0.0.1:4200",  # Alternative localhost
+            ]
+    else:
+        # Parse comma-separated origins
+        cors_origins = [origin.strip() for origin in cors_origins_str.split(",") if origin.strip()]
+    
+    # Log CORS configuration for debugging
+    print(f"🌐 CORS Origins ({environment}): {cors_origins}")
+    
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[
-            "http://localhost:5173",  # Frontend dev server
-            "http://127.0.0.1:5173",  # Alternative localhost
-        ],
+        allow_origins=cors_origins,
         allow_credentials=True,  # Required for JWT tokens and HttpOnly cookies
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
         allow_headers=["*"],  # Includes Authorization header
-        expose_headers=["Content-Range"],  # Required for React-Admin pagination
+        expose_headers=["Content-Range", "X-Total-Count"],  # Required for React-Admin pagination
     )
     
     # Security/Error middleware (TEST-SEC-03 / IMPL-SEC-04) ensuring consistent envelope
@@ -93,6 +125,7 @@ def create_app() -> FastAPI:
     # Attach structured logging middleware (TEST-OBS-01) with in-memory sink for tests
     sink = InMemoryStructuredLogSink()
     app.state.log_sink = sink
+    app.add_middleware(ActorTrackingMiddleware)  # Extract user_id for audit logging
     app.add_middleware(CorrelationMiddleware)
     app.add_middleware(StructuredLoggingMiddleware, sink=sink)
     app.add_middleware(DeprecationMiddleware)
@@ -122,7 +155,7 @@ def create_app() -> FastAPI:
             },
         )
 
-    @app.get("/v1/health", tags=["system"])
+    @app.get("/api/v1/health", tags=["system"])
     async def health() -> dict[str, str | bool | int]:  # pragma: no cover - simple serialization
         # Phase 3: Returns basic health status with migration state
         # TODO-IMPL-DB-15: Wire to actual migration head check service
@@ -132,7 +165,7 @@ def create_app() -> FastAPI:
             "key_rotation_version": 1,
         }
 
-    @app.get("/v1/config", tags=["system"])
+    @app.get("/api/v1/config", tags=["system"])
     async def export_config() -> dict[str, object]:  # pragma: no cover - simple serialization
         cfg = load_config({
             "APP_NAME": ("modern-backend", False),
@@ -141,14 +174,13 @@ def create_app() -> FastAPI:
         })
         return cfg.export()
 
-    @app.get("/v1/config/errors", tags=["system"])
+    @app.get("/api/v1/config/errors", tags=["system"])
     async def config_errors() -> dict[str, list[str]]:  # pragma: no cover
         # Phase 3: Returns config validation errors from startup
         # Satisfies FR-041 C-045 contract test (TEST-API-28)
         return {"errors": []}
 
-    # Include routers from adapters (Phase 3: with both /api prefix and without for backward compatibility)
-    # Register with /api prefix (new standard)
+    # Include routers from adapters - Standard /api/v1 prefix only
     app.include_router(invitations_router.router, prefix="/api")
     app.include_router(users_router.router, prefix="/api")
     app.include_router(auth_router.router, prefix="/api")
@@ -157,16 +189,12 @@ def create_app() -> FastAPI:
     app.include_router(embed_router.router, prefix="/api")
     app.include_router(audit_router.router, prefix="/api")
     app.include_router(tenants_router.router, prefix="/api")
-    
-    # Register without prefix for contract test compatibility
-    app.include_router(invitations_router.router)
-    app.include_router(users_router.router)
-    app.include_router(auth_router.router)
-    app.include_router(policies_router.router)
-    app.include_router(feature_flags_router.router)
-    app.include_router(embed_router.router)
-    app.include_router(audit_router.router)
-    app.include_router(tenants_router.router)
+    app.include_router(profile_router.router, prefix="/api")  # User profile details
+
+    # Mount static files for serving profile photos
+    photos_dir = Path("data/photos")
+    photos_dir.mkdir(parents=True, exist_ok=True)  # Ensure directory exists
+    app.mount("/media/photos", StaticFiles(directory=str(photos_dir)), name="photos")
 
     # Attach a global prometheus client adapter to app.state for adapters to use in tests / runtime
     # Keep the existing SimpleMetricsRegistry for unit tests compatibility; services can opt to use either.
@@ -190,7 +218,7 @@ def create_app() -> FastAPI:
         data = app.state.prom.generate_latest()
         return Response(content=data, media_type="text/plain; version=0.0.4")
 
-    @app.get("/v1/metrics/snapshot", tags=["system"])
+    @app.get("/api/v1/metrics/snapshot", tags=["system"])
     async def metrics_snapshot() -> dict[str, list[str]]:  # pragma: no cover - lightweight serialization
         # Provide a JSON snapshot of current required metric names present for quick checks
         raw = app.state.prom.generate_latest().decode("utf-8")
@@ -202,7 +230,7 @@ def create_app() -> FastAPI:
             present.append(name)
         return {"metrics": sorted(set(present))}
 
-    @app.get("/v1/logs/export", tags=["system"])
+    @app.get("/api/v1/logs/export", tags=["system"])
     async def export_logs(
         limit: int = 100,
         tenant_id: str | None = None,
@@ -283,4 +311,7 @@ def create_app() -> FastAPI:
     return app
 
 
-__all__ = ["create_app"]
+# Create app instance for uvicorn
+app = create_app()
+
+__all__ = ["create_app", "app"]

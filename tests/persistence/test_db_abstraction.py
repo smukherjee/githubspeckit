@@ -208,19 +208,25 @@ class TestDatabaseURLHelper:
         assert isinstance(url, str)
     
     def test_get_database_url_no_default_raises_error(self):
-        """Should raise ValueError when no URL and no default."""
+        """
+        Should return database URL from configuration (env var or descriptor.toml default).
+        
+        Constitution VII compliance: get_database_url() uses centralized config:
+        1. DATABASE_URL env var (if set)
+        2. descriptor.toml default (SQLite)
+        3. Never raises error (always has a default)
+        """
         import os
         
-        # Temporarily unset DATABASE_URL
-        original = os.environ.pop("DATABASE_URL", None)
-        
-        try:
-            with pytest.raises(ValueError, match="DATABASE_URL environment variable is not set"):
-                get_database_url(default=None)
-        finally:
-            # Restore original value
-            if original is not None:
-                os.environ["DATABASE_URL"] = original
+        # Test respects env var when set
+        if "DATABASE_URL" in os.environ:
+            url = get_database_url(default=None)
+            assert url == os.environ["DATABASE_URL"]
+        else:
+            # When env var not set, should get descriptor.toml default (SQLite)
+            url = get_database_url(default=None)
+            assert url is not None
+            assert "sqlite" in url.lower(), f"Expected SQLite default when DATABASE_URL not set, got: {url}"
 
 
 class TestConstitutionCompliance:

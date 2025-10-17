@@ -25,7 +25,9 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
@@ -33,9 +35,13 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 
+# Add src directory to Python path for imports
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT / "src"))
+
 # Import all models to ensure they're registered with metadata
-from adapters.persistence.models import Base
-from adapters.persistence.db_config import DatabaseConfig, get_database_url
+from src.adapters.persistence.models import Base
+from src.adapters.persistence.db_config import DatabaseConfig, get_database_url
 
 # Alembic Config object
 config = context.config

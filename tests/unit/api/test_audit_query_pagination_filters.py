@@ -23,7 +23,7 @@ def test_audit_query_basic_filters(monkeypatch):
     seed_audit(app, n=20)
 
     # Basic request
-    resp = client.get("/v1/audit/events?limit=5")
+    resp = client.get("/api/v1/audit-events?limit=5")
     assert resp.status_code in (200, 404)  # if not wired yet tolerate 404
     if resp.status_code == 404:
         return
@@ -39,8 +39,8 @@ def test_audit_query_pagination():
     client = TestClient(app)
     seed_audit(app, n=50)
 
-    r1 = client.get("/v1/audit/events?limit=10&offset=0")
-    r2 = client.get("/v1/audit/events?limit=10&offset=10")
+    r1 = client.get("/api/v1/audit-events?limit=10&offset=0")
+    r2 = client.get("/api/v1/audit-events?limit=10&offset=10")
     if r1.status_code != 200:
         return
     d1 = r1.json()

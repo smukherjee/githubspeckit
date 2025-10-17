@@ -19,6 +19,7 @@ dependencies = [
   "uvicorn[standard]>=0.30,<0.40",
   "pydantic>=2.6,<3",
   "sqlalchemy>=2.0,<3",
+  "greenlet>=3.0,<4",  # Required for SQLAlchemy async operations
   "asyncpg>=0.30,<1",  # PostgreSQL async driver for SQLAlchemy
   "aiosqlite>=0.20.0,<1",  # SQLite async driver for SQLAlchemy (constitution: local dev/tests)
   "alembic>=1.13,<2",
@@ -35,6 +36,9 @@ dependencies = [
   "email-validator>=2.0,<3",
   "pytest>=8.2,<9",
   "tomli>=2.2,<3",  # TOML parsing for config descriptor
+  "Pillow>=11.0.0,<12",  # Image processing for profile photos
+  "python-magic>=0.4.27,<1",  # File type detection for uploads
+  "python-multipart>=0.0.20,<0.1",  # Multipart form parsing for file uploads
   ]
 
 [project.optional-dependencies]

@@ -5,8 +5,8 @@ from pydantic import BaseModel, ConfigDict
 from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from adapters.api.deps import get_db_session
-from adapters.persistence.repositories import SQLAlchemyPolicyRepository
+from adapters.api.deps import get_db_session, get_audit_service, AuditService
+from adapters.api.auth_deps import CurrentUser
 
 router = APIRouter(prefix="/v1/policies", tags=["policies"])
 
@@ -73,7 +73,9 @@ async def dry_run(
 @router.post("/register", response_model=PolicyResponse, status_code=201)
 async def register_policy(
     req: PolicyRegistrationRequest,
-    session: AsyncSession = Depends(get_db_session)
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
 ) -> PolicyResponse:
     """Register policy (Phase 3: database-backed stub)."""
     # Basic validation: effect value
@@ -82,6 +84,20 @@ async def register_policy(
     
     # TODO Phase 4: Implement full policy storage and evaluation engine
     # For now, return acknowledgment response (stub)
+    
+    # Audit logging: Policy registration
+    await audit_service.log(
+        action_type="policy.register",
+        tenant_id=None,  # Global policy
+        metadata={
+            "policy_id": req.policy_id,
+            "resource_type": req.resource_type,
+            "effect": req.effect,
+            "version": req.version,
+            "registered_by": current_user.user_id
+        }
+    )
+    
     pol = PolicyResponse(
         id=req.policy_id,  # Use policy_id as id for React-Admin
         policy_id=req.policy_id,

@@ -12,7 +12,7 @@ def test_policy_dry_run_success_allows_basic_shape():
     app = create_app()
     client = TestClient(app)
     payload = {"tenant_id": "t1", "action": "read_resource", "resource_type": "doc", "attributes": {}}
-    r = client.post("/v1/policies/dry-run", json=payload)
+    r = client.post("/api/v1/policies/dry-run", json=payload)
     assert r.status_code == 200
     body = r.json()
     assert body["decision"] in {"ALLOW", "DENY", "ABSTAIN"}
@@ -28,7 +28,7 @@ def test_policy_dry_run_unknown_rationale_rejected():
     client = TestClient(app)
     # trigger an action purposely generating unknown rationale code
     payload = {"tenant_id": "t1", "action": "trigger_unknown", "resource_type": "doc", "attributes": {}}
-    r = client.post("/v1/policies/dry-run", json=payload)
+    r = client.post("/api/v1/policies/dry-run", json=payload)
     # Expect 400 enumeration guard
     assert r.status_code == 400
     body = r.json()

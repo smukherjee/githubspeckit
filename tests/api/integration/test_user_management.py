@@ -340,3 +340,225 @@ class TestUserValidation:
         
         # Should fail with 404 Not Found
         assert response.status_code == 404
+
+
+class TestPasswordReset:
+    """Test admin-initiated password reset functionality."""
+    
+    @pytest.mark.asyncio
+    async def test_superadmin_can_reset_any_user_password(
+        self,
+        api_client: AsyncClient,
+        auth_headers: dict,
+        seeded_database: dict
+    ):
+        """Test superadmin can reset password for any user."""
+        # Create a test user first
+        create_response = await api_client.post(
+            "/api/v1/users",
+            headers=auth_headers,
+            json={
+                "tenant_id": seeded_database["tenant_id"],
+                "email": f"password_reset_test_{uuid.uuid4().hex[:8]}@infysight.com",
+                "password": "OldPassword123!",
+                "roles": ["user"]
+            }
+        )
+        assert create_response.status_code == 201
+        user_id = create_response.json()["user_id"]
+        
+        # Reset the user's password
+        reset_response = await api_client.post(
+            f"/api/v1/users/{user_id}/reset-password",
+            headers=auth_headers,
+            json={"new_password": "NewPassword456!"}
+        )
+        
+        assert reset_response.status_code == 200
+        data = reset_response.json()
+        assert data["message"] == "Password reset successfully"
+        assert data["user_id"] == user_id
+    
+    @pytest.mark.asyncio
+    async def test_reset_password_validates_strength(
+        self,
+        api_client: AsyncClient,
+        auth_headers: dict,
+        seeded_database: dict
+    ):
+        """Test password reset validates password strength."""
+        # Create a test user
+        create_response = await api_client.post(
+            "/api/v1/users",
+            headers=auth_headers,
+            json={
+                "tenant_id": seeded_database["tenant_id"],
+                "email": f"weak_password_test_{uuid.uuid4().hex[:8]}@infysight.com",
+                "password": "OldPassword123!",
+                "roles": ["user"]
+            }
+        )
+        assert create_response.status_code == 201
+        user_id = create_response.json()["user_id"]
+        
+        # Try to reset with weak password (too short)
+        reset_response = await api_client.post(
+            f"/api/v1/users/{user_id}/reset-password",
+            headers=auth_headers,
+            json={"new_password": "weak"}
+        )
+        
+        assert reset_response.status_code == 422
+        assert "at least 8 characters" in reset_response.text.lower()
+    
+    @pytest.mark.asyncio
+    async def test_reset_password_validates_password_complexity(
+        self,
+        api_client: AsyncClient,
+        auth_headers: dict,
+        seeded_database: dict
+    ):
+        """Test password reset requires uppercase, lowercase, and digit."""
+        # Create a test user
+        create_response = await api_client.post(
+            "/api/v1/users",
+            headers=auth_headers,
+            json={
+                "tenant_id": seeded_database["tenant_id"],
+                "email": f"complexity_test_{uuid.uuid4().hex[:8]}@infysight.com",
+                "password": "OldPassword123!",
+                "roles": ["user"]
+            }
+        )
+        assert create_response.status_code == 201
+        user_id = create_response.json()["user_id"]
+        
+        # Try to reset with password missing uppercase
+        reset_response = await api_client.post(
+            f"/api/v1/users/{user_id}/reset-password",
+            headers=auth_headers,
+            json={"new_password": "lowercase123"}
+        )
+        assert reset_response.status_code == 422
+        assert "uppercase" in reset_response.text.lower()
+        
+        # Try to reset with password missing lowercase
+        reset_response = await api_client.post(
+            f"/api/v1/users/{user_id}/reset-password",
+            headers=auth_headers,
+            json={"new_password": "UPPERCASE123"}
+        )
+        assert reset_response.status_code == 422
+        assert "lowercase" in reset_response.text.lower()
+        
+        # Try to reset with password missing digit
+        reset_response = await api_client.post(
+            f"/api/v1/users/{user_id}/reset-password",
+            headers=auth_headers,
+            json={"new_password": "NoDigitsHere"}
+        )
+        assert reset_response.status_code == 422
+        assert "digit" in reset_response.text.lower()
+    
+    @pytest.mark.asyncio
+    async def test_regular_user_cannot_reset_password(
+        self,
+        api_client: AsyncClient,
+        auth_headers: dict,
+        seeded_database: dict
+    ):
+        """Test regular user cannot reset another user's password."""
+        # Create a regular user
+        create_response = await api_client.post(
+            "/api/v1/users",
+            headers=auth_headers,
+            json={
+                "tenant_id": seeded_database["tenant_id"],
+                "email": f"regular_user_{uuid.uuid4().hex[:8]}@infysight.com",
+                "password": "RegularPassword123!",
+                "roles": ["user"]
+            }
+        )
+        assert create_response.status_code == 201
+        regular_user_id = create_response.json()["user_id"]
+        
+        # Login as regular user
+        login_response = await api_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": create_response.json()["email"],
+                "password": "RegularPassword123!"
+            }
+        )
+        assert login_response.status_code == 200
+        regular_user_token = login_response.json()["access_token"]
+        
+        # Try to reset superadmin's password
+        reset_response = await api_client.post(
+            f"/api/v1/users/{seeded_database['user_id']}/reset-password",
+            headers={"Authorization": f"Bearer {regular_user_token}"},
+            json={"new_password": "HackedPassword123!"}
+        )
+        
+        assert reset_response.status_code == 403
+        assert "tenant admins and superadmins" in reset_response.text.lower()
+    
+    @pytest.mark.asyncio
+    async def test_reset_nonexistent_user_fails(
+        self,
+        api_client: AsyncClient,
+        auth_headers: dict
+    ):
+        """Test resetting password for non-existent user fails."""
+        fake_user_id = str(uuid.uuid4())
+        reset_response = await api_client.post(
+            f"/api/v1/users/{fake_user_id}/reset-password",
+            headers=auth_headers,
+            json={"new_password": "NewPassword123!"}
+        )
+        
+        assert reset_response.status_code == 404
+        assert "user_not_found" in reset_response.text.lower()
+    
+    @pytest.mark.asyncio
+    async def test_reset_password_activates_invited_user(
+        self,
+        api_client: AsyncClient,
+        auth_headers: dict,
+        seeded_database: dict
+    ):
+        """Test resetting password for invited user activates them."""
+        # Create user without password (invited status)
+        create_response = await api_client.post(
+            "/api/v1/users",
+            headers=auth_headers,
+            json={
+                "tenant_id": seeded_database["tenant_id"],
+                "email": f"invited_user_{uuid.uuid4().hex[:8]}@infysight.com",
+                "roles": ["user"]
+                # No password - should be invited status
+            }
+        )
+        assert create_response.status_code == 201
+        user_id = create_response.json()["user_id"]
+        assert create_response.json()["status"] == "invited"
+        
+        # Reset password should activate user
+        reset_response = await api_client.post(
+            f"/api/v1/users/{user_id}/reset-password",
+            headers=auth_headers,
+            json={"new_password": "ActivationPassword123!"}
+        )
+        
+        assert reset_response.status_code == 200
+        
+        # Verify user can now login
+        login_response = await api_client.post(
+            "/api/v1/auth/login",
+            json={
+                "email": create_response.json()["email"],
+                "password": "ActivationPassword123!"
+            }
+        )
+        assert login_response.status_code == 200
+

@@ -1,4 +1,4 @@
-# Feature Specification: React-Admin Frontend for Multi-Tenant Backend
+# Feature Specification: Admin API Endpoints for Multi-Tenant Backend
 
 **Feature Branch**: `002-react-admin-frontend`  
 **Created**: 2025-10-05  
@@ -7,7 +7,7 @@
 
 ## Overview
 
-This feature provides a web-based administrative interface for managing the multi-tenant backend system. The interface enables different user roles (superadmin, tenant_admin, standard) to perform operations within their authorized scope across tenants, users, feature flags, policies, invitations, and audit logs.
+This feature provides comprehensive backend API endpoints for administrative operations in the multi-tenant system. The APIs are frontend-agnostic and designed to support any client framework (React-admin, Vue, Angular, mobile apps, CLI tools) through well-defined REST contracts. The endpoints enable different user roles (superadmin, tenant_admin, standard) to perform operations within their authorized scope across tenants, users, feature flags, policies, invitations, and audit logs.
 
 ## User Scenarios & Testing
 
@@ -118,59 +118,85 @@ As a standard user, I need to view my profile and access permitted resources wit
 - **FR-023**: System MUST allow superadmin and tenant admin to update user status
 - **FR-024**: System MUST allow superadmin and tenant admin to disable users
 - **FR-025**: System MUST implement soft-delete for users (disable instead of hard delete)
+- **FR-026**: All users MUST be able to change their own password via profile interface
+- **FR-027**: All users MUST be able to update their own profile data (display name, first/last name, phone number, job title, department, timezone, language preferences)
+- **FR-028**: All users MUST be able to request account deletion (soft-delete with admin approval)
+- **FR-029**: Superadmin users MUST be able to modify all user accounts (password reset, profile updates, account deletion)
+- **FR-030**: Tenant admin users MUST be able to modify any user account within their tenant including passwords, profile data, roles, and status changes
+- **FR-031**: System MUST require current password verification for sensitive self-service operations (password change, account deletion request)
+- **FR-032**: System MUST validate profile data formats (email format, phone number format, timezone validity)
+- **FR-033**: System MUST support standard timezone selection (IANA timezone database)
+- **FR-034**: System MUST support language preference selection with interface localization impact
+- **FR-035**: Tenant admin and superadmin users MUST be able to perform password resets for managed users without requiring current password verification
+
+#### Bulk Operations & Import/Export
+
+- **FR-036**: System MUST support bulk selection of users via checkboxes in list views
+- **FR-037**: System MUST support bulk enable/disable operations with confirmation dialog
+- **FR-038**: System MUST support bulk user deletion (soft-delete) with confirmation dialog
+- **FR-039**: System MUST support bulk role assignment to selected users
+- **FR-040**: System MUST support bulk tenant transfer for superadmin users
+- **FR-041**: System MUST support bulk status changes (active, disabled, invited, expired)
+- **FR-042**: System MUST support CSV export of user data with configurable field selection
+- **FR-043**: System MUST support CSV import of user data with validation and error reporting
+- **FR-044**: CSV import MUST validate all required fields and data formats before processing
+- **FR-045**: CSV import MUST provide detailed error report for failed records with line numbers
+- **FR-046**: System MUST support preview mode for CSV imports showing changes before commit
+- **FR-047**: Bulk operations MUST respect tenant isolation (tenant admins cannot bulk-modify cross-tenant)
+- **FR-048**: System MUST audit all bulk operations with detailed change tracking
 
 #### Tenant Management
 
-- **FR-026**: Only superadmin users MUST be able to create new tenants
-- **FR-027**: System MUST validate tenant name uniqueness when creating tenants
-- **FR-028**: System MUST display tenant status (active, disabled, invited, expired)
-- **FR-029**: System MUST allow superadmin to update tenant details (name, status)
-- **FR-030**: System MUST allow superadmin to disable tenants
-- **FR-031**: System MUST implement soft-delete for tenants (disable instead of hard delete)
-- **FR-032**: System MUST show all users belonging to a tenant in the tenant detail view
+- **FR-049**: Only superadmin users MUST be able to create new tenants
+- **FR-050**: System MUST validate tenant name uniqueness when creating tenants
+- **FR-051**: System MUST display tenant status (active, disabled, invited, expired)
+- **FR-052**: System MUST allow superadmin to update tenant details (name, status)
+- **FR-053**: System MUST allow superadmin to disable tenants
+- **FR-054**: System MUST implement soft-delete for tenants (disable instead of hard delete)
+- **FR-055**: System MUST show all users belonging to a tenant in the tenant detail view
 
 #### Feature Flag Management
 
-- **FR-033**: System MUST allow creating feature flags with name, flag_type, status, and values
-- **FR-034**: System MUST enforce tenant_id scope for all feature flag operations
-- **FR-035**: Superadmin users MUST be able to manage feature flags across all tenants
-- **FR-036**: Tenant admin users MUST be able to manage feature flags within their own tenant
-- **FR-037**: Standard users with appropriate permissions MUST be able to view feature flags
-- **FR-038**: System MUST validate feature flag name uniqueness within tenant scope
+- **FR-056**: System MUST allow creating feature flags with name, flag_type, status, and values
+- **FR-057**: System MUST enforce tenant_id scope for all feature flag operations
+- **FR-058**: Superadmin users MUST be able to manage feature flags across all tenants
+- **FR-059**: Tenant admin users MUST be able to manage feature flags within their own tenant
+- **FR-060**: Standard users with appropriate permissions MUST be able to view feature flags
+- **FR-061**: System MUST validate feature flag name uniqueness within tenant scope
 
 #### Policy Management
 
-- **FR-039**: System MUST allow creating authorization policies with conditions and verdicts
-- **FR-040**: System MUST support policy verdicts: ALLOW, DENY, ABSTAIN
-- **FR-041**: System MUST allow associating policies with specific actions and resources
-- **FR-042**: Superadmin users MUST be able to manage policies across all tenants
-- **FR-043**: Tenant admin users MUST be able to manage policies within their own tenant
-- **FR-044**: System MUST validate policy syntax before saving
+- **FR-062**: System MUST allow creating authorization policies with conditions and verdicts
+- **FR-063**: System MUST support policy verdicts: ALLOW, DENY, ABSTAIN
+- **FR-064**: System MUST allow associating policies with specific actions and resources
+- **FR-065**: Superadmin users MUST be able to manage policies across all tenants
+- **FR-066**: Tenant admin users MUST be able to manage policies within their own tenant
+- **FR-067**: System MUST validate policy syntax before saving
 
 #### Invitation Management
 
-- **FR-045**: System MUST allow creating invitations for new users with email and roles
-- **FR-046**: System MUST generate unique invitation tokens with expiration timestamps
-- **FR-047**: System MUST display invitation status (pending, accepted, expired, revoked)
-- **FR-048**: System MUST allow superadmin and tenant admin to revoke pending invitations
-- **FR-049**: System MUST enforce tenant_id scope for invitation operations
+- **FR-068**: System MUST allow creating invitations for new users with email and roles
+- **FR-069**: System MUST generate unique invitation tokens with expiration timestamps
+- **FR-070**: System MUST display invitation status (pending, accepted, expired, revoked)
+- **FR-071**: System MUST allow superadmin and tenant admin to revoke pending invitations
+- **FR-072**: System MUST enforce tenant_id scope for invitation operations
 
 #### Audit Log Viewing
 
-- **FR-050**: System MUST display audit events with actor, action, resource, tenant, and timestamp
-- **FR-051**: System MUST allow filtering audit events by tenant_id, actor_id, action, and date range
-- **FR-052**: Superadmin users MUST be able to view audit events across all tenants
-- **FR-053**: Tenant admin users MUST only be able to view audit events within their own tenant
-- **FR-054**: System MUST paginate audit log results (default 50 per page)
+- **FR-073**: System MUST display audit events with actor, action, resource, tenant, and timestamp
+- **FR-074**: System MUST allow filtering audit events by tenant_id, actor_id, action, and date range
+- **FR-075**: Superadmin users MUST be able to view audit events across all tenants
+- **FR-076**: Tenant admin users MUST only be able to view audit events within their own tenant
+- **FR-077**: System MUST paginate audit log results (default 50 per page)
 
 #### User Interface
 
-- **FR-055**: System MUST display user-friendly error messages for all failed operations
-- **FR-056**: System MUST show loading indicators during asynchronous operations
-- **FR-057**: System MUST provide confirmation dialogs for destructive operations (disable, delete, revoke)
-- **FR-058**: System MUST support pagination for all list views (users, tenants, feature flags, policies, invitations, audit events)
-- **FR-059**: System MUST support filtering and sorting on list views
-- **FR-060**: System MUST display success notifications after successful create/update/delete operations
+- **FR-078**: System MUST display user-friendly error messages for all failed operations
+- **FR-079**: System MUST show loading indicators during asynchronous operations
+- **FR-080**: System MUST provide confirmation dialogs for destructive operations (disable, delete, revoke)
+- **FR-081**: System MUST support pagination for all list views (users, tenants, feature flags, policies, invitations, audit events)
+- **FR-082**: System MUST support filtering and sorting on list views
+- **FR-083**: System MUST display success notifications after successful create/update/delete operations
 
 ### Non-Functional Requirements
 
@@ -185,7 +211,7 @@ As a standard user, I need to view my profile and access permitted resources wit
 
 ### Key Entities
 
-- **User**: Represents an authenticated user with email, roles, tenant association, status, and audit timestamps. Users belong to exactly one tenant and have one or more roles that determine their permissions.
+- **User**: Represents an authenticated user with email, display name, first/last name, phone number, job title, department, timezone, language preferences, roles, tenant association, status, and audit timestamps. Users belong to exactly one tenant and have one or more roles that determine their permissions.
 
 - **Tenant**: Represents an organization or customer account with unique name, status, and audit timestamps. Tenants contain users, feature flags, policies, invitations, and audit events. All operations are scoped by tenant_id.
 
@@ -196,6 +222,15 @@ As a standard user, I need to view my profile and access permitted resources wit
 - **Invitation**: Represents a pending user invitation with email, roles, token, expiration timestamp, and status (pending/accepted/expired/revoked). Invitations are tenant-scoped and allow new users to join a tenant.
 
 - **AuditEvent**: Represents a logged action with actor_id, action name, resource type, resource_id, tenant_id, timestamp, and optional event data. Audit events provide an immutable record of all system operations for compliance and troubleshooting.
+
+## Clarifications
+
+### Session 2025-10-17
+
+- Q: For standard users managing their own accounts, what level of self-service capability should be supported? → A: Full self-service - Users can change password, profile data, plus request account deletion. Same applies to all admins managing users below them per RBAC.
+- Q: For the profile information that users can view and modify, which data fields should be included? → A: Extended - All standard fields plus job title, department, timezone, language preferences
+- Q: For tenant admins managing users within their tenant, what level of permission control should they have over user modifications? → A: Full control - Tenant admins can modify any user field including passwords and sensitive profile data
+- Q: For administrative efficiency when managing large numbers of users/resources, should the interface support bulk operations? → A: Import/Export - Advanced bulk operations plus CSV import/export for user management
 
 ## Architecture Decisions (Clarified)
 
@@ -282,7 +317,7 @@ As a standard user, I need to view my profile and access permitted resources wit
 
 - [x] No [NEEDS CLARIFICATION] markers remain - **All 5 clarification questions answered**
 - [x] Requirements are testable and unambiguous
-- [x] Success criteria are measurable (60 functional requirements with clear acceptance criteria)
+- [x] Success criteria are measurable (83 functional requirements with clear acceptance criteria)
 - [x] Scope is clearly bounded (admin interface for 6 resource types across 3 user roles)
 - [x] Dependencies and assumptions identified (backend REST API exists with 22 endpoints)
 

@@ -18,7 +18,7 @@ async def test_invitation_accept_flow():
     app = create_app()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # create tenant
-        tr = await client.post("/v1/tenants", json={"name": "InviteCo"})
+        tr = await client.post("/api/v1/tenants", json={"name": "InviteCo"})
         tenant_id = tr.json()["tenant_id"]
         
         # Create invitation directly using database-backed repository
@@ -30,7 +30,7 @@ async def test_invitation_accept_flow():
             await session.commit()
         
         # Accept via API should 200
-        ar = await client.post(f"/v1/invitations/{inv.invitation_id}/accept")
+        ar = await client.post(f"/api/v1/invitations/{inv.invitation_id}/accept")
         assert ar.status_code == 200
         data = ar.json()
         assert data["status"] == "accepted"

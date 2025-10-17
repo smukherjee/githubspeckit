@@ -6,7 +6,12 @@ DEFAULT_PORT ?= 8000
 ENV_FILE ?= .env
 EXTRA_ENV ?= .env.dev
 
+# Database configuration (override with make DB_URL=... target)
+DB_URL ?= postgresql+asyncpg://infysight_dbadmin:infysight_dbadmin123@localhost/infysight_users
+DB_URL_SQLITE ?= sqlite+aiosqlite:///./dev.db
+
 .PHONY: venv compile-requirements sync install dev test run api up migrate health env-show clean reset deps-check openapi-bundle openapi-validate openapi-html openapi-serve
+.PHONY: db-create db-drop db-reset db-migrate db-seed db-verify server-start server-stop server-restart bootstrap
 
 venv:
 	python3 -m venv .venv
@@ -36,21 +41,104 @@ env-show:
 	@if [ -f env.dev ]; then echo "--- env.dev ---"; grep -v '^#' env.dev; fi
 	@if [ -f env.prod ]; then echo "--- env.prod ---"; grep -v '^#' env.prod; fi
 
-# Placeholder migration target (extend once Alembic env script present)
-migrate: install
-	@echo "[migrate] (placeholder) Add Alembic upgrade head here" && true
+# --- Database Management ---
 
-# Run the API using uvicorn; merges ENV_FILE (default .env) and EXTRA_ENV file if provided
+# Create PostgreSQL database (idempotent)
+db-create:
+	@echo "Creating PostgreSQL database..."
+	@psql -d postgres -c "SELECT 1 FROM pg_database WHERE datname='infysight_users'" | grep -q 1 || \
+		psql -d postgres -c "CREATE DATABASE infysight_users OWNER infysight_dbadmin;"
+	@echo "✅ Database infysight_users ready"
+
+# Drop PostgreSQL database (DESTRUCTIVE)
+db-drop:
+	@echo "⚠️  Dropping PostgreSQL database..."
+	@psql -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = 'infysight_users' AND pid <> pg_backend_pid();" || true
+	@psql -d postgres -c "DROP DATABASE IF EXISTS infysight_users;"
+	@echo "✅ Database dropped"
+
+# Reset database: drop, create, migrate, seed
+db-reset: db-drop db-create db-migrate db-seed
+	@echo "✅ Database reset complete"
+
+# Run Alembic migrations
+db-migrate: install
+	@echo "Running database migrations..."
+	@DATABASE_URL=$(DB_URL) PYTHONPATH=. $(PYTHON) -m alembic upgrade head
+	@echo "✅ Migrations complete"
+
+# Seed database with infysight tenant and superadmin user
+db-seed: install
+	@echo "Seeding database with initial data..."
+	@DATABASE_URL=$(DB_URL) $(PYTHON) scripts/seed_infysight.py
+	@echo "✅ Database seeded"
+
+# Verify database connection and schema
+db-verify: install
+	@echo "Verifying database..."
+	@PGPASSWORD=infysight_dbadmin123 psql -U infysight_dbadmin -h localhost -d infysight_users -c "\dt" | grep -q tenants && echo "✅ Schema verified" || echo "❌ Schema check failed"
+	@PGPASSWORD=infysight_dbadmin123 psql -U infysight_dbadmin -h localhost -d infysight_users -c "SELECT COUNT(*) FROM tenants;" | grep -q 1 && echo "✅ Data verified" || echo "❌ Data check failed"
+
+# --- Server Management ---
+
+# Start API server in background
+server-start: dev
+	@echo "Starting API server on port $(DEFAULT_PORT)..."
+	@export DATABASE_URL=$(DB_URL) && \
+		$(PYTHON) -m uvicorn src.$(APP_MODULE) --factory --host 0.0.0.0 --port $(DEFAULT_PORT) --reload > /tmp/githubspeckit-api.log 2>&1 & \
+		echo $$! > /tmp/githubspeckit-api.pid
+	@sleep 2
+	@lsof -ti:$(DEFAULT_PORT) >/dev/null && echo "✅ Server started on http://localhost:$(DEFAULT_PORT)" || echo "❌ Server failed to start (check /tmp/githubspeckit-api.log)"
+
+# Stop API server
+server-stop:
+	@echo "Stopping API server..."
+	@lsof -ti:$(DEFAULT_PORT) | xargs kill -9 2>/dev/null && echo "✅ Server stopped" || echo "ℹ️  No server running on port $(DEFAULT_PORT)"
+	@rm -f /tmp/githubspeckit-api.pid
+
+# Restart API server
+server-restart: server-stop server-start
+
+# --- Legacy/Compatibility Targets ---
+
+# Placeholder migration target (use db-migrate instead)
+migrate: db-migrate
+
+# Run the API using uvicorn (foreground); merges ENV_FILE (default .env) and EXTRA_ENV file if provided
 api: dev
 	@if [ -f $(ENV_FILE) ]; then set -o allexport; . $(ENV_FILE); set +o allexport; fi; \
 	if [ -n "$(EXTRA_ENV)" ] && [ -f "$(EXTRA_ENV)" ]; then set -o allexport; . $(EXTRA_ENV); set +o allexport; fi; \
-	$(PYTHON) -c "import uvicorn, importlib; mod,app_fact='$(APP_MODULE)'.split(':'); app_callable=getattr(importlib.import_module(mod), app_fact); uvicorn.run(app_callable(), host='0.0.0.0', port=$(DEFAULT_PORT))"
+	DATABASE_URL=$(DB_URL) $(PYTHON) -c "import uvicorn, importlib; mod,app_fact='$(APP_MODULE)'.split(':'); app_callable=getattr(importlib.import_module(mod), app_fact); uvicorn.run(app_callable(), host='0.0.0.0', port=$(DEFAULT_PORT))"
 
 # Convenience alias
 run: api
 
 # End-to-end first boot: deps -> migrate -> run (foreground)
-up: install migrate run
+up: install db-migrate run
+
+# --- Bootstrap: Complete Fresh Installation ---
+
+# Complete bootstrap from zero (PostgreSQL)
+bootstrap: reset db-reset server-start
+	@echo ""
+	@echo "=========================================="
+	@echo "✅ Bootstrap Complete!"
+	@echo "=========================================="
+	@echo ""
+	@echo "🔑 Login Credentials:"
+	@echo "   Email:    infysightsa@infysight.com"
+	@echo "   Password: infysightsa123"
+	@echo "   Role:     superadmin"
+	@echo "   Tenant:   infysight"
+	@echo ""
+	@echo "🌐 API Server:"
+	@echo "   URL:      http://localhost:$(DEFAULT_PORT)"
+	@echo "   Health:   http://localhost:$(DEFAULT_PORT)/v1/health"
+	@echo "   Docs:     http://localhost:$(DEFAULT_PORT)/docs"
+	@echo ""
+	@echo "📊 Logs:"
+	@echo "   tail -f /tmp/githubspeckit-api.log"
+	@echo ""
 
 health:
 	curl -s http://localhost:$(DEFAULT_PORT)/v1/health | jq . || echo "health endpoint not ready"
@@ -83,3 +171,5 @@ reset: clean venv install
 clean:
 	rm -rf .venv
 	find . -name __pycache__ -prune -exec rm -rf {} +
+	rm -f /tmp/githubspeckit-api.pid /tmp/githubspeckit-api.log
+

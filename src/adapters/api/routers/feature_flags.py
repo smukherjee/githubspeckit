@@ -7,7 +7,8 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.featureflags.models import FeatureFlag, FlagState
-from adapters.api.deps import get_db_session
+from adapters.api.deps import get_db_session, get_audit_service, AuditService
+from adapters.api.auth_deps import CurrentUser
 from adapters.persistence.repositories import SQLAlchemyFeatureFlagRepository
 
 router = APIRouter(prefix="/v1/feature-flags", tags=["feature-flags"])
@@ -40,7 +41,9 @@ class FeatureFlagList(BaseModel):
 @router.post("", response_model=FeatureFlagResponse, status_code=201)
 async def create_flag(
     payload: FeatureFlagCreate,
-    session: AsyncSession = Depends(get_db_session)
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
 ) -> FeatureFlagResponse:
     """Create feature flag (Phase 3: database-backed)."""
     # Ensure state is FlagState enum (handle string or enum input)
@@ -58,6 +61,19 @@ async def create_flag(
     flag_repo = SQLAlchemyFeatureFlagRepository(session)
     await flag_repo.upsert(flag)
     await session.commit()
+    
+    # Audit logging: Feature flag creation
+    await audit_service.log(
+        action_type="feature_flag.create",
+        tenant_id=flag.tenant_id,
+        metadata={
+            "flag_id": flag.flag_id,
+            "key": flag.key,
+            "state": flag.state.value,
+            "variant": flag.variant,
+            "created_by": current_user.user_id
+        }
+    )
     
     return FeatureFlagResponse(
         flag_id=flag.flag_id,

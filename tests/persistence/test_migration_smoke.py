@@ -48,7 +48,7 @@ def clean_db_for_migration_tests():
                         "alembic_version", "token_replay_records", "user_mfa", 
                         "key_rotation_records", "feature_flags", "audit_events",
                         "policy_evaluation_logs", "policies", "password_reset_requests",
-                        "invitations", "user_roles", "users", "tenants"
+                        "invitations", "user_roles", "user_details", "users", "tenants"
                     ]
                     for table in tables:
                         await conn.execute(text(f"DROP TABLE IF EXISTS {table}"))
@@ -61,7 +61,7 @@ def clean_db_for_migration_tests():
                             token_replay_records, user_mfa, key_rotation_records, feature_flags, 
                             audit_events, policy_evaluation_logs, policies, 
                             password_reset_requests, invitations, user_roles, 
-                            users, tenants
+                            user_details, users, tenants
                         CASCADE;
                     """))
                     

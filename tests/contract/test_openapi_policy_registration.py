@@ -18,6 +18,6 @@ def test_policy_registration_requires_implementation():
         "version": 1,
         "policy_id": str(uuid4()),
     }
-    r = client.post("/v1/policies/register", json=payload)
+    r = client.post("/api/v1/policies/register", json=payload)
     # Expect 404 until implemented
     assert r.status_code == 201, f"Expected 201 created for policy registration, got {r.status_code} body={r.text}"

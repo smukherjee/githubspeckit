@@ -11,5 +11,5 @@ from adapters.api.app import create_app
 def test_audit_metadata_population_placeholder():
     app = create_app()
     client = TestClient(app)
-    t = client.post("/v1/tenants", json={"name": "MetaCorp"}).json()
+    t = client.post("/api/v1/tenants", json={"name": "MetaCorp"}).json()
     assert t.get("created_by"), "Expected created_by populated (failing until implemented)"

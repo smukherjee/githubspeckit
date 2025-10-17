@@ -27,7 +27,7 @@ from uuid import UUID
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from adapters.persistence.models import (
+from .models import (
     TenantModel,
     UserModel,
     UserRoleModel,
@@ -562,18 +562,29 @@ def invitation_model_to_domain(model: InvitationModel) -> Invitation:
     # Map accepted_at to status
     if model.accepted_at:
         status = InvitationStatus.accepted
-    elif datetime.now(timezone.utc) >= model.expires_at:
-        status = InvitationStatus.expired
     else:
-        status = InvitationStatus.pending
+        # Ensure expires_at is timezone-aware for comparison
+        expires_at = model.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        
+        if datetime.now(timezone.utc) >= expires_at:
+            status = InvitationStatus.expired
+        else:
+            status = InvitationStatus.pending
+    
+    # Ensure expires_at is timezone-aware
+    expires_at_aware = model.expires_at
+    if expires_at_aware.tzinfo is None:
+        expires_at_aware = expires_at_aware.replace(tzinfo=timezone.utc)
     
     return Invitation(
         invitation_id=str(model.invitation_id),
         tenant_id=str(model.tenant_id),
         email=model.email,
-        expires_at=model.expires_at,
+        expires_at=expires_at_aware,
         status=status,
-        accepted_at=model.accepted_at,
+        accepted_at=model.accepted_at.replace(tzinfo=timezone.utc) if model.accepted_at and model.accepted_at.tzinfo is None else model.accepted_at,
         created_at=getattr(model, 'created_at', datetime.now(timezone.utc)),
         updated_at=getattr(model, 'updated_at', datetime.now(timezone.utc)),
         created_by=str(getattr(model, 'created_by', None)) if getattr(model, 'created_by', None) else None,

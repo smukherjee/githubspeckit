@@ -42,7 +42,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 import enum
 
 # Import portable UUID type for database-agnostic UUID support
-from adapters.persistence.db_config import PortableUUID
+from .db_config import PortableUUID
 
 
 # Declarative base for all models
@@ -450,3 +450,54 @@ class UserMFAModel(Base):
         nullable=False
     )
     created_by: Mapped[Optional[UUID]] = mapped_column(PortableUUID(), nullable=True)
+
+
+class UserDetailsModel(Base):
+    """
+    User profile details entity (FR-003-user-profile-details).
+    
+    Extended profile information with optional photo URLs.
+    One-to-one with users table via user_id primary key.
+    """
+    __tablename__ = "user_details"
+
+    user_id: Mapped[UUID] = mapped_column(
+        PortableUUID(),
+        ForeignKey("users.user_id", ondelete="CASCADE"),
+        primary_key=True
+    )
+    full_name: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    photo_display_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    photo_thumbnail_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    photo_avatar_url: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    
+    # Audit metadata (FR-077)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+        nullable=False
+    )
+    created_by: Mapped[Optional[UUID]] = mapped_column(
+        PortableUUID(),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
+        nullable=True
+    )
+    updated_by: Mapped[Optional[UUID]] = mapped_column(
+        PortableUUID(),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    # Indexes
+    __table_args__ = (
+        Index("ix_user_details_created_at", "created_at"),
+        Index("ix_user_details_updated_at", "updated_at"),
+    )

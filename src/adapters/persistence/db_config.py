@@ -24,7 +24,6 @@ Architecture:
 """
 from __future__ import annotations
 
-import os
 from enum import Enum
 from typing import Any, Optional, TYPE_CHECKING
 from urllib.parse import urlparse
@@ -76,22 +75,22 @@ class DatabaseConfig:
     @classmethod
     def from_env(cls, env_var: str = "DATABASE_URL") -> DatabaseConfig:
         """
-        Create configuration from environment variable.
+        Create configuration from DATABASE_URL (via config settings).
+        
+        Constitution VII Compliance: Uses domain.config.settings instead of direct os.getenv.
         
         Args:
-            env_var: Environment variable name (default: DATABASE_URL)
+            env_var: Environment variable name (default: DATABASE_URL, ignored - always uses settings)
         
         Returns:
             DatabaseConfig instance with auto-detected dialect
         
         Raises:
-            ValueError: If DATABASE_URL is not set or invalid
+            ValueError: If DATABASE_URL is not set in configuration
         """
-        url = os.getenv(env_var)
-        if not url:
-            raise ValueError(f"{env_var} environment variable is not set")
-        
-        return cls.from_url(url)
+        from domain.config.settings import get_database_settings
+        settings = get_database_settings()
+        return cls.from_url(settings.database_url)
     
     @classmethod
     def from_url(cls, url: str, **kwargs: Any) -> DatabaseConfig:
@@ -314,18 +313,25 @@ def get_db_config(reload: bool = False) -> DatabaseConfig:
 
 def get_database_url(default: Optional[str] = None) -> str:
     """
-    Get database URL from environment or default.
+    Get database URL from configuration settings.
+    
+    Constitution VII Compliance: Uses domain.config.settings which respects:
+    1. DATABASE_URL environment variable (highest priority)
+    2. config/descriptor.toml default (SQLite for local dev)
     
     Args:
-        default: Default URL if DATABASE_URL not set
+        default: Deprecated parameter (kept for backwards compatibility, ignored)
     
     Returns:
-        Database connection URL
+        Database connection URL (from env var or descriptor default)
+    
+    Note:
+        The descriptor.toml default is SQLite for developer-friendly local testing.
+        For production/PostgreSQL, set DATABASE_URL environment variable.
     """
-    url = os.getenv("DATABASE_URL", default)
-    if not url:
-        raise ValueError("DATABASE_URL environment variable is not set and no default provided")
-    return url
+    from src.domain.config.settings import get_database_settings
+    settings = get_database_settings()
+    return settings.database_url
 
 
 __all__ = [

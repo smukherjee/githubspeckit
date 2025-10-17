@@ -4,10 +4,10 @@ Provides database session management and repository injection.
 Uses SQLAlchemy async repositories with proper session lifecycle management.
 """
 from functools import lru_cache
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 from datetime import datetime
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from adapters.persistence.db_config import DatabaseConfig
@@ -36,11 +36,12 @@ class AuditService:
 
     Appends audit events to database via SQLAlchemyAuditAppender.
     """
-    def __init__(self, appender: SQLAlchemyAuditAppender) -> None:
+    def __init__(self, appender: SQLAlchemyAuditAppender, actor_user_id: Optional[str] = None) -> None:
         self.appender = appender
+        self.actor_user_id = actor_user_id
 
     async def log(self, *, action_type: str, tenant_id: str | None, metadata: dict[str, object] | None = None) -> None:
-        """Log audit event to database."""
+        """Log audit event to database with actor tracking."""
         from domain.audit.models import AuditEvent
         from uuid import uuid4
         
@@ -49,7 +50,7 @@ class AuditService:
             tenant_id=tenant_id,
             category=action_type.split('.')[0] if '.' in action_type else 'system',
             action=action_type,
-            actor_user_id=None,  # TODO: Extract from request context
+            actor_user_id=self.actor_user_id,  # Now extracted from request context
             target_type=None,
             target_id=None,
             metadata=metadata or {},
@@ -166,7 +167,22 @@ async def get_audit_appender(session: AsyncSession = Depends(get_db_session)) ->
     return SQLAlchemyAuditAppender(session)
 
 
-async def get_audit_service(appender: SQLAlchemyAuditAppender = Depends(get_audit_appender)) -> AuditService:
-    """Get audit service (database-backed)."""
-    return AuditService(appender)
+async def get_current_actor_id(request: Request) -> Optional[str]:
+    """
+    Extract actor_user_id from request state (set by auth middleware).
+    
+    Returns None for unauthenticated requests (e.g., login, public endpoints).
+    """
+    # Check if user was authenticated by get_current_user dependency
+    if hasattr(request.state, "user_id"):
+        return request.state.user_id
+    return None
+
+
+async def get_audit_service(
+    appender: SQLAlchemyAuditAppender = Depends(get_audit_appender),
+    actor_user_id: Optional[str] = Depends(get_current_actor_id)
+) -> AuditService:
+    """Get audit service with actor tracking (database-backed)."""
+    return AuditService(appender, actor_user_id=actor_user_id)
 

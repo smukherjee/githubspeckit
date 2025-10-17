@@ -12,7 +12,7 @@ except ModuleNotFoundError:  # pragma: no cover
 def test_health_status_endpoint():
     app = create_app()
     client = TestClient(app)
-    resp = client.get("/v1/health")
+    resp = client.get("/api/v1/health")
     assert resp.status_code == 200
     data = resp.json()
     # Expected keys per FR-015 (partial implementation)
@@ -25,7 +25,7 @@ def test_health_status_endpoint():
 def test_config_export_contract():
     app = create_app()
     client = TestClient(app)
-    resp = client.get("/v1/config")
+    resp = client.get("/api/v1/config")
     # Until implemented expect 404, then we will tighten to 200 with schema checks
     assert resp.status_code in (404, 200)
     if resp.status_code == 200:

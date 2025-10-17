@@ -26,6 +26,13 @@ default = "githubspeckit-backend"
 description = "Application name for logging and observability"
 scope = "backend"
 
+[app.OTEL_EXPORTER_OTLP_ENDPOINT]
+type = "string"
+required = false
+secret = false
+description = "OpenTelemetry OTLP exporter endpoint (if set, uses OTLP; otherwise console)"
+scope = "backend"
+
 [app.ENVIRONMENT]
 type = "string"
 required = true
@@ -56,10 +63,10 @@ scope = "backend"
 
 [database.DATABASE_URL]
 type = "string"
-required = true
+required = false
 secret = true
-default = "postgresql+asyncpg://postgres:postgres@localhost:5432/githubspeckit_dev"
-description = "PostgreSQL connection URL (async driver)"
+default = "sqlite+aiosqlite:///./dev_infysight.db"
+description = "Database connection URL (default: SQLite for local dev; set env var for PostgreSQL/production)"
 scope = "backend"
 
 [database.DB_POOL_SIZE]
@@ -245,6 +252,66 @@ required = false
 secret = true
 default = "postgresql+asyncpg://postgres:postgres@localhost:5432/githubspeckit_test"
 description = "Test database connection URL"
+scope = "backend"
+
+# ============================================================================
+# Photo Storage (FR-003-user-profile-details)
+# ============================================================================
+
+[photo_storage.STORAGE_TYPE]
+type = "string"
+required = false
+secret = false
+default = "local"
+description = "Photo storage backend type (local or s3)"
+scope = "backend"
+
+[photo_storage.LOCAL_BASE_PATH]
+type = "string"
+required = false
+secret = false
+default = "data/photos"
+description = "Base path for local file storage (relative to project root)"
+scope = "backend"
+
+[photo_storage.S3_BUCKET]
+type = "string"
+required = false
+secret = false
+default = ""
+description = "S3 bucket name for photo storage (production only)"
+scope = "backend"
+
+[photo_storage.S3_REGION]
+type = "string"
+required = false
+secret = false
+default = ""
+description = "AWS region for S3 bucket"
+scope = "backend"
+
+[photo_storage.S3_ACCESS_KEY_ID]
+type = "string"
+required = false
+secret = true
+default = ""
+description = "AWS access key ID for S3 (set in production)"
+scope = "backend"
+
+[photo_storage.S3_SECRET_ACCESS_KEY]
+type = "string"
+required = false
+secret = true
+default = ""
+description = "AWS secret access key for S3 (set in production)"
+scope = "backend"
+
+[photo_storage.MAX_UPLOAD_SIZE_MB]
+type = "int"
+required = false
+secret = false
+default = 10
+description = "Maximum allowed file size for photo uploads in megabytes"
 scope = "backend"
 
 # ============================================================================

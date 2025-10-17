@@ -19,7 +19,12 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', 'src'))
 
 # Set test environment BEFORE imports
-os.environ["DATABASE_URL"] = "postgresql+asyncpg://infysight_dbadmin:infysight_dbadmin123@localhost/githubspeckit_test"
+# DATABASE_URL: Respect env var if set, otherwise use descriptor.toml default (SQLite)
+# For PostgreSQL integration tests: export DATABASE_URL="postgresql+asyncpg://infysight_dbadmin:infysight_dbadmin123@localhost/githubspeckit_test"
+if "DATABASE_URL" not in os.environ:
+    # Use SQLite by default for fast local testing
+    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test_infysight_integration.db"
+
 os.environ["APP_ENV"] = "test"
 os.environ["JWT_SECRET_KEY"] = "test_secret_key_min_32_chars_long_for_hs256"
 os.environ["ARGON2_TIME_COST"] = "1"  # Fast for testing
@@ -34,7 +39,21 @@ from adapters.persistence.db_config import DatabaseConfig
 
 @pytest_asyncio.fixture(scope="session")
 async def db_engine():
-    """Create database engine for the test session."""
+    """Create database engine for the test session with migrations."""
+    import subprocess
+    
+    # Run migrations to create schema BEFORE creating engine
+    # This ensures database has proper schema for all tests
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "upgrade", "head"],
+        capture_output=True,
+        text=True,
+        env={**os.environ}
+    )
+    
+    if result.returncode != 0:
+        pytest.fail(f"Failed to run migrations: {result.stderr}")
+    
     db_config = DatabaseConfig.from_env()
     engine = db_config.create_engine()
     

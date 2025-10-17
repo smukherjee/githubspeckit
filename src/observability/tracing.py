@@ -1,10 +1,11 @@
-"""Tracing bootstrap (minimal OpenTelemetry setup with env-driven exporter selection).
+"""Tracing bootstrap (minimal OpenTelemetry setup with config-driven exporter selection).
 
-Environment Variables:
-  OTEL_EXPORTER_OTLP_ENDPOINT - if set, uses OTLP HTTP exporter; else console exporter.
+Configuration:
+  OTEL_EXPORTER_OTLP_ENDPOINT - if set in descriptor.toml, uses OTLP HTTP exporter; else console.
+  
+Constitution VII Compliance: All environment access goes through domain.config.settings.
 """
 from __future__ import annotations
-import os
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor, ConsoleSpanExporter, SpanExporter
@@ -13,6 +14,8 @@ try:  # optional dependency present in pyproject
 except Exception:  # pragma: no cover - fallback if package not available
     OTLPSpanExporter = None  # type: ignore[assignment,misc]
 
+from domain.config.settings import get_observability_settings
+
 _initialized = False
 
 
@@ -20,13 +23,16 @@ def init_tracing() -> None:  # pragma: no cover simple init
     global _initialized
     if _initialized:
         return
+    
+    settings = get_observability_settings()
     provider = TracerProvider()
-    endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
     exporter: SpanExporter
-    if endpoint and OTLPSpanExporter is not None:
-        exporter = OTLPSpanExporter(endpoint=endpoint)
+    
+    if settings.otel_exporter_otlp_endpoint and OTLPSpanExporter is not None:
+        exporter = OTLPSpanExporter(endpoint=settings.otel_exporter_otlp_endpoint)
     else:
         exporter = ConsoleSpanExporter()
+    
     provider.add_span_processor(SimpleSpanProcessor(exporter))
     trace.set_tracer_provider(provider)
     _initialized = True

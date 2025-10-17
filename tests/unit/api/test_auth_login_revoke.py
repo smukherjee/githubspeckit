@@ -16,20 +16,20 @@ def test_password_login_and_revoke_flow():
     client = TestClient(app)
 
     # Seed a user via user creation endpoint (simplified setup)
-    tr = client.post("/v1/tenants", json={"name": "AuthCorp"})
+    tr = client.post("/api/v1/tenants", json={"name": "AuthCorp"})
     tenant_id = tr.json()["tenant_id"]
-    ur = client.post("/v1/users", json={"tenant_id": tenant_id, "email": "bob@example.com", "roles": ["standard"], "password": "Passw0rd123"})
+    ur = client.post("/api/v1/users", json={"tenant_id": tenant_id, "email": "bob@example.com", "roles": ["standard"], "password": "Passw0rd123"})
     assert ur.status_code == 201
     user_id = ur.json()["user_id"]
 
     # Login
-    lr = client.post("/v1/auth/login", json={"user_id": user_id, "password": "Passw0rd123"})
+    lr = client.post("/api/v1/auth/login", json={"user_id": user_id, "password": "Passw0rd123"})
     assert lr.status_code == 200
     body = lr.json()
     assert body.get("access_token")
     assert body.get("token_type") == "bearer"
 
     # Revoke (placeholder endpoint) should 200 even if logic minimal
-    rv = client.post("/v1/auth/revoke", json={"user_id": user_id})
+    rv = client.post("/api/v1/auth/revoke", json={"user_id": user_id})
     assert rv.status_code == 200
     assert rv.json()["revoked"] is True

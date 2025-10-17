@@ -11,10 +11,10 @@ def test_log_export_bounds_and_truncation():
     
     # Generate > limit logs (middleware logs each request)
     for i in range(30):
-        client.get("/v1/health")
+        client.get("/api/v1/health")
     
     # Test basic limit and truncation
-    resp = client.get("/v1/logs/export", params={"limit": 10})
+    resp = client.get("/api/v1/logs/export", params={"limit": 10})
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["records"]) == 10
@@ -22,13 +22,13 @@ def test_log_export_bounds_and_truncation():
     assert data["total_available"] >= 30
     
     # Test category filter
-    resp = client.get("/v1/logs/export", params={"category": "info", "limit": 5})
+    resp = client.get("/api/v1/logs/export", params={"category": "info", "limit": 5})
     assert resp.status_code == 200
     data = resp.json()
     assert all(r.get("level") == "info" for r in data["records"])
     
     # Test redaction - sensitive fields should be redacted
-    resp = client.get("/v1/logs/export", params={"limit": 5})
+    resp = client.get("/api/v1/logs/export", params={"limit": 5})
     assert resp.status_code == 200
     data = resp.json()
     for record in data["records"]:
@@ -111,7 +111,7 @@ def test_metrics_snapshot_and_policy_latency_histogram():
     assert "policy_evaluations_total" in metrics_text
     
     # Check metrics snapshot endpoint
-    snapshot_resp = client.get("/v1/metrics/snapshot")
+    snapshot_resp = client.get("/api/v1/metrics/snapshot")
     assert snapshot_resp.status_code == 200
     snapshot = snapshot_resp.json()
     assert "metrics" in snapshot

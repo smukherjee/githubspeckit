@@ -11,7 +11,7 @@ def test_metrics_endpoints_contract():
     app = create_app()
     client = TestClient(app)
     # snapshot
-    snap = client.get("/v1/metrics/snapshot")
+    snap = client.get("/api/v1/metrics/snapshot")
     assert snap.status_code == 200
     data = snap.json()
     assert isinstance(data.get("metrics"), list)

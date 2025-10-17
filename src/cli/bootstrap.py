@@ -11,8 +11,12 @@ from typing import Optional
 
 from domain.tenants.models import Tenant, TenantRepository, TenantStatus
 from domain.users.models import User, UserRepository, UserStatus
+from cli.logger import get_cli_logger
 
 NAMESPACE = uuid.UUID("12345678-1234-5678-1234-567812345678")  # stable namespace constant
+
+# Initialize logger for bootstrap operations
+logger = get_cli_logger("bootstrap", json_mode=False)
 
 
 @dataclass
@@ -55,24 +59,26 @@ def bootstrap(tenant_slug: str = "primary", admin_email: str = "admin@example.co
         "counts": {"tenants": len(t_repo.list()), "users": len(u_repo.list_by_tenant(tenant_id))},
     }
     duration_ms = (time.perf_counter() - start) * 1000.0
-    # infra.bootstrap structured log (stdout for now)
-    log_record = {
-        "category": "infra.bootstrap",
-        "tenant_id": tenant_id,
-        "duration_ms": round(duration_ms, 2),
-        "success": True,
-        "service_count": 1,  # placeholder until services enumerated
-    }
-    try:
-        print(json.dumps(log_record))
-    except Exception:
-        pass
+    
+    # Structured logging per Constitution V (infra.bootstrap category)
+    logger.info(
+        "bootstrap_completed",
+        tenant_id=tenant_id,
+        duration_ms=round(duration_ms, 2),
+        success=True,
+        service_count=1
+    )
+    
     return BootstrapResult(tenant_id=tenant_id, admin_user_id=user_id, created=created, summary=summary)
 
 
 def main() -> None:  # pragma: no cover - thin wrapper
     res = bootstrap()
-    print({"tenant_id": res.tenant_id, "admin_user_id": res.admin_user_id, "created": res.created})
+    logger.json_output({
+        "tenant_id": res.tenant_id,
+        "admin_user_id": res.admin_user_id,
+        "created": res.created
+    })
 
 
 if __name__ == "__main__":  # pragma: no cover

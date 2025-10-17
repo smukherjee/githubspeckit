@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import re
 
 from domain.users.models import User, UserStatus
-from adapters.api.deps import get_db_session
+from adapters.api.deps import get_db_session, get_audit_service, AuditService
 from adapters.api.auth_deps import CurrentUser
 from adapters.persistence.repositories import SQLAlchemyUserRepository, SQLAlchemyTenantRepository
 from auth_core.hashers import default_hasher
@@ -78,12 +78,51 @@ class UserListResponse(BaseModel):
     users: List[UserResponse]
 
 
+class UserUpdateRequest(BaseModel):
+    """Request body for updating user core fields.
+    
+    Note: Extended profile fields (full_name, job_title, department, phone, timezone, language)
+    are managed via the /users/{user_id}/profile endpoint (feature 003-user-profile-details).
+    This endpoint handles core user fields only: email, roles, and status.
+    """
+    email: Optional[EmailStr] = None
+    roles: Optional[List[str]] = None
+    is_disabled: Optional[bool] = None
+    
+    @field_validator('roles')
+    @classmethod
+    def validate_roles(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        """Validate that all roles are in the allowed list."""
+        if v is None:
+            return v
+        VALID_ROLES = {
+            "superadmin", "tenant_admin", "admin", "user", 
+            "analyst", "developer", "support_readonly"
+        }
+        invalid_roles = [r for r in v if r not in VALID_ROLES]
+        if invalid_roles:
+            raise ValueError(f"Invalid roles: {', '.join(invalid_roles)}. Valid roles are: {', '.join(sorted(VALID_ROLES))}")
+        return v
+
+
 @router.post("", response_model=UserResponse, status_code=201)
 async def create_user(
     payload: UserCreateRequest,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
 ) -> UserResponse:
+    """Create user with RBAC enforcement (FR-019).
+    
+    Only tenant_admin (within own tenant) or superadmin can create users.
+    """
+    # RBAC enforcement: Only tenant_admin or superadmin can create users
+    if not (current_user.has_role("tenant_admin") or current_user.is_superadmin()):
+        raise HTTPException(
+            status_code=403,
+            detail="Only tenant admins and superadmins can create users"
+        )
+    
     user_repo = SQLAlchemyUserRepository(session)
     tenant_repo = SQLAlchemyTenantRepository(session)
     
@@ -114,6 +153,45 @@ async def create_user(
     )
     await user_repo.upsert(user)
     await session.commit()
+    
+    # Audit logging: User creation
+    await audit_service.log(
+        action_type="user.create",
+        tenant_id=user.tenant_id,
+        metadata={
+            "user_id": user.user_id,
+            "email": user.email,
+            "roles": user.roles,
+            "status": user.status.value,
+            "created_by": current_user.user_id
+        }
+    )
+    
+    return UserResponse(
+        user_id=user.user_id,
+        tenant_id=user.tenant_id,
+        email=user.email,
+        status=user.status,
+        roles=user.roles,
+        created_at=user.created_at,
+        updated_at=user.updated_at,
+    )
+
+
+@router.get("/me", response_model=UserResponse)
+async def get_current_user_profile(
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session)
+) -> UserResponse:
+    """Get current authenticated user's profile (FR-003).
+    
+    Any authenticated user can access their own profile.
+    """
+    user_repo = SQLAlchemyUserRepository(session)
+    user = await user_repo.get(current_user.user_id)
+    
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
     
     return UserResponse(
         user_id=user.user_id,
@@ -182,11 +260,140 @@ async def get_user(
     )
 
 
+@router.put("/{user_id}", response_model=UserResponse)
+async def update_user(
+    user_id: str,
+    payload: UserUpdateRequest,
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
+) -> UserResponse:
+    """Update user profile with RBAC enforcement.
+    
+    Authorization rules:
+    - Users can update their own limited profile (email only for now - extended profile fields in user_details table)
+    - Tenant admins can update any user in their tenant (email, roles, status)
+    - Superadmins can update any user (all fields)
+    
+    Role escalation prevention:
+    - Non-superadmins cannot assign 'superadmin' role
+    - Users cannot change their own roles or status
+    
+    Note: Extended profile fields (full_name, job_title, department, phone, timezone, language)
+    are stored in the user_details table (feature 003-user-profile-details) and should be
+    updated via the /users/{user_id}/profile endpoint.
+    """
+    user_repo = SQLAlchemyUserRepository(session)
+    u = await user_repo.get(user_id)
+    if not u:
+        raise HTTPException(status_code=404, detail="user_not_found")
+    
+    # Determine if this is a self-update
+    is_self_update = (user_id == current_user.user_id)
+    
+    # RBAC enforcement
+    if is_self_update:
+        # Users can only update their own email, not roles or status
+        if payload.roles is not None or payload.is_disabled is not None:
+            raise HTTPException(
+                status_code=403,
+                detail="Cannot modify your own roles or account status"
+            )
+    elif u.tenant_id != current_user.tenant_id and not current_user.is_superadmin():
+        # Tenant isolation: non-superadmins cannot update users from other tenants
+        raise HTTPException(
+            status_code=403,
+            detail="Cannot update users in other tenants"
+        )
+    elif not (current_user.has_role("tenant_admin") or current_user.is_superadmin()):
+        # Only tenant admins and superadmins can update other users
+        raise HTTPException(
+            status_code=403,
+            detail="Only tenant admins and superadmins can update other users"
+        )
+    
+    # Track changes for audit logging
+    changes_before = {
+        "email": u.email,
+        "roles": u.roles,
+        "status": u.status.value
+    }
+    
+    # Apply updates
+    if payload.email is not None and payload.email != u.email:
+        # Check email uniqueness
+        existing = await user_repo.get_by_email(payload.email)
+        if existing and existing.user_id != user_id:
+            raise HTTPException(status_code=409, detail="Email already in use")
+        u.email = payload.email
+    
+    # Role updates (admin only)
+    if payload.roles is not None:
+        # Prevent role escalation
+        if "superadmin" in payload.roles and not current_user.is_superadmin():
+            raise HTTPException(
+                status_code=403,
+                detail="Only superadmins can assign the superadmin role"
+            )
+        # Prevent modifying superadmin users unless you are superadmin
+        if "superadmin" in u.roles and not current_user.is_superadmin():
+            raise HTTPException(
+                status_code=403,
+                detail="Only superadmins can modify superadmin users"
+            )
+        u.roles = payload.roles
+    
+    # Status updates (admin only)
+    if payload.is_disabled is not None:
+        u.status = UserStatus.disabled if payload.is_disabled else UserStatus.active
+    
+    # Update metadata
+    u.updated_by = current_user.user_id
+    u.updated_at = datetime.now(timezone.utc)
+    
+    await user_repo.upsert(u)
+    await session.commit()
+    
+    # Track changes for audit logging
+    changes_after = {
+        "email": u.email,
+        "roles": u.roles,
+        "status": u.status.value
+    }
+    
+    # Audit logging: User update
+    await audit_service.log(
+        action_type="user.update",
+        tenant_id=u.tenant_id,
+        metadata={
+            "user_id": u.user_id,
+            "email": u.email,
+            "updated_by": current_user.user_id,
+            "is_self_update": is_self_update,
+            "changes": {
+                "before": changes_before,
+                "after": changes_after
+            }
+        }
+    )
+    
+    return UserResponse(
+        user_id=u.user_id,
+        tenant_id=u.tenant_id,
+        email=u.email,
+        status=u.status,
+        roles=u.roles,
+        created_at=u.created_at,
+        updated_at=u.updated_at,
+    )
+
+
 @router.delete("/{user_id}", status_code=204)
 async def disable_user(
     user_id: str,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
 ) -> None:
     """Disable a user (soft delete) - Phase 3 database-backed."""
     user_repo = SQLAlchemyUserRepository(session)
@@ -204,6 +411,18 @@ async def disable_user(
     u.updated_at = datetime.now(timezone.utc)
     await user_repo.upsert(u)
     await session.commit()
+    
+    # Audit logging: User disable
+    await audit_service.log(
+        action_type="user.disable",
+        tenant_id=u.tenant_id,
+        metadata={
+            "user_id": u.user_id,
+            "email": u.email,
+            "disabled_by": current_user.user_id,
+            "previous_status": "active"
+        }
+    )
     # 204 returns no content
 
 
@@ -211,7 +430,8 @@ async def disable_user(
 async def restore_user(
     user_id: str,
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
 ) -> dict[str, object]:
     """Restore a disabled user (Phase 3 database-backed)."""
     user_repo = SQLAlchemyUserRepository(session)
@@ -232,4 +452,99 @@ async def restore_user(
     await user_repo.upsert(u)
     await session.commit()
     
+    # Audit logging: User restore
+    await audit_service.log(
+        action_type="user.restore",
+        tenant_id=u.tenant_id,
+        metadata={
+            "user_id": u.user_id,
+            "email": u.email,
+            "restored_by": current_user.user_id,
+            "previous_status": "disabled"
+        }
+    )
+    
     return {"user_id": u.user_id, "status": u.status.value}
+
+
+class PasswordResetRequest(BaseModel):
+    """Request body for admin-initiated password reset."""
+    new_password: str
+    
+    @field_validator('new_password')
+    @classmethod
+    def validate_new_password(cls, v: str) -> str:
+        validate_password_strength(v)
+        return v
+
+
+@router.post("/{user_id}/reset-password", status_code=200)
+async def reset_user_password(
+    user_id: str,
+    payload: PasswordResetRequest,
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
+) -> dict[str, str]:
+    """Reset a user's password (admin-initiated).
+    
+    RBAC enforcement:
+    - tenant_admin can reset passwords for users in their own tenant
+    - superadmin can reset passwords for any user
+    
+    This is different from self-service password reset (/auth/password/reset).
+    """
+    # RBAC enforcement: Only tenant_admin or superadmin can reset passwords
+    if not (current_user.has_role("tenant_admin") or current_user.is_superadmin()):
+        raise HTTPException(
+            status_code=403,
+            detail="Only tenant admins and superadmins can reset user passwords"
+        )
+    
+    user_repo = SQLAlchemyUserRepository(session)
+    u = await user_repo.get(user_id)
+    if not u:
+        raise HTTPException(status_code=404, detail="user_not_found")
+    
+    # Tenant isolation: non-superadmins can only reset passwords for users in their own tenant
+    if u.tenant_id != current_user.tenant_id and not current_user.is_superadmin():
+        raise HTTPException(
+            status_code=403, 
+            detail="Cannot reset passwords for users in other tenants"
+        )
+    
+    # Prevent resetting superadmin passwords unless you are a superadmin
+    if "superadmin" in u.roles and not current_user.is_superadmin():
+        raise HTTPException(
+            status_code=403,
+            detail="Only superadmins can reset superadmin passwords"
+        )
+    
+    # Hash and update password
+    u.password_hash = default_hasher.hash(payload.new_password)
+    u.updated_by = current_user.user_id
+    u.updated_at = datetime.now(timezone.utc)
+    
+    # If user was in invited status, activate them
+    if u.status == UserStatus.invited:
+        u.status = UserStatus.active
+    
+    await user_repo.upsert(u)
+    await session.commit()
+    
+    # Audit logging: Password reset
+    await audit_service.log(
+        action_type="user.password_reset",
+        tenant_id=u.tenant_id,
+        metadata={
+            "user_id": u.user_id,
+            "email": u.email,
+            "reset_by": current_user.user_id,
+            "status_changed": u.status == UserStatus.active and "invited" or None
+        }
+    )
+    
+    return {
+        "message": "Password reset successfully",
+        "user_id": u.user_id
+    }

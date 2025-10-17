@@ -20,7 +20,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
-import os
 import sys
 import time
 import uuid
@@ -37,6 +36,7 @@ from adapters.persistence.repositories import (
 from domain.tenants.models import Tenant, TenantStatus
 from domain.users.models import User, UserStatus
 from domain.audit.models import AuditEvent
+from cli.logger import get_cli_logger
 
 
 # Deterministic UUID namespace (same as bootstrap.py for consistency)
@@ -191,11 +191,16 @@ def format_summary_json(result: SeedResult) -> str:
 
 async def main_async() -> None:
     """Async main entry point."""
+    # Get default database URL from config settings (Constitution VII compliance)
+    # Respects: DATABASE_URL env var > descriptor.toml default (SQLite)
+    from domain.config.settings import get_database_settings
+    default_db_url = get_database_settings().database_url
+    
     parser = argparse.ArgumentParser(description="Seed database with baseline tenant and admin")
     parser.add_argument(
         "--database-url",
-        default=os.getenv("DATABASE_URL", "postgresql+asyncpg://postgres:postgres@localhost:5432/githubspeckit_dev"),
-        help="PostgreSQL database URL (default: from DATABASE_URL env var)"
+        default=default_db_url,
+        help="Database URL (default: from DATABASE_URL env var or config/descriptor.toml)"
     )
     parser.add_argument(
         "--tenant-slug",
@@ -204,8 +209,8 @@ async def main_async() -> None:
     )
     parser.add_argument(
         "--admin-email",
-        default="admin@example.com",
-        help="Admin email for deterministic ID generation (default: admin@example.com)"
+        default="infysightsa@infysight.com",
+        help="Admin email for deterministic ID generation (default: infysightsa@infysight.com)"
     )
     parser.add_argument(
         "--json",
@@ -215,7 +220,17 @@ async def main_async() -> None:
     
     args = parser.parse_args()
     
+    # Initialize logger with JSON mode if requested
+    logger = get_cli_logger("db_bootstrap", json_mode=args.json)
+    
     try:
+        logger.info(
+            "seed_started",
+            database_url=args.database_url[:50] + "..." if len(args.database_url) > 50 else args.database_url,
+            tenant_slug=args.tenant_slug,
+            admin_email=args.admin_email
+        )
+        
         result = await seed_database(
             database_url=args.database_url,
             tenant_slug=args.tenant_slug,
@@ -224,19 +239,21 @@ async def main_async() -> None:
         
         if args.json:
             # JSON-only output for scripting
-            print(format_summary_json(result))
+            logger.json_output(json.loads(format_summary_json(result)))
         else:
-            # Human-readable output with JSON summary
-            print(f"✅ Database seeded successfully")
-            print(f"   Tenant ID: {result.tenant_id}")
-            print(f"   Admin User ID: {result.admin_user_id}")
-            print(f"   Created Tenant: {result.created_tenant}")
-            print(f"   Created User: {result.created_user}")
+            # Human-readable output
+            logger.success(
+                "seed_completed",
+                tenant_id=result.tenant_id,
+                admin_user_id=result.admin_user_id,
+                created_tenant=result.created_tenant,
+                created_user=result.created_user,
+                duration_ms=result.duration_ms
+            )
             if result.conflicts:
-                print(f"   Conflicts (idempotent): {', '.join(result.conflicts)}")
-            print(f"   Duration: {result.duration_ms:.2f}ms")
-            print(f"\nSummary JSON:")
-            print(format_summary_json(result))
+                logger.warning("conflicts_detected", conflicts=result.conflicts)
+            # Also output summary JSON for scripting convenience
+            logger.json_output(json.loads(format_summary_json(result)))
         
         sys.exit(0)
     
@@ -246,7 +263,9 @@ async def main_async() -> None:
             "error": str(e),
             "error_type": type(e).__name__,
         }
-        print(json.dumps(error_summary, indent=2), file=sys.stderr)
+        logger.error("seed_failed", error=str(e), error_type=type(e).__name__)
+        if args.json:
+            logger.json_output(error_summary)
         sys.exit(1)
 
 

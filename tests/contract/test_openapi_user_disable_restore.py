@@ -16,18 +16,18 @@ async def test_user_disable_restore_contract():
     from httpx import AsyncClient, ASGITransport
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        tr = await client.post("/v1/tenants", json={"name": "UserDisable"})
+        tr = await client.post("/api/v1/tenants", json={"name": "UserDisable"})
         assert tr.status_code == 201, f"Tenant creation failed: {tr.status_code} - {tr.text}"
         tenant_id = tr.json()["tenant_id"]
         test_email = f"disable-{uuid4()}@example.com"  # Unique email
-        ur = await client.post("/v1/users", json={"tenant_id": tenant_id, "email": test_email, "roles": [], "password": "StrongPass123"})
+        ur = await client.post("/api/v1/users", json={"tenant_id": tenant_id, "email": test_email, "roles": [], "password": "StrongPass123"})
         assert ur.status_code == 201, f"User creation failed: {ur.status_code} - {ur.text}"
         user_id = ur.json()["user_id"]
 
-        dr = await client.post(f"/v1/users/{user_id}/disable")
+        dr = await client.post(f"/api/v1/users/{user_id}/disable")
         assert dr.status_code == 200
         assert dr.json()["status"] == "disabled"
 
-        rr = await client.post(f"/v1/users/{user_id}/restore")
+        rr = await client.post(f"/api/v1/users/{user_id}/restore")
         assert rr.status_code == 200
         assert rr.json()["status"] == "active"

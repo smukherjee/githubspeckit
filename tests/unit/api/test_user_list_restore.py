@@ -16,27 +16,27 @@ def test_user_list_and_restore_flow():
     client = TestClient(app)
 
     # Create tenant first
-    tr = client.post("/v1/tenants", json={"name": "Umbrella"})
+    tr = client.post("/api/v1/tenants", json={"name": "Umbrella"})
     assert tr.status_code in (200, 201)
     tenant_id = tr.json()["tenant_id"]
 
     # Create user (temporary endpoint to be implemented) - expect 201
-    ur = client.post("/v1/users", json={"tenant_id": tenant_id, "email": "alice@example.com", "roles": ["standard"]})
+    ur = client.post("/api/v1/users", json={"tenant_id": tenant_id, "email": "alice@example.com", "roles": ["standard"]})
     assert ur.status_code == 201
     user_id = ur.json()["user_id"]
 
     # List users
-    lr = client.get(f"/v1/users?tenant_id={tenant_id}")
+    lr = client.get(f"/api/v1/users?tenant_id={tenant_id}")
     assert lr.status_code == 200
     users = lr.json()["users"]
     assert any(u["user_id"] == user_id for u in users)
 
     # Disable user
-    dr = client.post(f"/v1/users/{user_id}/disable")
+    dr = client.post(f"/api/v1/users/{user_id}/disable")
     assert dr.status_code == 200
     assert dr.json()["status"] == "disabled"
 
     # Restore user
-    rr = client.post(f"/v1/users/{user_id}/restore")
+    rr = client.post(f"/api/v1/users/{user_id}/restore")
     assert rr.status_code == 200
     assert rr.json()["status"] == "active"

@@ -1,6 +1,6 @@
 from pathlib import Path
-from adapters.docs.embed_docs_generator import generate_embed_docs
-from adapters.docs.embed_docs_freshness import assert_embed_docs_fresh
+
+from adapters.docs import generate_embed_docs, assert_embed_docs_fresh
 from services.embed_rate_limit import compute_embed_rate_limit_headers
 
 

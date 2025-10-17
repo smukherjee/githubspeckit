@@ -32,14 +32,20 @@ from adapters.persistence.db_config import DatabaseConfig, get_database_url
 # Single source of truth for test database URL
 # All persistence tests use this configuration
 #
-# Constitution compliance: Defaults to SQLite for local dev if PostgreSQL not available
-# Set DATABASE_URL environment variable to override:
-#   - PostgreSQL: postgresql+asyncpg://user:pass@host/db
-#   - SQLite: sqlite+aiosqlite:///./test_database.db
-#   - MySQL: mysql+aiomysql://user:pass@host/db (future)
-DATABASE_URL = get_database_url(
-    default="sqlite+aiosqlite:///./test_infysight.db"
-)
+# Constitution compliance: Respects DATABASE_URL env var, falls back to SQLite
+# - If DATABASE_URL set: Use that (PostgreSQL for integration tests)
+# - If not set: Use SQLite for fast local testing
+#
+# Examples:
+#   - PostgreSQL: export DATABASE_URL="postgresql+asyncpg://infysight_dbadmin:infysight_dbadmin123@localhost/infysight_users"
+#   - SQLite: export DATABASE_URL="sqlite+aiosqlite:///./test_infysight.db" (or unset for default)
+try:
+    # Try to get from settings (respects env var first, then descriptor default)
+    from domain.config.settings import get_database_settings
+    DATABASE_URL = get_database_settings().database_url
+except (ValueError, FileNotFoundError, ImportError):
+    # Fallback to SQLite if config not available
+    DATABASE_URL = "sqlite+aiosqlite:///./test_infysight.db"
 
 # Create database configuration (auto-detects dialect)
 DB_CONFIG = DatabaseConfig.from_url(DATABASE_URL)

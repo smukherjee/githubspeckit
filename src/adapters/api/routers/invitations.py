@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Request
 from pydantic import BaseModel, ConfigDict
 
 from services.rate_limiter import RateLimiter
 from adapters.persistence.repositories import SQLAlchemyInvitationRepository
-from adapters.api.deps import get_invitation_repo
+from adapters.api.deps import get_invitation_repo, get_audit_service, AuditService
 from domain.invitations.models import InvitationStatus
 
 router = APIRouter(prefix="/v1/invitations", tags=["invitations"])
@@ -21,9 +21,11 @@ class InvitationAcceptResponse(BaseModel):
 
 
 @router.post("/{invitation_id}/accept", response_model=InvitationAcceptResponse)
-async def accept(
+async def accept_invitation(
     invitation_id: str,
-    invitation_repo: SQLAlchemyInvitationRepository = Depends(get_invitation_repo)
+    request: Request,
+    invitation_repo: SQLAlchemyInvitationRepository = Depends(get_invitation_repo),
+    audit_service: AuditService = Depends(get_audit_service)
 ) -> InvitationAcceptResponse:
     """Accept an invitation (Phase 3: database-backed).
     
@@ -53,11 +55,24 @@ async def accept(
         await invitation_repo.upsert(inv)
         raise HTTPException(status_code=400, detail="invitation_expired")
     
-    # Accept invitation
+    # Accept invitation - extract actor from request state (set by ActorTrackingMiddleware)
+    actor_user_id = getattr(request.state, "user_id", None) or "system"
     inv.status = InvitationStatus.accepted
     inv.accepted_at = datetime.now(timezone.utc)
-    inv.updated_by = "system"  # TODO: Extract from auth context
+    inv.updated_by = actor_user_id
     inv.updated_at = datetime.now(timezone.utc)
     await invitation_repo.upsert(inv)
+    
+    # Audit logging: Invitation acceptance
+    await audit_service.log(
+        action_type="invitation.accept",
+        tenant_id=inv.tenant_id,
+        metadata={
+            "invitation_id": inv.invitation_id,
+            "email": inv.email,
+            "accepted_by": actor_user_id,
+            "tenant_id": inv.tenant_id
+        }
+    )
     
     return InvitationAcceptResponse(invitation_id=inv.invitation_id, status=inv.status.value)

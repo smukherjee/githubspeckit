@@ -6,7 +6,9 @@ info:
     Observability fragment (logs export, metrics snapshot, redaction rules). Shared securitySchemes
     defined in base fragment; not duplicated here to reduce maintenance overhead.
 servers:
-  - url: https://api.example.com/v1
+  - url: https://api.example.com/api/v1
+  - url: http://localhost:8000/api/v1
+    description: Local Dev
 security:
   - bearerAuth: []
 components:

@@ -8,9 +8,9 @@ info:
     embed exchange, audit events. Other fragments (auth-policy, observability) rely on
     these definitions during combination – avoid duplicating shared elements there.
 servers:
-  - url: https://api.example.com/v1
+  - url: https://api.example.com/api/v1
     description: Production
-  - url: http://localhost:8000/v1
+  - url: http://localhost:8000/api/v1
     description: Local Dev
 security:
   - bearerAuth: []
@@ -382,6 +382,21 @@ paths:
         '400': { $ref: '#/components/responses/StandardError' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+  /users/me:
+    get:
+      summary: Get current user's profile
+      tags: [Users]
+      operationId: userGetMe
+      description: Returns the profile of the currently authenticated user
+      responses:
+        '200': 
+          description: Current user profile
+          content: 
+            application/json: 
+              schema: 
+                $ref: '#/components/schemas/User'
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404': { $ref: '#/components/responses/NotFound' }
   /users/{user_id}:
     get:
       summary: Get user
@@ -673,19 +688,79 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
 
-  /health/status:
+  /health:
     get:
       summary: Health & status including migration and key rotation version
-      tags: [Health]
+      tags: [System]
       operationId: healthStatus
+      security: []
       responses:
-        '200': { description: OK, content: { application/json: { schema: { type: object, properties: { status: { type: string }, migrated: { type: boolean }, key_rotation_version: { type: integer } } } } } }
+        '200': 
+          description: OK
+          content: 
+            application/json: 
+              schema: 
+                type: object
+                required: [status, migrations_applied, key_rotation_version]
+                properties: 
+                  status: 
+                    type: string
+                    enum: [ok]
+                    description: Overall health status
+                  migrations_applied: 
+                    type: boolean
+                    description: Whether database migrations are applied
+                  key_rotation_version: 
+                    type: integer
+                    description: Current key rotation version
+
+  /config:
+    get:
+      summary: Export configuration snapshot
+      tags: [System]
+      operationId: exportConfig
+      security: []
+      responses:
+        '200':
+          description: Configuration export
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  APP_NAME:
+                    type: string
+                  PASSWORD_MIN_LENGTH:
+                    type: integer
+                  PASSWORD_COMPLEXITY_STRICT:
+                    type: boolean
+
+  /config/errors:
+    get:
+      summary: Get configuration validation errors
+      tags: [System]
+      operationId: configErrors
+      security: []
+      responses:
+        '200':
+          description: Configuration errors list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [errors]
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: string
 
   /metrics/prometheus:
     get:
       summary: Prometheus metrics exposition
       tags: [Metrics]
       operationId: metricsPrometheus
+      security: []
       responses:
         '200': { description: Metrics text, content: { text/plain: { schema: { type: string } } } }
 

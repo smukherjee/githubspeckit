@@ -35,21 +35,40 @@ async def exchange(
     payload: EmbedExchangeRequest,
     session: AsyncSession = Depends(get_db_session)
 ) -> EmbedSession:
-    """Exchange embed token for session (Phase 3: security stub, FR-054)."""
-    # Minimal validation: origin check (development permissive) + token presence.
+    """Exchange embed token for session (FR-054: full cryptographic verification)."""
+    # Validate origin if provided (development mode permissive for localhost)
     if payload.origin and not service.validate_origin(payload.origin):
         raise HTTPException(status_code=400, detail="origin_not_allowed")
-    # TODO FR-054: verify embed token cryptographically. For now accept any non-empty string.
+    
+    # FR-054: Cryptographically verify embed token (HMAC-SHA256 signature)
     if not payload.embed_token:
         raise HTTPException(status_code=400, detail="invalid_embed_token")
+    
+    if not service.verify_embed_token(payload.embed_token):
+        raise HTTPException(status_code=401, detail="invalid_or_expired_embed_token")
+    
+    # Extract tenant_id and user_id from verified token
+    try:
+        import base64
+        parts = payload.embed_token.split(".", 1)
+        if len(parts) != 2:
+            raise HTTPException(status_code=401, detail="malformed_embed_token")
+        
+        payload_b64 = parts[0]
+        pad = -len(payload_b64) % 4
+        payload_bytes = base64.urlsafe_b64decode(payload_b64 + ("=" * pad))
+        tenant_id, user_id, _ = payload_bytes.decode("utf-8").split("|")
+    except Exception:
+        raise HTTPException(status_code=401, detail="invalid_embed_token_format")
+    
     now = datetime.now(timezone.utc)
     expires = now + timedelta(minutes=5)
-    # Derive tenant_id from token in future; placeholder default.
+    
     return EmbedSession(
         session_id=str(uuid4()),
-        tenant_id="default",
-        user_id=payload.user_id,
-        roles=[],
+        tenant_id=tenant_id,
+        user_id=user_id,
+        roles=[],  # Roles can be expanded based on tenant/user lookup
         issued_at=now,
         expires_at=expires,
     )

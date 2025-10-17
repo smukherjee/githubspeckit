@@ -47,7 +47,7 @@ def deterministic_uuid(name: str) -> str:
 
 
 async def seed_infysight():
-    """Seed infysight tenant and superadmin user."""
+    """Seed infysight tenant and all test users (superadmin, tenant_admin, user)."""
     
     # Database connection from environment or default
     # NOTE: Script exception - direct os.getenv() allowed for operational scripts
@@ -61,15 +61,48 @@ async def seed_infysight():
     engine = create_async_engine(database_url, echo=False)
     async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     
-    # Generate deterministic IDs
+    # Generate deterministic IDs for all 3 test users
     tenant_id = deterministic_uuid("tenant:infysight")
-    user_id = deterministic_uuid("user:infysightsa@infysight.com")
+    superadmin_id = deterministic_uuid("user:infysightsa@infysight.com")
+    tenant_admin_id = deterministic_uuid("user:infysightadmin@infysight.com")
+    standard_user_id = deterministic_uuid("user:infysightuser@infysight.com")
     
-    logger.info("generated_ids", tenant_id=tenant_id, user_id=user_id)
+    logger.info("generated_ids", 
+                tenant_id=tenant_id, 
+                superadmin_id=superadmin_id,
+                tenant_admin_id=tenant_admin_id,
+                standard_user_id=standard_user_id)
     
-    # Hash the password
-    password_hash = default_hasher.hash("infysightsa123")
-    logger.info("password_hashed")
+    # Hash all passwords
+    superadmin_password = default_hasher.hash("infysightsa123")
+    tenant_admin_password = default_hasher.hash("infysightadmin123")
+    standard_user_password = default_hasher.hash("infysightuser123")
+    logger.info("passwords_hashed")
+    
+    # Define all 3 test users
+    users_to_create = [
+        {
+            "user_id": superadmin_id,
+            "email": "infysightsa@infysight.com",
+            "roles": ["superadmin"],
+            "password_hash": superadmin_password,
+            "full_name": "InfySight Superadmin"
+        },
+        {
+            "user_id": tenant_admin_id,
+            "email": "infysightadmin@infysight.com",
+            "roles": ["tenant_admin"],
+            "password_hash": tenant_admin_password,
+            "full_name": "InfySight Tenant Admin"
+        },
+        {
+            "user_id": standard_user_id,
+            "email": "infysightuser@infysight.com",
+            "roles": ["user"],
+            "password_hash": standard_user_password,
+            "full_name": "InfySight Standard User"
+        }
+    ]
     
     async with async_session_maker() as session:
         async with session.begin():
@@ -95,46 +128,108 @@ async def seed_infysight():
                 await tenant_repo.upsert(tenant)
                 logger.success("tenant_created", tenant_id=tenant_id, name="infysight")
             
-            # Check and create admin user
-            existing_user = await user_repo.get(user_id)
-            if existing_user:
-                logger.warning("user_exists", user_id=user_id, email="infysightsa@infysight.com")
-                # Update password if user exists
-                existing_user.password_hash = password_hash
-                await user_repo.upsert(existing_user)
-                logger.info("password_updated", user_id=user_id)
-            else:
-                user = User(
-                    user_id=user_id,
-                    tenant_id=tenant_id,
-                    email="infysightsa@infysight.com",
-                    status=UserStatus.active,
-                    roles=["superadmin"],
-                    password_hash=password_hash,
-                    last_login_at=None,
-                    created_at=datetime.now(timezone.utc),
-                    updated_at=datetime.now(timezone.utc),
-                    created_by=None,
-                    updated_by=None,
+            # Create all 3 users
+            for user_data in users_to_create:
+                existing_user = await user_repo.get(user_data["user_id"])
+                if existing_user:
+                    logger.warning("user_exists", user_id=user_data["user_id"], email=user_data["email"])
+                    # Update password if user exists
+                    existing_user.password_hash = user_data["password_hash"]
+                    await user_repo.upsert(existing_user)
+                    logger.info("password_updated", user_id=user_data["user_id"])
+                else:
+                    user = User(
+                        user_id=user_data["user_id"],
+                        tenant_id=tenant_id,
+                        email=user_data["email"],
+                        status=UserStatus.active,
+                        roles=user_data["roles"],
+                        password_hash=user_data["password_hash"],
+                        last_login_at=None,
+                        created_at=datetime.now(timezone.utc),
+                        updated_at=datetime.now(timezone.utc),
+                        created_by=None,
+                        updated_by=None,
+                    )
+                    await user_repo.upsert(user)
+                    logger.success("user_created", 
+                                 user_id=user_data["user_id"], 
+                                 email=user_data["email"], 
+                                 roles=user_data["roles"])
+            
+            # Create user_details for all users (FR-003-user-profile-details)
+            # Use raw SQL since domain models aren't implemented yet (T016-T019)
+            from sqlalchemy import text
+            
+            user_details_query = text("""
+                INSERT INTO user_details (
+                    user_id, full_name, phone, address,
+                    photo_display_url, photo_thumbnail_url, photo_avatar_url,
+                    created_by, updated_by
+                ) VALUES (
+                    :user_id, :full_name, NULL, NULL,
+                    NULL, NULL, NULL,
+                    :user_id, :user_id
                 )
-                await user_repo.upsert(user)
-                logger.success("user_created", user_id=user_id, email="infysightsa@infysight.com", role="superadmin")
+                ON CONFLICT (user_id) DO UPDATE SET
+                    full_name = EXCLUDED.full_name,
+                    updated_by = EXCLUDED.updated_by,
+                    updated_at = CURRENT_TIMESTAMP
+            """)
+            
+            # Create user_details for all 3 users
+            for user_data in users_to_create:
+                await session.execute(user_details_query, {
+                    "user_id": str(user_data["user_id"]),
+                    "full_name": user_data["full_name"]
+                })
+                logger.success("user_details_created", 
+                             user_id=user_data["user_id"], 
+                             full_name=user_data["full_name"])
     
     await engine.dispose()
     
-    logger.success("seed_complete")
+    logger.success("seed_complete", users_created=3)
     
-    # Output credentials in structured format
-    credentials = {
-        "username": "infysightsa",
-        "email": "infysightsa@infysight.com",
-        "password": "infysightsa123",
-        "role": "superadmin",
-        "tenant": "infysight",
-        "tenant_id": tenant_id,
-        "user_id": user_id
-    }
-    logger.json_output(credentials)
+    # Output all credentials in structured format
+    all_credentials = [
+        {
+            "username": "infysightsa",
+            "email": "infysightsa@infysight.com",
+            "password": "infysightsa123",
+            "roles": ["superadmin"],
+            "tenant": "infysight",
+            "tenant_id": tenant_id,
+            "user_id": superadmin_id
+        },
+        {
+            "username": "infysightadmin",
+            "email": "infysightadmin@infysight.com",
+            "password": "infysightadmin123",
+            "roles": ["tenant_admin"],
+            "tenant": "infysight",
+            "tenant_id": tenant_id,
+            "user_id": tenant_admin_id
+        },
+        {
+            "username": "infysightuser",
+            "email": "infysightuser@infysight.com",
+            "password": "infysightuser123",
+            "roles": ["user"],
+            "tenant": "infysight",
+            "tenant_id": tenant_id,
+            "user_id": standard_user_id
+        }
+    ]
+    
+    # Output primary superadmin credentials (for backwards compatibility)
+    logger.json_output(all_credentials[0])
+    
+    # Log summary of all created users
+    logger.info("all_users_created", 
+                superadmin=all_credentials[0]["email"],
+                tenant_admin=all_credentials[1]["email"],
+                standard_user=all_credentials[2]["email"])
 
 
 async def main():

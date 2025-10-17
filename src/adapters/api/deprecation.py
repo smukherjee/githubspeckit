@@ -18,7 +18,7 @@ def set_deprecation(response: Response, sunset: Optional[str] = None, link: Opti
 
 class DeprecationMiddleware:
     """Example middleware to attach deprecation headers to specific paths.
-    For demonstration we mark /v1/feature-flags as deprecated list endpoint.
+    For demonstration we mark /api/v1/feature-flags as deprecated list endpoint.
     """
 
     def __init__(self, app: Any) -> None:
@@ -29,7 +29,7 @@ class DeprecationMiddleware:
             await self.app(scope, receive, send)
             return
         async def send_wrapper(message: Any) -> None:
-            if message.get("type") == "http.response.start" and scope.get("path") == "/v1/feature-flags":
+            if message.get("type") == "http.response.start" and scope.get("path") == "/api/v1/feature-flags":
                 headers = message.setdefault("headers", [])
                 headers.append((b"deprecation", b"true"))
             await send(message)
