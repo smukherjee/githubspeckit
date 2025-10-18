@@ -4,9 +4,12 @@ from fastapi import APIRouter, HTTPException, Depends, Response
 from pydantic import BaseModel, ConfigDict
 from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timezone
 
 from adapters.api.deps import get_db_session, get_audit_service, AuditService
 from adapters.api.auth_deps import CurrentUser
+from adapters.persistence.repositories import SQLAlchemyPolicyRepository
+from domain.policy.models import Policy, PolicyRule, PolicyStatus, Decision
 
 router = APIRouter(prefix="/v1/policies", tags=["policies"])
 
@@ -77,20 +80,56 @@ async def register_policy(
     session: AsyncSession = Depends(get_db_session),
     audit_service: AuditService = Depends(get_audit_service)
 ) -> PolicyResponse:
-    """Register policy (Phase 3: database-backed stub)."""
+    """Register policy with full storage (FR-062: Create policies).
+    
+    RBAC enforcement:
+    - Superadmin: Can register policies
+    - Tenant admin: Can register policies for their tenant
+    - Regular users: Denied access
+    """
+    # RBAC check
+    if "superadmin" not in current_user.roles and "tenant_admin" not in current_user.roles:
+        raise HTTPException(status_code=403, detail="Insufficient permissions to register policies")
+    
     # Basic validation: effect value
     if req.effect not in {"ALLOW", "DENY"}:
         raise HTTPException(status_code=400, detail="invalid_effect")
     
-    # TODO Phase 4: Implement full policy storage and evaluation engine
-    # For now, return acknowledgment response (stub)
+    # Map string effect to Decision enum
+    effect = Decision.allow if req.effect == "ALLOW" else Decision.deny
+    
+    # Create domain policy object
+    policy_rule = PolicyRule(
+        rule_id=f"{req.policy_id}_v{req.version}",
+        version=req.version,
+        resource=req.resource_type,
+        action="*",  # Default to all actions
+        effect=effect,
+        condition={"expression": req.condition_expression}  # Store as structured data
+    )
+    
+    policy = Policy(
+        policy_id=req.policy_id,
+        tenant_id=current_user.tenant_id,
+        name=req.resource_type,
+        rules=[policy_rule],
+        status=PolicyStatus.active,
+        created_by=current_user.user_id,
+        updated_by=current_user.user_id,
+        created_at=datetime.now(timezone.utc),
+        updated_at=datetime.now(timezone.utc)
+    )
+    
+    # Persist using repository
+    repo = SQLAlchemyPolicyRepository(session)
+    saved_policy = await repo.upsert(policy)
     
     # Audit logging: Policy registration
     await audit_service.log(
         action_type="policy.register",
-        tenant_id=None,  # Global policy
+        tenant_id=current_user.tenant_id,
         metadata={
-            "policy_id": req.policy_id,
+            "policy_id": saved_policy.policy_id,
             "resource_type": req.resource_type,
             "effect": req.effect,
             "version": req.version,
@@ -99,14 +138,14 @@ async def register_policy(
     )
     
     pol = PolicyResponse(
-        id=req.policy_id,  # Use policy_id as id for React-Admin
-        policy_id=req.policy_id,
+        id=saved_policy.policy_id,
+        policy_id=saved_policy.policy_id,
         version=req.version,
         resource_type=req.resource_type,
         condition_expression=req.condition_expression,
         effect=req.effect,
-        created_by="system",
-        created_at="now",
+        created_by=saved_policy.created_by,
+        created_at=saved_policy.created_at.isoformat() if saved_policy.created_at else None,
     )
     return pol
 
@@ -114,17 +153,211 @@ async def register_policy(
 @router.get("", response_model=list[PolicyResponse])
 async def list_policies(
     response: Response,
-    session: AsyncSession = Depends(get_db_session)
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+    tenant_id: str | None = None,
+    include_deleted: bool = False
 ) -> list[PolicyResponse]:
-    """List policies (Phase 3: database-backed stub)."""
-    # TODO Phase 4: Implement actual policy storage and retrieval
-    # For now, return empty list as policies are not yet stored in database
-    policy_responses = []
+    """List policies with tenant isolation (FR-085/FR-087: supports include_deleted).
+    
+    RBAC enforcement:
+    - Superadmin: Can list policies for any tenant via tenant_id parameter
+    - Tenant admin: Can only list policies for their own tenant
+    - Regular users: Denied access
+    """
+    # RBAC check
+    if "superadmin" not in current_user.roles and "tenant_admin" not in current_user.roles:
+        raise HTTPException(status_code=403, detail="Insufficient permissions to list policies")
+    
+    # Determine target tenant_id with isolation
+    if "superadmin" in current_user.roles:
+        # Superadmin can specify tenant_id or get all (for now, require tenant_id)
+        if not tenant_id:
+            raise HTTPException(status_code=400, detail="tenant_id required for superadmin")
+        target_tenant_id = tenant_id
+    else:
+        # Tenant admin can only access their own tenant
+        # Reject if they try to access a different tenant
+        if tenant_id and tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Cannot access policies from other tenants")
+        target_tenant_id = current_user.tenant_id
+    
+    # Fetch from repository
+    repo = SQLAlchemyPolicyRepository(session)
+    policies = await repo.list_by_tenant(target_tenant_id, include_deleted=include_deleted)
+    
+    # Convert to response models
+    policy_responses: list[PolicyResponse] = []
+    for policy in policies:
+        # Extract first rule for response (simplified)
+        if policy.rules:
+            first_rule = policy.rules[0]
+            effect_str = "ALLOW" if first_rule.effect == Decision.allow else "DENY"
+            condition_expr = first_rule.condition.get("expression", "") if first_rule.condition else ""
+            
+            policy_responses.append(PolicyResponse(
+                id=policy.policy_id,
+                policy_id=policy.policy_id,
+                version=first_rule.version,
+                resource_type=first_rule.resource,
+                condition_expression=condition_expr,
+                effect=effect_str,
+                created_by=policy.created_by,
+                created_at=policy.created_at.isoformat() if policy.created_at else None,
+            ))
     
     # Add Content-Range header for React-Admin pagination
     total = len(policy_responses)
     response.headers["Content-Range"] = f"policies 0-{total-1 if total > 0 else 0}/{total}"
     
     return policy_responses
+
+
+@router.put("/{policy_id}/disable", status_code=200)
+async def disable_policy(
+    policy_id: str,
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
+) -> dict[str, str]:
+    """Disable a policy (soft delete).
+    
+    RBAC enforcement:
+    - Superadmin: Can disable any policy
+    - Tenant admin: Can disable policies in their tenant only
+    - Regular users: Denied access
+    """
+    # RBAC check
+    if "superadmin" not in current_user.roles and "tenant_admin" not in current_user.roles:
+        raise HTTPException(status_code=403, detail="Insufficient permissions to disable policies")
+    
+    # Fetch policy
+    repo = SQLAlchemyPolicyRepository(session)
+    policy = await repo.get(policy_id)
+    
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    
+    # Tenant isolation check
+    if "superadmin" not in current_user.roles and policy.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=403, detail="Cannot disable policy from another tenant")
+    
+    # Update status
+    policy.status = PolicyStatus.disabled
+    policy.updated_by = current_user.user_id
+    policy.updated_at = datetime.now(timezone.utc)
+    
+    await repo.upsert(policy)
+    
+    # Audit logging
+    await audit_service.log(
+        action_type="policy.disable",
+        tenant_id=policy.tenant_id,
+        metadata={
+            "policy_id": policy_id,
+            "disabled_by": current_user.user_id
+        }
+    )
+    
+    return {"message": "Policy disabled successfully", "policy_id": policy_id}
+
+
+@router.put("/{policy_id}/enable", status_code=200)
+async def enable_policy(
+    policy_id: str,
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
+) -> dict[str, str]:
+    """Enable a previously disabled policy.
+    
+    RBAC enforcement:
+    - Superadmin: Can enable any policy
+    - Tenant admin: Can enable policies in their tenant only
+    - Regular users: Denied access
+    """
+    # RBAC check
+    if "superadmin" not in current_user.roles and "tenant_admin" not in current_user.roles:
+        raise HTTPException(status_code=403, detail="Insufficient permissions to enable policies")
+    
+    # Fetch policy (include deleted to allow re-enabling)
+    repo = SQLAlchemyPolicyRepository(session)
+    policies = await repo.list_by_tenant(current_user.tenant_id, include_deleted=True)
+    policy = next((p for p in policies if p.policy_id == policy_id), None)
+    
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    
+    # Tenant isolation check
+    if "superadmin" not in current_user.roles and policy.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=403, detail="Cannot enable policy from another tenant")
+    
+    # Update status
+    policy.status = PolicyStatus.active
+    policy.updated_by = current_user.user_id
+    policy.updated_at = datetime.now(timezone.utc)
+    
+    await repo.upsert(policy)
+    
+    # Audit logging
+    await audit_service.log(
+        action_type="policy.enable",
+        tenant_id=policy.tenant_id,
+        metadata={
+            "policy_id": policy_id,
+            "enabled_by": current_user.user_id
+        }
+    )
+    
+    return {"message": "Policy enabled successfully", "policy_id": policy_id}
+
+
+@router.delete("/{policy_id}", status_code=200)
+async def delete_policy(
+    policy_id: str,
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service)
+) -> dict[str, str]:
+    """Delete a policy (soft delete by setting status to disabled).
+    
+    RBAC enforcement:
+    - Superadmin: Can delete any policy
+    - Tenant admin: Can delete policies in their tenant only
+    - Regular users: Denied access
+    """
+    # RBAC check
+    if "superadmin" not in current_user.roles and "tenant_admin" not in current_user.roles:
+        raise HTTPException(status_code=403, detail="Insufficient permissions to delete policies")
+    
+    # Fetch policy
+    repo = SQLAlchemyPolicyRepository(session)
+    policy = await repo.get(policy_id)
+    
+    if not policy:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    
+    # Tenant isolation check
+    if "superadmin" not in current_user.roles and policy.tenant_id != current_user.tenant_id:
+        raise HTTPException(status_code=403, detail="Cannot delete policy from another tenant")
+    
+    # Soft delete: set status to disabled
+    policy.status = PolicyStatus.disabled
+    policy.updated_by = current_user.user_id
+    policy.updated_at = datetime.now(timezone.utc)
+    
+    await repo.upsert(policy)
+    
+    # Audit logging
+    await audit_service.log(
+        action_type="policy.delete",
+        tenant_id=policy.tenant_id,
+        metadata={
+            "policy_id": policy_id,
+            "deleted_by": current_user.user_id
+        }
+    )
+    
+    return {"message": "Policy deleted successfully", "policy_id": policy_id}
 
 __all__ = ["router"]

@@ -142,11 +142,13 @@ def policy_model_to_domain(model: PolicyModel) -> Policy:
         )
         for r in model.rules
     ]
+    from domain.policy.models import PolicyStatus
     return Policy(
         policy_id=str(model.policy_id),
         tenant_id=str(model.tenant_id),
         name=model.name,
         rules=rules,
+        status=PolicyStatus(model.status) if hasattr(model, 'status') and model.status else PolicyStatus.active,
         created_at=model.created_at,
         updated_at=model.updated_at,
         created_by=str(model.created_by) if model.created_by else None,
@@ -172,6 +174,7 @@ def policy_domain_to_model(entity: Policy) -> PolicyModel:
         tenant_id=UUID(entity.tenant_id),
         name=entity.name,
         rules=rules_json,
+        status=entity.status.value if hasattr(entity, 'status') else "active",
         created_at=entity.created_at,
         updated_at=entity.updated_at,
         created_by=UUID(entity.created_by) if entity.created_by else None,
@@ -181,11 +184,13 @@ def policy_domain_to_model(entity: Policy) -> PolicyModel:
 
 def featureflag_model_to_domain(model: FeatureFlagModel) -> FeatureFlag:
     """Convert FeatureFlagModel (ORM) to FeatureFlag (domain entity)."""
+    from domain.featureflags.models import FlagStatus
     return FeatureFlag(
         flag_id=str(model.flag_id),
         tenant_id=str(model.tenant_id),
         key=model.key,
         state=FlagState(model.state.value),
+        status=FlagStatus(model.status) if hasattr(model, 'status') and model.status else FlagStatus.active,
         variant=model.variant,
         rules=model.rules,
         created_at=model.created_at,
@@ -212,6 +217,7 @@ def featureflag_domain_to_model(entity: FeatureFlag) -> FeatureFlagModel:
         tenant_id=UUID(entity.tenant_id),
         key=entity.key,
         state=FlagStateEnum(entity.state.value),
+        status=entity.status.value if hasattr(entity, 'status') else "active",
         variant=entity.variant,
         rules=entity.rules,
         created_at=entity.created_at,
@@ -271,17 +277,20 @@ class SQLAlchemyTenantRepository:
         result = await self.session.execute(
             select(TenantModel).where(
                 TenantModel.name.ilike(name),
-                TenantModel.status != TenantStatusEnum.soft_deleted
+                TenantModel.status != TenantStatusEnum.disabled
             )
         )
         model = result.scalar_one_or_none()
         return tenant_model_to_domain(model) if model else None
 
-    async def list(self) -> list[Tenant]:
-        """List all active tenants (excludes soft-deleted per FR-018)."""
-        result = await self.session.execute(
-            select(TenantModel).where(TenantModel.status != TenantStatusEnum.soft_deleted)
-        )
+    async def list(self, include_deleted: bool = False) -> list[Tenant]:
+        """List all tenants (FR-018/FR-087: excludes soft-deleted by default)."""
+        query = select(TenantModel)
+        
+        if not include_deleted:
+            query = query.where(TenantModel.status != TenantStatusEnum.disabled)
+        
+        result = await self.session.execute(query)
         models = result.scalars().all()
         return [tenant_model_to_domain(m) for m in models]
 
@@ -291,7 +300,7 @@ class SQLAlchemyTenantRepository:
             update(TenantModel)
             .where(TenantModel.tenant_id == UUID(tenant_id))
             .values(
-                status=TenantStatusEnum.soft_deleted,
+                status=TenantStatusEnum.disabled,
                 updated_at=datetime.now(timezone.utc)
             )
         )
@@ -385,14 +394,14 @@ class SQLAlchemyUserRepository:
         roles = await self._get_user_roles(model.user_id)
         return user_model_to_domain(model, roles)
 
-    async def list_by_tenant(self, tenant_id: str) -> list[User]:
-        """List users filtered by tenant (FR-002: tenant isolation, FR-018: excludes soft-deleted)."""
-        result = await self.session.execute(
-            select(UserModel).where(
-                UserModel.tenant_id == UUID(tenant_id),
-                UserModel.status != UserStatusEnum.disabled
-            )
-        )
+    async def list_by_tenant(self, tenant_id: str, include_deleted: bool = False) -> list[User]:
+        """List users filtered by tenant (FR-002: tenant isolation, FR-018/FR-087: excludes disabled by default)."""
+        query = select(UserModel).where(UserModel.tenant_id == UUID(tenant_id))
+        
+        if not include_deleted:
+            query = query.where(UserModel.status != UserStatusEnum.disabled)
+        
+        result = await self.session.execute(query)
         models = result.scalars().all()
         
         users = []
@@ -492,13 +501,41 @@ class SQLAlchemyPolicyRepository:
         model = result.scalar_one_or_none()
         return policy_model_to_domain(model) if model else None
 
-    async def list_by_tenant(self, tenant_id: str) -> list[Policy]:
-        """List policies filtered by tenant (FR-002: tenant isolation)."""
-        result = await self.session.execute(
-            select(PolicyModel).where(PolicyModel.tenant_id == UUID(tenant_id))
-        )
+    async def list_by_tenant(self, tenant_id: str, include_deleted: bool = False) -> list[Policy]:
+        """List policies filtered by tenant (FR-002: tenant isolation, FR-085: excludes disabled by default)."""
+        query = select(PolicyModel).where(PolicyModel.tenant_id == UUID(tenant_id))
+        
+        if not include_deleted:
+            query = query.where(PolicyModel.status != "disabled")
+        
+        result = await self.session.execute(query)
         models = result.scalars().all()
         return [policy_model_to_domain(m) for m in models]
+    
+    async def soft_delete(self, policy_id: str) -> None:
+        """Soft delete policy (FR-085: set status=disabled)."""
+        await self.session.execute(
+            update(PolicyModel)
+            .where(PolicyModel.policy_id == UUID(policy_id))
+            .values(
+                status="disabled",
+                updated_at=datetime.now(timezone.utc)
+            )
+        )
+        await self.session.flush()
+    
+    async def restore(self, policy_id: str) -> None:
+        """Restore soft-deleted policy (FR-085: set status=active)."""
+        await self.session.execute(
+            update(PolicyModel)
+            .where(PolicyModel.policy_id == UUID(policy_id))
+            .where(PolicyModel.status == "disabled")
+            .values(
+                status="active",
+                updated_at=datetime.now(timezone.utc)
+            )
+        )
+        await self.session.flush()
 
 
 class SQLAlchemyFeatureFlagRepository:
@@ -545,13 +582,41 @@ class SQLAlchemyFeatureFlagRepository:
         model = result.scalar_one_or_none()
         return featureflag_model_to_domain(model) if model else None
 
-    async def list_by_tenant(self, tenant_id: str) -> list[FeatureFlag]:
-        """List feature flags filtered by tenant (FR-002: tenant isolation)."""
-        result = await self.session.execute(
-            select(FeatureFlagModel).where(FeatureFlagModel.tenant_id == UUID(tenant_id))
-        )
+    async def list_by_tenant(self, tenant_id: str, include_deleted: bool = False) -> list[FeatureFlag]:
+        """List feature flags filtered by tenant (FR-002: tenant isolation, FR-086: excludes disabled by default)."""
+        query = select(FeatureFlagModel).where(FeatureFlagModel.tenant_id == UUID(tenant_id))
+        
+        if not include_deleted:
+            query = query.where(FeatureFlagModel.status != "disabled")
+        
+        result = await self.session.execute(query)
         models = result.scalars().all()
         return [featureflag_model_to_domain(m) for m in models]
+    
+    async def soft_delete(self, flag_id: str) -> None:
+        """Soft delete feature flag (FR-086: set status=disabled)."""
+        await self.session.execute(
+            update(FeatureFlagModel)
+            .where(FeatureFlagModel.flag_id == UUID(flag_id))
+            .values(
+                status="disabled",
+                updated_at=datetime.now(timezone.utc)
+            )
+        )
+        await self.session.flush()
+    
+    async def restore(self, flag_id: str) -> None:
+        """Restore soft-deleted feature flag (FR-086: set status=active)."""
+        await self.session.execute(
+            update(FeatureFlagModel)
+            .where(FeatureFlagModel.flag_id == UUID(flag_id))
+            .where(FeatureFlagModel.status == "disabled")
+            .values(
+                status="active",
+                updated_at=datetime.now(timezone.utc)
+            )
+        )
+        await self.session.flush()
 
 
 # Invitation conversion utilities

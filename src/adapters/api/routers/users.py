@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
 from typing import List, Optional
 from uuid import uuid4
@@ -13,6 +13,7 @@ from adapters.api.deps import get_db_session, get_audit_service, AuditService
 from adapters.api.auth_deps import CurrentUser
 from adapters.persistence.repositories import SQLAlchemyUserRepository, SQLAlchemyTenantRepository
 from auth_core.hashers import default_hasher
+from services.csv_import_service import CSVImportService
 
 
 def validate_password_strength(password: str) -> None:
@@ -208,9 +209,10 @@ async def get_current_user_profile(
 async def list_users(
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session),
-    tenant_id: Optional[str] = None
+    tenant_id: Optional[str] = None,
+    include_deleted: bool = False
 ) -> UserListResponse:
-    """List users. Defaults to current user's tenant unless tenant_id specified (superadmin only)."""
+    """List users (FR-087: supports include_deleted parameter). Defaults to current user's tenant unless tenant_id specified (superadmin only)."""
     # Use current user's tenant if not specified
     effective_tenant_id = tenant_id or current_user.tenant_id
     
@@ -219,7 +221,7 @@ async def list_users(
         raise HTTPException(status_code=403, detail="Cannot access other tenant's users")
     
     user_repo = SQLAlchemyUserRepository(session)
-    users = await user_repo.list_by_tenant(effective_tenant_id)
+    users = await user_repo.list_by_tenant(effective_tenant_id, include_deleted=include_deleted)
     return UserListResponse(users=[
         UserResponse(
             user_id=u.user_id,
@@ -575,3 +577,85 @@ async def reset_user_password(
         "message": "Password reset successfully",
         "user_id": u.user_id
     }
+
+
+@router.post("/import")
+async def import_users_csv(
+    current_user: CurrentUser,
+    session: AsyncSession = Depends(get_db_session),
+    audit_service: AuditService = Depends(get_audit_service),
+    file: UploadFile = File(..., description="CSV file with user data (email, roles, tenant_id, full_name, job_title)"),
+    dry_run: bool = Query(False, description="Preview import without creating users")
+):
+    """Bulk import users from CSV file (FR-088, T008).
+    
+    **CSV Format**:
+    ```csv
+    email,roles,tenant_id,full_name,job_title
+    user@example.com,user,tenant-123,John Doe,Engineer
+    admin@example.com,"tenant_admin,developer",tenant-123,Jane Smith,Manager
+    ```
+    
+    **Required Fields**: email, roles, tenant_id
+    **Optional Fields**: full_name, job_title
+    
+    **Validation**:
+    - Email format (regex)
+    - Valid roles (7 allowed: superadmin, tenant_admin, developer, analyst, user, service_account, support_readonly)
+    - Tenant isolation (non-superadmin restricted to own tenant)
+    - Duplicate email detection
+    
+    **RBAC**:
+    - Superadmin: Can import to any tenant
+    - Tenant_admin: Restricted to own tenant
+    - Other roles: Forbidden (403)
+    
+    **Dry Run**: Set `dry_run=true` to preview results without creating users.
+    
+    **Response**: Import summary with success_count, error_count, errors[], preview[] (if dry_run).
+    """
+    # RBAC: Only tenant_admin and superadmin can import users
+    is_superadmin = "superadmin" in current_user.roles
+    is_tenant_admin = "tenant_admin" in current_user.roles
+    
+    if not (is_superadmin or is_tenant_admin):
+        raise HTTPException(
+            status_code=403,
+            detail="CSV import requires tenant_admin or superadmin role"
+        )
+    
+    # Read CSV file
+    try:
+        content = await file.read()
+        csv_text = content.decode('utf-8')
+    except UnicodeDecodeError:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid CSV file: must be UTF-8 encoded"
+        )
+    
+    # Import users via service
+    user_repo = SQLAlchemyUserRepository(session)
+    service = CSVImportService(user_repo)
+    
+    result = await service.import_users(
+        csv_content=csv_text,
+        dry_run=dry_run,
+        current_user_tenant_id=current_user.tenant_id,
+        is_superadmin=is_superadmin
+    )
+    
+    # Audit logging (only for actual imports, not dry-runs)
+    if not dry_run:
+        await audit_service.log(
+            action_type="user.bulk_import",
+            tenant_id=current_user.tenant_id,
+            metadata={
+                "imported_by": current_user.user_id,
+                "success_count": result["success_count"],
+                "error_count": result["error_count"],
+                "total_rows": result["success_count"] + result["error_count"]
+            }
+        )
+    
+    return result

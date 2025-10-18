@@ -56,7 +56,7 @@ class Base(DeclarativeBase):
 class TenantStatusEnum(str, enum.Enum):
     """Tenant lifecycle status (FR-018: soft delete)."""
     active = "active"
-    soft_deleted = "soft_deleted"
+    disabled = "disabled"  # Was: soft_deleted
 
 
 class UserStatusEnum(str, enum.Enum):
@@ -91,7 +91,7 @@ class TenantModel(Base):
     """
     Tenant entity (FR-002: multi-tenant isolation root).
     
-    Soft delete via status=soft_deleted (FR-018).
+    Soft delete via status=disabled (FR-018).
     All tenant-scoped entities FK to tenant_id.
     """
     __tablename__ = "tenants"
@@ -260,6 +260,7 @@ class PolicyModel(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     rules: Mapped[list] = mapped_column(JSON, default=list, nullable=False)  # Array of PolicyRule dicts
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")  # Soft-delete support
     
     # Audit metadata (FR-077)
     created_at: Mapped[datetime] = mapped_column(
@@ -280,6 +281,7 @@ class PolicyModel(Base):
     __table_args__ = (
         Index("ix_policies_tenant_id", "tenant_id"),
         Index("ix_policies_created_at", "created_at"),
+        Index("ix_policies_status", "status"),
     )
 
 
@@ -376,6 +378,7 @@ class FeatureFlagModel(Base):
         default=FlagStateEnum.disabled,
         nullable=False
     )
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")  # Soft-delete support
     variant: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     rules: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     
@@ -398,6 +401,7 @@ class FeatureFlagModel(Base):
     __table_args__ = (
         Index("ix_feature_flags_tenant_key", "tenant_id", "key", unique=True),
         Index("ix_feature_flags_state", "state"),
+        Index("ix_feature_flags_status", "status"),
     )
 
 

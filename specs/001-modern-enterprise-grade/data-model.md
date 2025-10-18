@@ -27,7 +27,7 @@ Status: Draft (Design Complete Pending Constitution Re-check)
 
 - tenant_id: UUIDv5 (primary key) derived from namespace + slug (deterministic idempotent seed)
 - name: String (unique, indexed)
-- status: Enum(active, soft_deleted)
+- status: Enum(active, disabled)
 - config_version: Integer (increments on config-impacting change)
 - created_at / updated_at: Timestamps (UTC)
 - created_by: user_id FK nullable (system bootstrap)
@@ -184,7 +184,7 @@ Indexes:
 ## State Transition Summaries
 
 - User: invited -> active (on invitation acceptance), active -> disabled (admin action), disabled -> active (re-enable).
-- Tenant: active -> soft_deleted (admin), soft_deleted -> active (restore).
+- Tenant: active -> disabled (admin), disabled -> active (restore).
 - PasswordResetRequest: issued -> consumed (completion) or expired (time).
 - Invitation: pending -> accepted or expired.
 - KeyRotationRecord: new version added; old version becomes retired_at when grace ends.
@@ -226,7 +226,7 @@ This addendum aligns the domain data model with the Phase 3 persistence plan (se
 | Relationship | Physical FK | ON DELETE (DB) | Logical (Domain) Behavior | Notes |
 |--------------|-------------|----------------|---------------------------|-------|
 | users.tenant_id → tenants.tenant_id | Yes | RESTRICT | Tenant soft delete hides users; hard delete not routine | Protects cross-table integrity; no orphan users. |
-| invitations.tenant_id → tenants.tenant_id | Yes | RESTRICT | Cleanup job removes stale invites if tenant soft_deleted | Avoids accidental loss; invites ephemeral. |
+| invitations.tenant_id → tenants.tenant_id | Yes | RESTRICT | Cleanup job removes stale invites if tenant disabled | Avoids accidental loss; invites ephemeral. |
 | password_resets.user_id → users.user_id | Yes | CASCADE | User soft delete invalidates outstanding resets | Physical cascade acceptable (tokens meaningless post-delete). |
 | user_roles.user_id → users.user_id | Yes | CASCADE | Role entries removed if user physically purged (rare) | Normal flows use soft delete only. |
 | user_roles.tenant_id → tenants.tenant_id | Yes | RESTRICT | Tenant soft delete preserves assignments for audit | Historical role evidence retained. |
@@ -244,7 +244,7 @@ This addendum aligns the domain data model with the Phase 3 persistence plan (se
 
 | Entity | Soft Delete Field | Physical Delete Trigger | Justification |
 |--------|-------------------|-------------------------|--------------|
-| Tenant | status=soft_deleted | Manual migration / admin tool | Ensures reversible isolation before irreversible purge. |
+| Tenant | status=disabled | Manual migration / admin tool | Ensures reversible isolation before irreversible purge. |
 | User | status=disabled (not a full delete) | (Future) explicit purge task | Keeps audit references & evaluation logs valid. |
 | FeatureFlag | status=disabled | Rare manual removal | Historical feature state for debugging retained. |
 

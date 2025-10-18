@@ -124,7 +124,7 @@ class TestTenantRepositoryParity:
         assert "tenant-005" in tenant_ids
 
     def test_soft_delete_tenant(self, in_memory_tenant_repo):
-        """Test soft deleting a tenant changes status to soft_deleted (FR-018)."""
+        """Test soft deleting a tenant changes status to disabled (FR-018)."""
         tenant = Tenant(tenant_id="tenant-006", name="Delete Test")
         in_memory_tenant_repo.upsert(tenant)
         
@@ -132,11 +132,11 @@ class TestTenantRepositoryParity:
         
         result = in_memory_tenant_repo.get("tenant-006")
         assert result is not None
-        assert result.status == TenantStatus.soft_deleted
+        assert result.status == TenantStatus.disabled
 
     def test_restore_tenant(self, in_memory_tenant_repo):
         """Test restoring a soft-deleted tenant changes status back to active."""
-        tenant = Tenant(tenant_id="tenant-007", name="Restore Test", status=TenantStatus.soft_deleted)
+        tenant = Tenant(tenant_id="tenant-007", name="Restore Test", status=TenantStatus.disabled)
         in_memory_tenant_repo.upsert(tenant)
         
         in_memory_tenant_repo.restore("tenant-007")

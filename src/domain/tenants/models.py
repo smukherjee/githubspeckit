@@ -6,7 +6,7 @@ from typing import Optional
 
 class TenantStatus(str, Enum):
     active = "active"
-    soft_deleted = "soft_deleted"
+    disabled = "disabled"  # Was: soft_deleted
 
 @dataclass
 class Tenant:
@@ -39,7 +39,7 @@ class TenantRepository:
 
     def soft_delete(self, tenant_id: str) -> None:
         t = self._store[tenant_id]
-        t.status = TenantStatus.soft_deleted
+        t.status = TenantStatus.disabled
         t.updated_at = datetime.now(timezone.utc)
 
     def restore(self, tenant_id: str) -> None:

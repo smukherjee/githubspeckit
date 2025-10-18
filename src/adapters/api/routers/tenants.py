@@ -119,11 +119,12 @@ async def create_tenant(
 @router.get("", response_model=TenantListResponse)
 async def list_tenants(
     current_user: CurrentUser,
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db_session),
+    include_deleted: bool = False
 ) -> TenantListResponse:
-    """List all tenants (Phase 3 database-backed)."""
+    """List all tenants (FR-087: supports include_deleted parameter). Phase 3 database-backed."""
     tenant_repo = SQLAlchemyTenantRepository(session)
-    tenants = await tenant_repo.list()
+    tenants = await tenant_repo.list(include_deleted=include_deleted)
     return TenantListResponse(tenants=[
         TenantResponse(
             tenant_id=t.tenant_id,
@@ -148,7 +149,7 @@ async def soft_delete_tenant(
     t = await tenant_repo.get(tenant_id)
     if not t:
         raise HTTPException(status_code=404, detail="not_found")
-    if t.status == TenantStatus.soft_deleted:
+    if t.status == TenantStatus.disabled:
         # Already deleted, return 204
         return
     await tenant_repo.soft_delete(tenant_id)

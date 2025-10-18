@@ -360,7 +360,7 @@ None at this time. Future ambiguities will be appended with next available ID (C
 
 ### Key Entities *(include if feature involves data)*
 
-- **Tenant**: tenant_id, name, status (active, soft_deleted), created_at, updated_at, config_version.
+- **Tenant**: tenant_id, name, status (active, disabled), created_at, updated_at, config_version.
 - **User**: user_id, tenant_id, email, status (invited, active, disabled), roles[], last_login_at.
 - **Invitation**: invitation_id, tenant_id, email, token_hash, expires_at, accepted_at.
 - **PasswordResetRequest**: reset_id, user_id, token_hash, issued_at, expires_at, consumed_at (nullable).

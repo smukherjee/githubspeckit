@@ -9,6 +9,11 @@ class Decision(str, Enum):
     deny = "DENY"
     abstain = "ABSTAIN"
 
+class PolicyStatus(str, Enum):
+    """Policy lifecycle status (soft-delete pattern)."""
+    active = "active"
+    disabled = "disabled"  # Soft-deleted state
+
 @dataclass
 class PolicyRule:
     rule_id: str
@@ -24,6 +29,7 @@ class Policy:
     tenant_id: str
     name: str
     rules: List[PolicyRule] = field(default_factory=list)
+    status: PolicyStatus = PolicyStatus.active  # Soft-delete support
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     created_by: Optional[str] = None

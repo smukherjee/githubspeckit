@@ -87,11 +87,12 @@ async def create_flag(
 @router.get("", response_model=FeatureFlagList)
 async def list_flags(
     tenant_id: str,
-    session: AsyncSession = Depends(get_db_session)
+    session: AsyncSession = Depends(get_db_session),
+    include_deleted: bool = False
 ) -> FeatureFlagList:
-    """List feature flags by tenant (Phase 3: database-backed)."""
+    """List feature flags by tenant (FR-086/FR-087: supports include_deleted parameter)."""
     flag_repo = SQLAlchemyFeatureFlagRepository(session)
-    items = await flag_repo.list_by_tenant(tenant_id)
+    items = await flag_repo.list_by_tenant(tenant_id, include_deleted=include_deleted)
     return FeatureFlagList(flags=[FeatureFlagResponse(flag_id=f.flag_id, tenant_id=f.tenant_id, key=f.key, state=f.state, variant=f.variant) for f in items])
 
 __all__ = ["router"]

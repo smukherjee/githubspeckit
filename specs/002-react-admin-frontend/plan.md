@@ -1,8 +1,8 @@
 
-# Implementation Plan: Admin API Endpoints for Multi-Tenant Backend
+# Implementation Plan: [FEATURE]
 
-**Branch**: `002-react-admin-frontend` | **Date**: 2025-10-17 | **Spec**: [spec.md](./spec.md)
-**Input**: Feature specification from `/specs/002-react-admin-frontend/spec.md`
+**Branch**: `[###-feature-name]` | **Date**: [DATE] | **Spec**: [link]
+**Input**: Feature specification from `/specs/[###-feature-name]/spec.md`
 
 ## Execution Flow (/plan command scope)
 ```
@@ -31,21 +31,18 @@
 - Phase 3-4: Implementation execution (manual or via tools)
 
 ## Summary
-
-Comprehensive backend API endpoints for administrative operations in the multi-tenant system. The APIs are frontend-agnostic and designed to support any client framework through well-defined REST contracts. Endpoints enable role-based operations (superadmin, tenant_admin, standard) across tenants, users, feature flags, policies, invitations, and audit logs with proper RBAC enforcement and tenant isolation.
-
-**User Input Context**: This project is backend-only with FastAPI and should be frontend agnostic, following constitutional principles of hexagonal architecture.
+[Extract from feature spec: primary requirement + technical approach from research]
 
 ## Technical Context
-**Language/Version**: Python 3.13  
-**Primary Dependencies**: FastAPI, Pydantic v2, SQLAlchemy 2.x (async), Alembic  
-**Storage**: PostgreSQL (primary), Redis (caching)  
-**Testing**: pytest, httpx (async client)  
-**Target Platform**: Linux server, Docker containers  
-**Project Type**: Single backend API (hexagonal architecture)  
-**Performance Goals**: p95 <200ms CRUD operations, p99 <500ms bulk operations  
-**Constraints**: Multi-tenant isolation, RBAC enforcement, audit logging  
-**Scale/Scope**: Support multiple frontend clients, 6 resource types, 3 user roles
+**Language/Version**: [e.g., Python 3.11, Swift 5.9, Rust 1.75 or NEEDS CLARIFICATION]  
+**Primary Dependencies**: [e.g., FastAPI, UIKit, LLVM or NEEDS CLARIFICATION]  
+**Storage**: [if applicable, e.g., PostgreSQL, CoreData, files or N/A]  
+**Testing**: [e.g., pytest, XCTest, cargo test or NEEDS CLARIFICATION]  
+**Target Platform**: [e.g., Linux server, iOS 15+, WASM or NEEDS CLARIFICATION]
+**Project Type**: [single/web/mobile - determines source structure]  
+**Performance Goals**: [domain-specific, e.g., 1000 req/s, 10k lines/sec, 60 fps or NEEDS CLARIFICATION]  
+**Constraints**: [domain-specific, e.g., <200ms p95, <100MB memory, offline-capable or NEEDS CLARIFICATION]  
+**Scale/Scope**: [domain-specific, e.g., 10k users, 1M LOC, 50 screens or NEEDS CLARIFICATION]
 
 ## Constitution Check
 
@@ -53,22 +50,22 @@ Comprehensive backend API endpoints for administrative operations in the multi-t
 
 Evaluate and explicitly confirm (checklist) before proceeding:
 
-1. ✅ **Architecture**: Admin API endpoints implemented as FastAPI adapters, domain logic in pure Python models and services (Principle I).
-2. ✅ **Test-First & Coverage**: Contract tests for each endpoint, domain logic tests, RBAC tests, tenant isolation tests planned (Principle II).
-3. ✅ **Multi-Tenancy**: All data access paths include explicit tenant_id filtering, superadmin cross-tenant access properly controlled (Principles I & III).
-4. ✅ **RBAC & Policies**: Authorization via policy engine registration, no inline role checks in FastAPI handlers (Principles III & VI).
-5. ✅ **Auth Reuse**: Admin endpoints register with existing auth_core package, no domain-specific auth logic (Principle VI).
-6. ✅ **Switchable Persistence**: Admin operations use existing repository interfaces, no direct ORM access (Principle IV).
-7. ✅ **Observability**: Admin endpoints emit structured logs, metrics for CRUD operations, tracing spans (Principle V).
-8. ✅ **API Versioning**: All endpoints under /api/v1, OpenAPI contract generation, backward compatibility (Principle V).
-9. ✅ **Performance Budgets**: p95 <200ms CRUD, p99 <500ms bulk operations (Principle V).
-10. ✅ **Unified Configuration**: Admin endpoints respect DEPLOY_MODE, no direct env access (Principle VII).
-11. ✅ **Developer Experience & Embed**: APIs support iframe embedding via CORS/cookie config (Principle VIII).
-12. ✅ **Complexity**: Reuses existing domain models, services, and auth - no new infrastructure (Governance & Principle IV).
-13. ✅ **Security Testing**: RBAC boundary tests, tenant isolation tests, input validation tests (Additional Constraints & Principle V).
-14. ✅ **Code Quality & Simplicity**: Follows existing patterns, no duplication of CRUD logic (Principle IX).
+1. Architecture: Domain layer free of framework/infrastructure imports (Principle I).
+2. Test-First & Coverage: Planned failing tests exist AND projected coverage meets thresholds (≥90% domain, ≥85% overall; 100% critical auth/tenancy paths) (Principle II).
+3. Multi-Tenancy: Every new data access path includes tenant context + filtering (Principles I & III).
+4. RBAC & Policies: Authorization expressed via registered policies—no inline role branching (Principles III & VI).
+5. Auth Reuse: No domain-specific logic added inside auth core; only registrations/extensions (Principle VI).
+6. Switchable Persistence: Repositories stay interface-driven; no leakage of ORM/session into domain (Principle IV).
+7. Observability: Planned metrics, centrally configurable structured logs (export + redaction), tracing spans for each new boundary (Principle V).
+8. API Versioning: New/changed endpoints supply version impact assessment (Principle V).
+9. Performance Budgets: Declared baseline p95/p99 expectations (Principle V).
+10. Unified Configuration: Single descriptor (no direct env access) + DEPLOY_MODE implications addressed (Principle VII).
+11. Developer Experience & Embed: Minimal local infra (fallback mocks) + embed session/cookie strategy documented (Principle VIII).
+12. Complexity: Any new adapter/infra addition justified vs simpler alternative (Governance & Principle IV).
+13. Security Testing: OWASP Top 10 mapping updates + dynamic/pen test considerations documented (Additional Constraints & Principle V).
+14. Code Quality & Simplicity: DRY/KISS/YAGNI respected; no premature abstractions; duplication/complexity impact considered (Principle IX).
 
-**Status**: PASS - All constitutional requirements satisfied
+Document any violation in Complexity Tracking with justification BEFORE continuing.
 
 ## Project Structure
 
@@ -85,48 +82,50 @@ specs/[###-feature]/
 ```
 
 ### Source Code (repository root)
-
+<!--
+  ACTION REQUIRED: Replace the placeholder tree below with the concrete layout
+  for this feature. Delete unused options and expand the chosen structure with
+  real paths (e.g., apps/admin, packages/something). The delivered plan must
+  not include Option labels.
+-->
 ```text
+# [REMOVE IF UNUSED] Option 1: Single project (DEFAULT)
 src/
-├── domain/                    # Pure business logic (existing)
-│   ├── tenants/              # Tenant domain models and services
-│   ├── users/                # User domain models and services  
-│   ├── authz/                # Authorization domain logic
-│   ├── audit/                # Audit event domain logic
-│   └── config/               # Configuration domain logic
-├── adapters/                 # Infrastructure adapters (existing)
-│   ├── api/                  # FastAPI HTTP adapters
-│   │   ├── admin/            # NEW: Admin endpoint handlers
-│   │   │   ├── tenants.py   # Tenant CRUD endpoints
-│   │   │   ├── users.py     # User CRUD endpoints
-│   │   │   ├── policies.py  # Policy CRUD endpoints
-│   │   │   ├── feature_flags.py # Feature flag endpoints
-│   │   │   ├── invitations.py # Invitation endpoints
-│   │   │   └── audit.py     # Audit log endpoints
-│   │   └── __init__.py
-│   ├── persistence/          # Database adapters (existing)
-│   └── observability/        # Logging, metrics, tracing (existing)
-├── auth_core/                # Reusable auth package (existing)
-└── schemas/                  # Pydantic models (existing + new admin schemas)
-    └── admin/                # NEW: Admin-specific request/response schemas
+├── models/
+├── services/
+├── cli/
+└── lib/
 
 tests/
-├── contract/                 # NEW: API contract tests for admin endpoints
-│   ├── test_admin_tenants.py
-│   ├── test_admin_users.py
-│   ├── test_admin_policies.py
-│   ├── test_admin_feature_flags.py
-│   ├── test_admin_invitations.py
-│   └── test_admin_audit.py
-├── integration/              # Integration tests (existing + new admin tests)
-└── unit/                     # Unit tests (existing domain tests)
+├── contract/
+├── integration/
+└── unit/
 
-contracts/                    # OpenAPI contract fragments (repository root)
-├── openapi-admin.yaml       # NEW: Admin endpoints OpenAPI spec
-└── [existing contract files]
+# [REMOVE IF UNUSED] Option 2: Web application (when "frontend" + "backend" detected)
+backend/
+├── src/
+│   ├── models/
+│   ├── services/
+│   └── api/
+└── tests/
+
+frontend/
+├── src/
+│   ├── components/
+│   ├── pages/
+│   └── services/
+└── tests/
+
+# [REMOVE IF UNUSED] Option 3: Mobile + API (when "iOS/Android" detected)
+api/
+└── [same as backend above]
+
+ios/ or android/
+└── [platform-specific structure: feature modules, UI flows, platform tests]
 ```
 
-**Structure Decision**: Single backend project with hexagonal architecture. New admin endpoints added as FastAPI adapters that reuse existing domain models, services, and auth_core package. No frontend code in this repository - APIs are frontend-agnostic and consumable by any client framework.
+**Structure Decision**: [Document the selected structure and reference the real
+directories captured above]
 
 ## Phase 0: Outline & Research
 
@@ -232,8 +231,8 @@ This checklist is updated during execution flow.
 
 **Phase Status**:
 
-- [x] Phase 0: Research complete (/plan command)
-- [x] Phase 1: Design complete (/plan command)
+- [ ] Phase 0: Research complete (/plan command)
+- [ ] Phase 1: Design complete (/plan command)
 - [ ] Phase 2: Task planning complete (/plan command - describe approach only)
 - [ ] Phase 3: Tasks generated (/tasks command)
 - [ ] Phase 4: Implementation complete
@@ -241,9 +240,9 @@ This checklist is updated during execution flow.
 
 **Gate Status**:
 
-- [x] Initial Constitution Check: PASS
-- [x] Post-Design Constitution Check: PASS  
-- [x] All NEEDS CLARIFICATION resolved
+- [ ] Initial Constitution Check: PASS
+- [ ] Post-Design Constitution Check: PASS
+- [ ] All NEEDS CLARIFICATION resolved
 - [ ] Complexity deviations documented
 
 ---

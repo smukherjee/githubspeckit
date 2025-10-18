@@ -19,7 +19,7 @@ def test_soft_delete_restore_invariants_tenant_and_user():
 
     tenant_repo.soft_delete(tenant.tenant_id)
     user_repo.soft_delete(user.user_id)
-    assert tenant.status == TenantStatus.soft_deleted
+    assert tenant.status == TenantStatus.disabled
     assert user.status == UserStatus.disabled
     assert tenant.updated_at > original_tenant_updated
     assert user.updated_at > original_user_updated

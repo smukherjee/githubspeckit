@@ -27,7 +27,9 @@ from adapters.api.routers import tenants as tenants_router
 from adapters.api.routers import policies as policies_router
 from adapters.api.routers import feature_flags as feature_flags_router
 from adapters.api.routers import profile as profile_router
+from adapters.api.routers import roles as roles_router
 from adapters.api.deprecation import DeprecationMiddleware
+from adapters.api.security_headers import SecurityHeadersMiddleware
 from adapters.observability.metrics import SimpleMetricsRegistry
 from adapters.observability.prometheus_client_adapter import PromClientAdapter
 from adapters.logging.middleware import StructuredLoggingMiddleware, InMemoryStructuredLogSink
@@ -156,12 +158,30 @@ def create_app() -> FastAPI:
         )
 
     @app.get("/api/v1/health", tags=["system"])
-    async def health() -> dict[str, str | bool | int]:  # pragma: no cover - simple serialization
-        # Phase 3: Returns basic health status with migration state
-        # TODO-IMPL-DB-15: Wire to actual migration head check service
+    async def health() -> dict[str, str | bool | int | dict]:  # pragma: no cover - simple serialization
+        # Phase 3: Returns basic health status with migration state (IMPL-DB-15)
+        from adapters.persistence.migration_check import check_migration_head
+        from adapters.persistence.db_config import DatabaseConfig
+        
+        try:
+            config = DatabaseConfig.from_env()
+            engine = config.create_engine()
+            migration_status = await check_migration_head(
+                engine,
+                alembic_config_path="alembic.ini",
+                abort_on_mismatch=False  # Health endpoint should not fail
+            )
+            current_revision = migration_status.get("current_revision", "unknown")
+            is_up_to_date = migration_status.get("is_up_to_date", False)
+            await engine.dispose()  # Clean up connection
+        except Exception as e:
+            current_revision = f"error: {str(e)}"
+            is_up_to_date = False
+        
         return {
             "status": "ok",
-            "migrations_applied": True,
+            "migrations_applied": is_up_to_date,
+            "current_revision": current_revision,
             "key_rotation_version": 1,
         }
 
@@ -190,6 +210,7 @@ def create_app() -> FastAPI:
     app.include_router(audit_router.router, prefix="/api")
     app.include_router(tenants_router.router, prefix="/api")
     app.include_router(profile_router.router, prefix="/api")  # User profile details
+    app.include_router(roles_router.router, prefix="/api")  # Role hierarchy (FR-089)
 
     # Mount static files for serving profile photos
     photos_dir = Path("data/photos")
@@ -307,6 +328,13 @@ def create_app() -> FastAPI:
             response["reason"] = res.reason
         
         return response
+
+    # Security headers middleware - MUST BE LAST (runs first, wraps ALL responses)
+    # OWASP A01:2021 compliance, CWE-525 prevention
+    # Prevents browser/proxy caching of sensitive data (auth tokens, user info, policies)
+    # Also adds defense-in-depth headers (XSS, clickjacking, MIME sniffing protection)
+    # IMPORTANT: Added last so it wraps error responses too
+    app.add_middleware(SecurityHeadersMiddleware)
 
     return app
 

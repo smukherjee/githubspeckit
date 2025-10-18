@@ -183,11 +183,12 @@ As a standard user, I need to view my profile and access permitted resources wit
 
 #### Audit Log Viewing
 
-- **FR-073**: System MUST display audit events with actor, action, resource, tenant, and timestamp
+- **FR-073**: System MUST display audit events with actor, action, resource, tenant, timestamp, and event category (audit.*, security.*, policy.*). Audit events MUST be immutable and stored in append-only fashion per constitutional requirements
 - **FR-074**: System MUST allow filtering audit events by tenant_id, actor_id, action, and date range
 - **FR-075**: Superadmin users MUST be able to view audit events across all tenants
-- **FR-076**: Tenant admin users MUST only be able to view audit events within their own tenant
+- **FR-076**: Tenant admin users MUST be able to view all audit events where event.tenant_id matches their tenant (includes all user actions, resource modifications, and policy evaluations within tenant scope)
 - **FR-077**: System MUST paginate audit log results (default 50 per page)
+- **FR-078**: Standard users MUST be able to view audit events where they are the actor (actor_id = current_user.user_id) within their tenant scope
 
 #### User Interface
 
@@ -197,6 +198,13 @@ As a standard user, I need to view my profile and access permitted resources wit
 - **FR-081**: System MUST support pagination for all list views (users, tenants, feature flags, policies, invitations, audit events)
 - **FR-082**: System MUST support filtering and sorting on list views
 - **FR-083**: System MUST display success notifications after successful create/update/delete operations
+
+#### Soft-Delete & Record Visibility
+
+- **FR-084**: System MUST implement soft-delete for all primary entities using a status field (active/disabled for policies and feature flags; existing status enums for users and tenants)
+- **FR-085**: System MUST implement soft-delete for policies using status field (active/disabled) where disabled represents the soft-deleted state
+- **FR-086**: System MUST implement soft-delete for feature flags using lifecycle status field (active/disabled) separate from the enabled/disabled state toggle that controls runtime behavior
+- **FR-087**: List APIs for users, tenants, policies, and feature flags MUST support `include_deleted` query parameter (default: false) to allow administrators to view soft-deleted records when explicitly requested
 
 ### Non-Functional Requirements
 
@@ -210,6 +218,8 @@ As a standard user, I need to view my profile and access permitted resources wit
 - **NFR-008**: System MUST support touch gestures on tablet devices (tap, swipe for navigation, pinch-to-zoom where appropriate)
 
 ### Key Entities
+
+**Implementation Note**: Soft-delete operations (FR-025, FR-054, FR-084, FR-085, FR-086) are implemented using a `status` field set to 'disabled' rather than a separate `deleted_at` timestamp, maintaining consistency across all entity types (users, tenants, policies, feature flags). This approach allows restore operations and preserves the ability to filter records by operational state.
 
 - **User**: Represents an authenticated user with email, display name, first/last name, phone number, job title, department, timezone, language preferences, roles, tenant association, status, and audit timestamps. Users belong to exactly one tenant and have one or more roles that determine their permissions.
 

@@ -179,9 +179,15 @@ async def upload_profile_photo(
             detail=f"Invalid file type: {content_type}. Allowed: {', '.join(allowed_types)}"
         )
     
-    # Validate file size (10MB limit from config)
-    # TODO: Read from config.descriptor.toml [photo_storage.MAX_UPLOAD_SIZE_MB]
-    max_size_mb = 10
+    # Validate file size (load from config descriptor)
+    from domain.config.loader import load_config
+    config = load_config({
+        "APP_NAME": ("modern-backend", False),  # Required key
+        "PASSWORD_MIN_LENGTH": (12, False),  # Required key
+        "PASSWORD_COMPLEXITY_STRICT": (False, False),  # Required key
+        "MAX_UPLOAD_SIZE_MB": (10, False),  # Photo upload config
+    })
+    max_size_mb = config.entries["MAX_UPLOAD_SIZE_MB"].value
     max_size_bytes = max_size_mb * 1024 * 1024
     
     # Read file to check size

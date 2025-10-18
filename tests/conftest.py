@@ -239,6 +239,12 @@ def same_tenant_user_id(seeded_database) -> str:
 
 
 @pytest_asyncio.fixture
+def test_tenant_id(seeded_database) -> str:
+    """Return test tenant ID (InfySight tenant)."""
+    return seeded_database["tenant_id"]
+
+
+@pytest_asyncio.fixture
 async def superadmin_headers(client: AsyncClient) -> dict:
     """Provide superadmin authentication headers."""
     response = await client.post(

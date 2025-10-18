@@ -520,7 +520,7 @@ class TestSoftDeleteDoesNotCascade:
     ):
         """
         Given a tenant with active users,
-        When the tenant is soft deleted (status='soft_deleted'),
+        When the tenant is soft deleted (status='disabled'),
         Then users remain in database (FK CASCADE not triggered by status change).
         
         Rationale: Soft delete is a logical flag; physical FK cascades only on DELETE.
@@ -546,7 +546,7 @@ class TestSoftDeleteDoesNotCascade:
         user_id = user.user_id
 
         # Act: Soft delete tenant (status change, not DELETE)
-        tenant.status = TenantStatusEnum.soft_deleted
+        tenant.status = TenantStatusEnum.disabled
         await async_session.commit()
 
         # Assert: User still exists in database
@@ -590,7 +590,7 @@ class TestSoftDeleteDoesNotCascade:
         policy_id = policy.policy_id
 
         # Act: Soft delete tenant
-        tenant.status = TenantStatusEnum.soft_deleted
+        tenant.status = TenantStatusEnum.disabled
         await async_session.commit()
 
         # Assert: Policy still exists

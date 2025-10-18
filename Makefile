@@ -12,6 +12,7 @@ DB_URL_SQLITE ?= sqlite+aiosqlite:///./dev.db
 
 .PHONY: venv compile-requirements sync install dev test run api up migrate health env-show clean reset deps-check openapi-bundle openapi-validate openapi-html openapi-serve
 .PHONY: db-create db-drop db-reset db-migrate db-seed db-verify server-start server-stop server-restart bootstrap
+.PHONY: security-scan security-baseline security-api security-full security-all
 
 venv:
 	python3 -m venv .venv
@@ -174,3 +175,31 @@ clean:
 	find . -name __pycache__ -prune -exec rm -rf {} +
 	rm -f /tmp/githubspeckit-api.pid /tmp/githubspeckit-api.log
 
+# --- OWASP ZAP Security Scanning ---
+
+security-baseline:  ## Run OWASP ZAP baseline (passive) scan - safe for production
+	@echo "Running OWASP ZAP baseline scan..."
+	@./scripts/security/run-zap-scan.sh baseline
+
+security-api:  ## Run OWASP ZAP API scan with OpenAPI spec
+	@echo "Running OWASP ZAP API scan..."
+	@./scripts/security/run-zap-scan.sh api
+
+security-full:  ## Run OWASP ZAP full (active) scan - TEST ENVIRONMENT ONLY
+	@echo "WARNING: This runs active attacks. Use only in test environments!"
+	@./scripts/security/run-zap-scan.sh full --safe
+
+security-authenticated:  ## Run OWASP ZAP authenticated scan (requires AUTH_TOKEN env var)
+	@if [ -z "$$AUTH_TOKEN" ]; then \
+		echo "ERROR: AUTH_TOKEN environment variable not set"; \
+		echo "Usage: AUTH_TOKEN='eyJ...' make security-authenticated"; \
+		exit 1; \
+	fi
+	@echo "Running OWASP ZAP authenticated scan..."
+	@./scripts/security/run-zap-scan.sh authenticated --auth-token "$$AUTH_TOKEN"
+
+security-all:  ## Run all OWASP ZAP scans sequentially
+	@echo "Running all OWASP ZAP scans..."
+	@./scripts/security/run-zap-scan.sh all --verbose
+
+security-scan: security-baseline  ## Alias for security-baseline (default security scan)
