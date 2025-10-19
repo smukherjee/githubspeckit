@@ -315,6 +315,53 @@ description = "Maximum allowed file size for photo uploads in megabytes"
 scope = "backend"
 
 # ============================================================================
+# Session Management (FR-004-tenant-security-refactor)
+# ============================================================================
+
+[session.BACKEND]
+type = "string"
+required = false
+secret = false
+default = "cookie"
+description = "Session storage backend type (cookie for dev, redis for production)"
+scope = "backend"
+
+[session.SECRET_KEY]
+type = "string"
+required = true
+secret = true
+description = "Secret key for session encryption (must be 32+ characters)"
+scope = "backend"
+
+[session.TTL]
+type = "int"
+required = false
+secret = false
+default = 3600
+description = "Session time-to-live in seconds (default: 1 hour)"
+scope = "backend"
+
+[session.REDIS_URL]
+type = "string"
+required = false
+secret = true
+default = "redis://localhost:6379/0"
+description = "Redis connection URL for session storage (production only)"
+scope = "backend"
+
+# ============================================================================
+# Feature Deprecation (FR-004-tenant-security-refactor)
+# ============================================================================
+
+[deprecation.TENANT_QUERY_PARAM_SUNSET]
+type = "string"
+required = false
+secret = false
+default = "2025-11-19"
+description = "Sunset date for tenant_id query parameter support (ISO 8601 format)"
+scope = "backend"
+
+# ============================================================================
 # Future Phases (Planned)
 # ============================================================================
 

@@ -14,7 +14,7 @@ import tomli
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
-from src.domain.config.loader import AppConfig, ConfigEntry, ConfigValidationError
+from domain.config.loader import AppConfig, ConfigEntry, ConfigValidationError
 
 
 def parse_descriptor(descriptor_path: str | Path = "config/descriptor.toml") -> Dict[str, Tuple[Any, bool]]:

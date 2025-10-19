@@ -1,14 +1,15 @@
 from __future__ import annotations
 
 from typing import Any, Optional
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, Request
 from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt, JWTError
+import redis.asyncio as redis
 
 from auth_core.hashers import default_hasher
-from adapters.api.deps import get_audit_service, get_db_session
+from adapters.api.deps import get_audit_service, get_db_session, get_redis_client
 from domain.users.models import UserStatus
 from adapters.api.deps import get_user_repo, get_auth_service, get_jwt_service
 from adapters.persistence.repositories import SQLAlchemyUserRepository
@@ -156,21 +157,26 @@ async def login(
 
 @router.post("/revoke", status_code=200)
 async def revoke(
+    request: Request,
     authorization: str = Header(..., description="Bearer token to revoke"),
     session: AsyncSession = Depends(get_db_session),
     jwt_service: Any = Depends(_JWTDep),
-    audit: Any = Depends(get_audit_service)
+    audit: Any = Depends(get_audit_service),
+    redis_client: redis.Redis = Depends(get_redis_client)
 ) -> dict[str, str]:
     """Revoke authentication token (FR-033).
     
     Implements token replay detection by storing JWT ID (jti) in database.
+    Clears any active Redis session for the user (tenant switching state).
     Subsequent use of the same token will be rejected by the authentication middleware.
     
     Args:
+        request: FastAPI request (for session cookie access)
         authorization: Bearer token in format "Bearer <token>"
         session: Database session for replay store
         jwt_service: JWT service for token validation
         audit: Audit service for logging revocation event
+        redis_client: Redis client for session clearing
     
     Returns:
         Success status with revoked jti
@@ -233,6 +239,16 @@ async def revoke(
         
         # Commit the transaction
         await session.commit()
+        
+        # Clear Redis session if exists (tenant switching state)
+        try:
+            session_id = request.cookies.get("session_id")
+            if session_id:
+                redis_key = f"session:{session_id}:tenant_context"
+                await redis_client.delete(redis_key)
+        except Exception:
+            # Don't fail revocation if Redis session clearing fails
+            pass
         
         # Emit audit event for logout
         try:

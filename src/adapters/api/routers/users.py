@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query
+from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request, status
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
-from typing import List, Optional
+from typing import List, Optional, Annotated
 from uuid import uuid4
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,6 +14,7 @@ from adapters.api.auth_deps import CurrentUser
 from adapters.persistence.repositories import SQLAlchemyUserRepository, SQLAlchemyTenantRepository
 from auth_core.hashers import default_hasher
 from services.csv_import_service import CSVImportService
+from domain.tenants.tenant_context import TenantContext
 
 
 def validate_password_strength(password: str) -> None:
@@ -659,3 +660,112 @@ async def import_users_csv(
         )
     
     return result
+
+
+@router.get(
+    "/me",
+    response_model=UserResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get current user profile",
+    description="""
+    Retrieves the authenticated user's profile (SELF-SERVICE route).
+    
+    **Authorization**: Any authenticated user
+    **Tenant Context**: Automatically scoped to user's tenant from JWT
+    
+    **Implementation Note**: Uses effective_tenant_id from tenant_context
+    to handle superadmin session switching. When a superadmin switches tenants,
+    this endpoint will return their profile scoped to the session tenant.
+    
+    **Migration Note**: Part of FR-004 tenant security refactor.
+    Tenant ID extracted from JWT (not query parameter).
+    """,
+)
+async def get_current_user(
+    session: Annotated[AsyncSession, Depends(get_db_session)],
+    current_user: Annotated[CurrentUser, Depends()],
+    request: Request,
+) -> UserResponse:
+    """
+    Get current user profile (self-service).
+    
+    Args:
+        session: Database session
+        current_user: Authenticated user from JWT
+        request: FastAPI request (for tenant context)
+    
+    Returns:
+        UserResponse with current user details
+    
+    Raises:
+        HTTPException 404: If user not found (should not happen with valid JWT)
+        HTTPException 500: If tenant context missing or database error
+    """
+    # Extract tenant context from request state (injected by middleware)
+    if not hasattr(request.state, "tenant_context"):
+        # Fallback: Use JWT tenant_id if middleware not wired yet
+        effective_tenant_id = current_user.tenant_id
+    else:
+        tenant_context: TenantContext = request.state.tenant_context
+        # Use effective_tenant_id (handles superadmin session switching)
+        effective_tenant_id = tenant_context.effective_tenant_id
+    
+    # Query user by user_id and effective tenant_id
+    user_repo = SQLAlchemyUserRepository(session)
+    
+    try:
+        # Get user from database
+        from adapters.persistence.models import UserModel, UserRoleModel
+        from sqlalchemy import select
+        
+        query = select(UserModel).where(
+            UserModel.user_id == current_user.user_id,
+            UserModel.tenant_id == effective_tenant_id
+        )
+        result = await session.execute(query)
+        user_model = result.scalar_one_or_none()
+        
+        if not user_model:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": {
+                        "code": "NOT_FOUND",
+                        "message": f"User '{current_user.user_id}' not found in tenant '{effective_tenant_id}'",
+                    },
+                    "trace_id": request.headers.get("X-Correlation-ID", "unknown"),
+                },
+            )
+        
+        # Fetch user roles
+        roles_query = select(UserRoleModel.role_id).where(
+            UserRoleModel.user_id == user_model.user_id
+        )
+        roles_result = await session.execute(roles_query)
+        roles = [row[0] for row in roles_result.fetchall()]
+        
+        # Return user response
+        return UserResponse(
+            user_id=str(user_model.user_id),
+            tenant_id=str(user_model.tenant_id),
+            email=user_model.email,
+            status=UserStatus(user_model.status.value) if hasattr(user_model.status, 'value') else UserStatus(user_model.status),
+            roles=roles,
+            created_at=user_model.created_at,
+            updated_at=user_model.updated_at,
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "DATABASE_ERROR",
+                    "message": f"Failed to query user: {str(e)}",
+                },
+                "trace_id": request.headers.get("X-Correlation-ID", "unknown"),
+            },
+        )
+

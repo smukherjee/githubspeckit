@@ -2,8 +2,8 @@ import pytest
 
 # TEST-OBS-12: Audit event emission for security-sensitive actions (FR-005)
 
-@pytest.mark.skip(reason="Needs async refactoring - InvitationService.accept is async")
-def test_audit_event_emission_for_invite_and_user_actions():
+@pytest.mark.asyncio
+async def test_audit_event_emission_for_invite_and_user_actions():
     from services.audit_service import AuditService
     from services.invitations_service import InvitationService
     from services.user_lifecycle_service import UserLifecycleService
@@ -19,7 +19,7 @@ def test_audit_event_emission_for_invite_and_user_actions():
     inv = Invitation(invitation_id="inv-1", tenant_id="t-1", email="x@example.com", expires_at=expires)
     repo.upsert(inv)
     svc = InvitationService(repo=repo, audit_service=audit)
-    svc.accept("inv-1", actor="tester")
+    await svc.accept("inv-1", actor="tester")  # Convert to await
     events = audit.query()
     assert any(e["action"] == "invitation.accept" and e["target"]["invitation_id"] == "inv-1" for e in events)
 

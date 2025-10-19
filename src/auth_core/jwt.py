@@ -136,13 +136,21 @@ class JWTService:
         if not kid:
             raise ValueError("missing kid header")
         secret = self.keys.get_secret(kid, now=now)
+        # CRITICAL: Explicitly enable all JWT verification options
+        # Without verify_signature=True, python-jose may skip signature validation!
+        # See: CWE-347 (Improper Verification of Cryptographic Signature)
         claims = jwt.decode(
             token,
             secret,
             algorithms=[ALGORITHM],
             audience=audience or self.audience,
             issuer=self.issuer,
-            options={"verify_aud": True},
+            options={
+                "verify_signature": True,  # CRITICAL: Must verify JWT signature
+                "verify_aud": True,        # Verify audience claim
+                "verify_exp": True,        # Verify expiration claim
+                "verify_iss": True,        # Verify issuer claim
+            },
         )
         # Prune any expired retired keys opportunistically
         self.keys.prune(now=now)

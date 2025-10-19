@@ -13,6 +13,7 @@ DB_URL_SQLITE ?= sqlite+aiosqlite:///./dev.db
 .PHONY: venv compile-requirements sync install dev test run api up migrate health env-show clean reset deps-check openapi-bundle openapi-validate openapi-html openapi-serve
 .PHONY: db-create db-drop db-reset db-migrate db-seed db-verify server-start server-stop server-restart bootstrap
 .PHONY: security-scan security-baseline security-api security-full security-all
+.PHONY: redis-start redis-stop redis-restart redis-cli redis-status redis-flush
 
 venv:
 	python3 -m venv .venv
@@ -100,6 +101,46 @@ server-stop:
 
 # Restart API server
 server-restart: server-stop server-start
+
+# --- Redis Management ---
+
+# Start Redis server in background
+redis-start:
+	@echo "Starting Redis server..."
+	@if lsof -ti:6379 >/dev/null 2>&1; then \
+		echo "ℹ️  Redis already running on port 6379"; \
+	else \
+		redis-server --daemonize yes --port 6379 --dir /tmp --logfile /tmp/redis-server.log && \
+		sleep 1 && \
+		lsof -ti:6379 >/dev/null && echo "✅ Redis server started on port 6379" || echo "❌ Redis failed to start (check /tmp/redis-server.log)"; \
+	fi
+
+# Stop Redis server
+redis-stop:
+	@echo "Stopping Redis server..."
+	@redis-cli shutdown 2>/dev/null && echo "✅ Redis server stopped" || echo "ℹ️  No Redis server running"
+
+# Restart Redis server
+redis-restart: redis-stop redis-start
+
+# Open Redis CLI
+redis-cli:
+	@redis-cli
+
+# Check Redis server status
+redis-status:
+	@echo "Redis server status:"
+	@if redis-cli ping 2>/dev/null | grep -q PONG; then \
+		echo "✅ Redis is running"; \
+		redis-cli info server | grep -E "redis_version|uptime_in_seconds|tcp_port"; \
+	else \
+		echo "❌ Redis is not running"; \
+	fi
+
+# Flush all Redis data (DESTRUCTIVE - DEV ONLY)
+redis-flush:
+	@echo "⚠️  Flushing all Redis data..."
+	@redis-cli FLUSHALL && echo "✅ All Redis data flushed" || echo "❌ Failed to flush Redis data"
 
 # --- Legacy/Compatibility Targets ---
 

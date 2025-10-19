@@ -6,9 +6,11 @@ Uses SQLAlchemy async repositories with proper session lifecycle management.
 from functools import lru_cache
 from typing import AsyncGenerator, Optional
 from datetime import datetime
+import os
 
 from fastapi import Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+import redis.asyncio as redis
 
 from adapters.persistence.db_config import DatabaseConfig
 from adapters.persistence.repositories import (
@@ -62,6 +64,7 @@ class AuditService:
 
 _db_config: DatabaseConfig | None = None
 _session_maker: async_sessionmaker[AsyncSession] | None = None
+_redis_client: redis.Redis | None = None
 
 
 def get_db_config() -> DatabaseConfig:
@@ -70,6 +73,39 @@ def get_db_config() -> DatabaseConfig:
     if _db_config is None:
         _db_config = DatabaseConfig.from_env()
     return _db_config
+
+
+@lru_cache
+def get_redis_client() -> redis.Redis:
+    """
+    Get Redis client singleton for session management.
+    
+    Reads configuration from environment:
+    - REDIS_HOST: Redis server hostname (default: localhost)
+    - REDIS_PORT: Redis server port (default: 6379)
+    - REDIS_DB: Redis database number (default: 0)
+    - REDIS_PASSWORD: Redis password (default: None)
+    
+    Returns:
+        Async Redis client instance
+    """
+    global _redis_client
+    if _redis_client is None:
+        host = os.getenv("REDIS_HOST", "localhost")
+        port = int(os.getenv("REDIS_PORT", "6379"))
+        db = int(os.getenv("REDIS_DB", "0"))
+        password = os.getenv("REDIS_PASSWORD", None)
+        
+        _redis_client = redis.Redis(
+            host=host,
+            port=port,
+            db=db,
+            password=password,
+            decode_responses=True,  # Return strings instead of bytes
+            socket_connect_timeout=5,
+            socket_timeout=5,
+        )
+    return _redis_client
 
 
 def get_session_maker() -> async_sessionmaker[AsyncSession]:

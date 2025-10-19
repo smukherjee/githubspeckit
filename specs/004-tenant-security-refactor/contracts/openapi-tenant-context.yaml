@@ -1,0 +1,307 @@
+openapi: 3.1.0
+info:
+  title: Tenant Context Security API
+  description: |
+    Secure multi-tenant API with JWT-based tenant context extraction.
+    
+    **Breaking Changes**:
+    - Query parameter `?tenant_id=` deprecated (sunset: 2025-11-19)
+    - New route organization: PUBLIC, ADMIN, TENANT-SCOPED, SELF-SERVICE, DOMAIN
+    
+    **Authentication**: All endpoints require JWT Bearer token (except /auth/*)
+    
+    **Tenant Context**: Extracted from JWT `tenant_id` claim (not user-controlled)
+  version: 1.0.0
+  contact:
+    name: Backend Team
+    email: backend@githubspeckit.com
+
+servers:
+  - url: https://api.githubspeckit.com/api/v1
+    description: Production
+  - url: http://localhost:8000/api/v1
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT access token with tenant_id claim
+  
+  schemas:
+    TenantSwitchRequest:
+      type: object
+      required:
+        - tenant_id
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+          description: Target tenant ID to switch to (superadmin only)
+          example: "123e4567-e89b-12d3-a456-426614174000"
+    
+    TenantSwitchResponse:
+      type: object
+      required:
+        - active_tenant_id
+        - tenant_name
+        - switched_at
+      properties:
+        active_tenant_id:
+          type: string
+          format: uuid
+          description: Currently active tenant ID
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        tenant_name:
+          type: string
+          description: Human-readable tenant name
+          example: "Acme Corp"
+        switched_at:
+          type: string
+          format: date-time
+          description: Timestamp of tenant switch
+          example: "2025-10-19T12:34:56Z"
+    
+    Error:
+      type: object
+      required:
+        - error
+        - trace_id
+      properties:
+        error:
+          type: object
+          required:
+            - code
+            - message
+          properties:
+            code:
+              type: string
+              enum: [FORBIDDEN, UNAUTHORIZED, BAD_REQUEST, NOT_FOUND, DEPRECATED_PARAMETER]
+              example: "FORBIDDEN"
+            message:
+              type: string
+              example: "Access denied: Cannot access resources in tenant 'other-tenant-uuid'"
+            details:
+              type: object
+              additionalProperties: true
+              example:
+                user_tenant_id: "user-tenant-uuid"
+                requested_tenant_id: "other-tenant-uuid"
+                required_role: "superadmin"
+            docs_url:
+              type: string
+              format: uri
+              example: "https://docs.githubspeckit.com/errors/tenant-isolation"
+        trace_id:
+          type: string
+          description: Request correlation ID for debugging
+          example: "req-123e4567"
+
+paths:
+  /admin/context/tenant:
+    post:
+      summary: Switch active tenant context (superadmin only)
+      description: |
+        Allows superadmin to switch active tenant for current session.
+        Subsequent requests will use session tenant_id instead of JWT tenant_id.
+        
+        **Authorization**: Requires superadmin role
+        **Session**: Persists until logout or session expiration
+      operationId: switchTenantContext
+      tags:
+        - Admin - Context Management
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantSwitchRequest'
+      responses:
+        '200':
+          description: Tenant context switched successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantSwitchResponse'
+        '403':
+          description: Forbidden - Not superadmin or insufficient permissions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: "FORBIDDEN"
+                  message: "Superadmin role required for tenant switching"
+                  details:
+                    user_roles: ["tenant_admin", "user"]
+                    required_role: "superadmin"
+                trace_id: "req-123e4567"
+        '404':
+          description: Target tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: "NOT_FOUND"
+                  message: "Tenant '123e4567-e89b-12d3-a456-426614174000' not found"
+                trace_id: "req-123e4567"
+  
+  /tenants/{tenant_id}/users:
+    get:
+      summary: List users in specific tenant (TENANT-SCOPED route)
+      description: |
+        Retrieves all users belonging to the specified tenant.
+        
+        **Authorization**:
+        - Superadmin: Can access any tenant
+        - Tenant Admin: Can access own tenant only (tenant_id == JWT tenant_id)
+        - Other roles: 403 Forbidden
+        
+        **Migration Note**: Replaces deprecated `GET /users?tenant_id={id}`
+      operationId: listTenantUsers
+      tags:
+        - Tenant-Scoped - Users
+      parameters:
+        - name: tenant_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Tenant identifier (validated against JWT or superadmin role)
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+          description: Page number for pagination
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 25
+            minimum: 1
+            maximum: 100
+          description: Items per page
+      responses:
+        '200':
+          description: List of users in tenant
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  users:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        tenant_id:
+                          type: string
+                          format: uuid
+                        email:
+                          type: string
+                          format: email
+                        full_name:
+                          type: string
+                        roles:
+                          type: array
+                          items:
+                            type: string
+                  pagination:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                      per_page:
+                        type: integer
+                      total:
+                        type: integer
+        '403':
+          description: Forbidden - User cannot access this tenant
+          headers:
+            X-Tenant-Isolation-Policy:
+              schema:
+                type: string
+              description: Policy rule that denied access
+              example: "cross_tenant_isolation"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error:
+                  code: "FORBIDDEN"
+                  message: "Access denied: Cannot access resources in tenant 'other-tenant-uuid'"
+                  details:
+                    user_tenant_id: "user-tenant-uuid"
+                    requested_tenant_id: "other-tenant-uuid"
+                    policy_rule: "cross_tenant_isolation"
+                trace_id: "req-123e4567"
+  
+  /users/me:
+    get:
+      summary: Get current user profile (SELF-SERVICE route)
+      description: |
+        Retrieves the authenticated user's profile.
+        Uses JWT tenant_id (implicit tenant scoping).
+        
+        **Authorization**: Any authenticated user
+        **Tenant Context**: Automatically scoped to user's tenant
+      operationId: getCurrentUser
+      tags:
+        - Self-Service - Profile
+      responses:
+        '200':
+          description: Current user profile
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  tenant_id:
+                    type: string
+                    format: uuid
+                    description: User's tenant (from JWT)
+                  email:
+                    type: string
+                    format: email
+                  full_name:
+                    type: string
+                  roles:
+                    type: array
+                    items:
+                      type: string
+                  created_at:
+                    type: string
+                    format: date-time
+        '401':
+          description: Unauthorized - Invalid or missing JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+tags:
+  - name: Admin - Context Management
+    description: Superadmin tenant switching and platform operations
+  - name: Tenant-Scoped - Users
+    description: User management scoped to specific tenant (path parameter)
+  - name: Self-Service - Profile
+    description: Current user operations (implicit tenant scoping)

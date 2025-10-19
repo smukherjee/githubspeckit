@@ -54,14 +54,32 @@ def test_error_envelope_handler():
     app = create_app()
     r = APIRouter()
 
-    @r.get("/boom")
+    @r.get("/api/v1/test/boom")  # Use /api/v1 prefix to be consistent
     async def boom():  # pragma: no cover - simple raise
         raise RuntimeError("secret internal message")
 
     app.include_router(r)
     client = TestClient(app, raise_server_exceptions=False)
+    
+    # Create a valid JWT for testing
+    from adapters.api.deps import get_jwt_service
+    from uuid import uuid4
+    
+    jwt_svc = get_jwt_service()
+    token = jwt_svc.issue(
+        sub=str(uuid4()),
+        tenant_id=str(uuid4()),
+        roles=["user"],
+        extra={}
+    )
 
-    resp = client.get("/boom", headers={"X-Correlation-ID": "cid-1"})
+    resp = client.get(
+        "/api/v1/test/boom",
+        headers={
+            "X-Correlation-ID": "cid-1",
+            "Authorization": f"Bearer {token}"
+        }
+    )
     # Unified exception handler should convert to 500
     assert resp.status_code == 500
     body = resp.json()

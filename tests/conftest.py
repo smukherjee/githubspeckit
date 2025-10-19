@@ -176,6 +176,20 @@ async def client(seeded_database) -> AsyncGenerator[AsyncClient, None]:
 
 
 @pytest_asyncio.fixture
+async def db_session(db_engine) -> AsyncGenerator[AsyncSession, None]:
+    """Provide a database session for tests."""
+    async_session_maker = async_sessionmaker(
+        bind=db_engine,
+        class_=AsyncSession,
+        expire_on_commit=False
+    )
+    
+    async with async_session_maker() as session:
+        yield session
+        await session.rollback()  # Rollback any changes made during tests
+
+
+@pytest_asyncio.fixture
 async def auth_headers(client: AsyncClient) -> dict:
     """Provide superadmin authentication headers."""
     response = await client.post(
@@ -206,7 +220,7 @@ async def regular_user_headers(client: AsyncClient) -> dict:
             "password": "infysightuser123"
         }
     )
-    assert response.status_code == 200
+    assert response.status_code == 200, f"Login failed: {response.text}"
     data = response.json()
     return {"Authorization": f"Bearer {data['access_token']}"}
 
@@ -228,6 +242,21 @@ async def tenant_admin_headers(client: AsyncClient) -> dict:
         }
     )
     assert response.status_code == 200
+    data = response.json()
+    return {"Authorization": f"Bearer {data['access_token']}"}
+
+
+@pytest_asyncio.fixture
+async def superadmin_headers(client: AsyncClient) -> dict:
+    """Provide superadmin authentication headers."""
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": "infysightsa@infysight.com",
+            "password": "infysightsa123"
+        }
+    )
+    assert response.status_code == 200, f"Superadmin login failed: {response.text}"
     data = response.json()
     return {"Authorization": f"Bearer {data['access_token']}"}
 

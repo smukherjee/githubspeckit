@@ -23,18 +23,26 @@ from adapters.api.routers import users as users_router
 from adapters.api.routers import auth as auth_router
 from adapters.api.routers import embed as embed_router
 from adapters.api.routers import audit as audit_router
-from adapters.api.routers import tenants as tenants_router
+from adapters.api.routers import tenants as tenants_crud_router  # Legacy tenant CRUD (CREATE/LIST)
+from adapters.api.routers.tenants import router as tenants_scoped_router  # New tenant-scoped routes
 from adapters.api.routers import policies as policies_router
 from adapters.api.routers import feature_flags as feature_flags_router
 from adapters.api.routers import profile as profile_router
 from adapters.api.routers import roles as roles_router
+from adapters.api.routers import admin as admin_router
 from adapters.api.deprecation import DeprecationMiddleware
 from adapters.api.security_headers import SecurityHeadersMiddleware
 from adapters.observability.metrics import SimpleMetricsRegistry
 from adapters.observability.prometheus_client_adapter import PromClientAdapter
 from adapters.logging.middleware import StructuredLoggingMiddleware, InMemoryStructuredLogSink
 from services.log_export_service import LogExportService
-from adapters.api.middleware import CorrelationMiddleware
+# Import tenant security middleware (Phase 3.3 - T034)
+from adapters.api.middleware.tenant_context import TenantContextMiddleware
+from adapters.api.middleware.authorization import AuthorizationMiddleware
+from adapters.api.middleware.session import SessionMiddleware
+from adapters.api.middleware.deprecation_warning import DeprecationWarningMiddleware
+# Import correlation middleware from renamed file (was middleware.py, now correlation_middleware.py)
+from adapters.api.correlation_middleware import CorrelationMiddleware
 from adapters.api.actor_middleware import ActorTrackingMiddleware
 from observability.tracing import init_tracing
 from fastapi import Request
@@ -127,10 +135,42 @@ def create_app() -> FastAPI:
     # Attach structured logging middleware (TEST-OBS-01) with in-memory sink for tests
     sink = InMemoryStructuredLogSink()
     app.state.log_sink = sink
-    app.add_middleware(ActorTrackingMiddleware)  # Extract user_id for audit logging
+    
+    # Middleware stack order (Phase 3.3 - T034):
+    # 1. Actor tracking (extract user_id for audit logging)
+    # 2. Correlation ID (request tracing)
+    # 3. Structured logging (log all requests)
+    # 4. Session management (read Redis session if present)
+    # 5. Tenant context extraction (parse JWT → TenantContext)
+    # 6. Authorization enforcement (evaluate policies)
+    # 7. Deprecation warnings (check for deprecated query params)
+    # 8. Legacy deprecation (feature-flags endpoint)
+    
+    app.add_middleware(ActorTrackingMiddleware)
     app.add_middleware(CorrelationMiddleware)
     app.add_middleware(StructuredLoggingMiddleware, sink=sink)
-    app.add_middleware(DeprecationMiddleware)
+    
+    # NEW: Tenant security middleware (FR-004)
+    # NOTE: Middleware runs in LIFO order (last added runs first)
+    # Order of execution: Session → TenantContext → Authorization
+    
+    # Get Redis client from dependency injection
+    from adapters.api.deps import get_redis_client
+    redis_client = get_redis_client()
+    
+    app.add_middleware(SessionMiddleware, redis_client=redis_client)
+    app.add_middleware(AuthorizationMiddleware)  # Runs SECOND (enforces policies)
+    app.add_middleware(TenantContextMiddleware)  # Runs FIRST (extracts context)
+    
+    # Load sunset date from config
+    try:
+        sunset_date = os.getenv("TENANT_QUERY_PARAM_SUNSET", "2025-11-19")
+        app.add_middleware(DeprecationWarningMiddleware, sunset_date=sunset_date)
+    except Exception:
+        # Fallback to default if config unavailable
+        app.add_middleware(DeprecationWarningMiddleware)
+    
+    app.add_middleware(DeprecationMiddleware)  # Legacy feature-flags deprecation
     
     
     # Lightweight span capture middleware (placeholder instrumentation)
@@ -208,9 +248,11 @@ def create_app() -> FastAPI:
     app.include_router(feature_flags_router.router, prefix="/api")
     app.include_router(embed_router.router, prefix="/api")
     app.include_router(audit_router.router, prefix="/api")
-    app.include_router(tenants_router.router, prefix="/api")
+    app.include_router(tenants_crud_router.router, prefix="/api")  # Legacy tenant CRUD routes
     app.include_router(profile_router.router, prefix="/api")  # User profile details
     app.include_router(roles_router.router, prefix="/api")  # Role hierarchy (FR-089)
+    app.include_router(admin_router.router, prefix="/api/v1")  # Admin routes (FR-004 tenant security)
+    app.include_router(tenants_scoped_router, prefix="/api/v1")  # Tenant-scoped routes (FR-004)
 
     # Mount static files for serving profile photos
     photos_dir = Path("data/photos")

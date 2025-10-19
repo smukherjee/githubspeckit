@@ -15,34 +15,31 @@ keywords = ["fastapi", "multi-tenant", "rbac", "observability", "argon2", "opent
 # Core runtime dependencies (minimal pins with upper bounds for forward safety)
 # Pins are intentionally ranged; a fully pinned requirements.txt will be generated via `uv export`.
 dependencies = [
-  "fastapi>=0.111,<0.200",
-  "uvicorn[standard]>=0.30,<0.40",
-  "pydantic>=2.6,<3",
-  "sqlalchemy>=2.0,<3",
-  "greenlet>=3.0,<4",  # Required for SQLAlchemy async operations
-  "asyncpg>=0.30,<1",  # PostgreSQL async driver for SQLAlchemy
-  "aiosqlite>=0.20.0,<1",  # SQLite async driver for SQLAlchemy (constitution: local dev/tests)
-  "alembic>=1.13,<2",
-  "argon2-cffi>=25.1,<26",
-  "python-jose[cryptography]>=3.3.0,<4",
-  "opentelemetry-api>=1.25,<2",
-  "opentelemetry-sdk>=1.25,<2",
-  # Updated to latest beta (0.58b0) as of 2025-10-02; upper bound to next minor to avoid unexpected breaking changes
-  "opentelemetry-instrumentation-fastapi>=0.58b0,<0.59",
-  "opentelemetry-instrumentation-sqlalchemy>=0.58b0,<0.59",
-  "opentelemetry-exporter-otlp>=1.25,<2",
-  "httpx>=0.28.1,<0.29",
-  "prometheus-client>=0.23.1",
-  "email-validator>=2.0,<3",
-  "pytest>=8.2,<9",
-  "tomli>=2.2,<3",  # TOML parsing for config descriptor
-  "Pillow>=11.0.0,<12",  # Image processing for profile photos
-  "python-magic>=0.4.27,<1",  # File type detection for uploads
-  "python-multipart>=0.0.20,<0.1",  # Multipart form parsing for file uploads
-  ]
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "sqlalchemy>=2.0.0",
+    "alembic>=1.12.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[argon2]>=1.7.4",
+    "python-multipart>=0.0.6",
+    "aiosqlite>=0.19.0",
+    "httpx>=0.25.0",
+    "psycopg[binary]>=3.1.0",
+    "asyncpg>=0.29.0",
+    "tenacity>=8.2.0",
+    "opentelemetry-api>=1.21.0",
+    "opentelemetry-sdk>=1.21.0",
+    "opentelemetry-instrumentation-fastapi==0.58b0",
+    "opentelemetry-instrumentation-sqlalchemy==0.58b0",
+    "pillow>=11.0.0",
+    "python-magic>=0.4.27",
+    "argon2-cffi>=23.1.0",
+    "redis>=6.4.0",
+]
 
 [project.optional-dependencies]
-redis = ["redis>=5.0,<6"]
 email = ["aiosmtplib>=2.0,<3"]
 # Future extras (e.g., search, messaging) can be appended here.
 

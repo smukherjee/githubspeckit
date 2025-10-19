@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Depends, Response
+from fastapi import APIRouter, HTTPException, Depends, Response, Request
 from pydantic import BaseModel, ConfigDict
 from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from adapters.api.deps import get_db_session, get_audit_service, AuditService
 from adapters.api.auth_deps import CurrentUser
 from adapters.persistence.repositories import SQLAlchemyPolicyRepository
+from domain.tenants.tenant_context import TenantContext
 from domain.policy.models import Policy, PolicyRule, PolicyStatus, Decision
 
 router = APIRouter(prefix="/v1/policies", tags=["policies"])
@@ -150,18 +151,53 @@ async def register_policy(
     return pol
 
 
+def get_tenant_context(request: Request) -> TenantContext:
+    """
+    Extract tenant context from request state.
+    
+    Injected by TenantContextMiddleware in Phase 3.3.
+    
+    Args:
+        request: FastAPI request object
+    
+    Returns:
+        TenantContext from request.state
+    
+    Raises:
+        HTTPException: 500 if tenant context not found (middleware not wired)
+    """
+    if not hasattr(request.state, "tenant_context"):
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": {
+                    "code": "TENANT_CONTEXT_MISSING",
+                    "message": "Tenant context not initialized (middleware not wired)",
+                }
+            },
+        )
+    return request.state.tenant_context
+
+
 @router.get("", response_model=list[PolicyResponse])
 async def list_policies(
     response: Response,
+    request: Request,
     current_user: CurrentUser,
     session: AsyncSession = Depends(get_db_session),
-    tenant_id: str | None = None,
+    tenant_context: TenantContext = Depends(get_tenant_context),
     include_deleted: bool = False
 ) -> list[PolicyResponse]:
-    """List policies with tenant isolation (FR-085/FR-087: supports include_deleted).
+    """List policies with tenant isolation (FR-085/FR-087, FR-004 tenant security refactor).
+    
+    **Tenant Context**: Uses effective_tenant_id from JWT (or session for superadmin)
+    **Authorization**: Middleware enforces tenant isolation
+    
+    **Migration Note**: Query parameter `?tenant_id=` is deprecated (FR-004).
+    Use superadmin session switching (POST /admin/context/tenant) for cross-tenant access.
     
     RBAC enforcement:
-    - Superadmin: Can list policies for any tenant via tenant_id parameter
+    - Superadmin: Can list policies for any tenant (via session switching)
     - Tenant admin: Can only list policies for their own tenant
     - Regular users: Denied access
     """
@@ -169,18 +205,8 @@ async def list_policies(
     if "superadmin" not in current_user.roles and "tenant_admin" not in current_user.roles:
         raise HTTPException(status_code=403, detail="Insufficient permissions to list policies")
     
-    # Determine target tenant_id with isolation
-    if "superadmin" in current_user.roles:
-        # Superadmin can specify tenant_id or get all (for now, require tenant_id)
-        if not tenant_id:
-            raise HTTPException(status_code=400, detail="tenant_id required for superadmin")
-        target_tenant_id = tenant_id
-    else:
-        # Tenant admin can only access their own tenant
-        # Reject if they try to access a different tenant
-        if tenant_id and tenant_id != current_user.tenant_id:
-            raise HTTPException(status_code=403, detail="Cannot access policies from other tenants")
-        target_tenant_id = current_user.tenant_id
+    # Use effective_tenant_id from tenant context (handles superadmin session switching)
+    target_tenant_id = str(tenant_context.effective_tenant_id)
     
     # Fetch from repository
     repo = SQLAlchemyPolicyRepository(session)
