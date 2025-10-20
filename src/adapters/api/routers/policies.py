@@ -189,11 +189,10 @@ async def list_policies(
 ) -> list[PolicyResponse]:
     """List policies with tenant isolation (FR-085/FR-087, FR-004 tenant security refactor).
     
-    **Tenant Context**: Uses effective_tenant_id from JWT (or session for superadmin)
-    **Authorization**: Middleware enforces tenant isolation
+    **V1.0 Behavior**: Tenant context extracted from JWT (or session for superadmin).
+    Cross-tenant access requires superadmin session switching (POST /admin/context/tenant).
     
-    **Migration Note**: Query parameter `?tenant_id=` is deprecated (FR-004).
-    Use superadmin session switching (POST /admin/context/tenant) for cross-tenant access.
+    **Authorization**: Middleware enforces tenant isolation
     
     RBAC enforcement:
     - Superadmin: Can list policies for any tenant (via session switching)

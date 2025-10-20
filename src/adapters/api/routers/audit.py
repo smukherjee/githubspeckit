@@ -53,11 +53,10 @@ async def list_events(
 ) -> dict:
     """List audit events with filtering (FR-027, FR-004 tenant security refactor).
     
-    **Tenant Context**: Uses effective_tenant_id from JWT (or session for superadmin)
-    **Authorization**: Middleware enforces tenant isolation
+    **V1.0 Behavior**: Tenant context extracted from JWT (or session for superadmin).
+    Cross-tenant access requires superadmin session switching (POST /admin/context/tenant).
     
-    **Migration Note**: Query parameter `?tenant_id=` is deprecated (FR-004).
-    Use superadmin session switching (POST /admin/context/tenant) for cross-tenant access.
+    **Authorization**: Middleware enforces tenant isolation
     
     Supports filtering by action, since, until timestamps.
     Filters are applied in SQL for efficiency.

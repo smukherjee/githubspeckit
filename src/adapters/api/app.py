@@ -141,8 +141,6 @@ def create_app() -> FastAPI:
     # 4. Session management (read Redis session if present)
     # 5. Tenant context extraction (parse JWT → TenantContext)
     # 6. Authorization enforcement (evaluate policies)
-    # 7. Deprecation warnings (check for deprecated query params)
-    # 8. Legacy deprecation (feature-flags endpoint)
     
     app.add_middleware(ActorTrackingMiddleware)
     app.add_middleware(CorrelationMiddleware)

@@ -41,7 +41,7 @@ Remove all backward compatibility code, unify admin routes under `/api/v1/admin/
 - [x] T013 [P] Remove Sunset header logic from response middleware in `src/adapters/api/middleware/` (if exists, search for `Sunset` or `X-API-Deprecation` header setting) - NOT FOUND, already clean
 - [x] T014 [P] Remove backward compatibility branches in `src/adapters/storage/` or `src/adapters/media/` (search for `# Backward compat` or `if legacy_mode` patterns) - NOT FOUND, already clean
 - [x] T015 [P] Delete all legacy test files matching pattern `tests/**/test_deprecated_*.py` and `tests/**/test_legacy_*.py` - NOT FOUND, already clean
-- [ ] T016 Run grep audit for "deprecated" comments: `grep -r "deprecated" src/ tests/ --exclude-dir=__pycache__` and remove stale comments or code blocks
+- [x] T016 Run grep audit for "deprecated" comments: `grep -r "deprecated" src/ tests/ --exclude-dir=__pycache__` and remove stale comments or code blocks
 
 ---
 

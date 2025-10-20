@@ -94,7 +94,7 @@ def get_tenant_context(request: Request) -> TenantContext:
     - Tenant Admin: Can access own tenant only (tenant_id == JWT tenant_id)
     - Other roles: 403 Forbidden
     
-    **Migration Note**: Replaces deprecated `GET /users?tenant_id={id}`
+    **V1.0 API**: Tenant-scoped user listing via path parameter.
     
     **Tenant Context**: The tenant_id in the path is validated by AuthorizationMiddleware
     against the JWT tenant_id. Cross-tenant access is denied unless user is superadmin.
