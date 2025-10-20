@@ -21,13 +21,13 @@ Remove all backward compatibility code, unify admin routes under `/api/v1/admin/
 
 ## Pre-Phase 0: Database Audit & Tooling Setup (Day 1)
 
-- [ ] T001 Create database audit orchestration script `scripts/db_audit.sh` to execute orphan tables, missing indexes, and sensitive column checks
-- [ ] T002 [P] Implement orphaned tables detector `scripts/detect_orphaned_tables.py` using SQLAlchemy reflection to find tables not in ORM models
-- [ ] T003 [P] Implement missing indexes analyzer `scripts/analyze_missing_indexes.py` scanning for columns without indexes in WHERE/JOIN clauses (via query logs or static analysis)
-- [ ] T004 [P] Implement sensitive column checker `scripts/check_sensitive_columns.py` detecting unencrypted PII columns (email, phone, SSN patterns)
-- [ ] T005 Add GitHub Actions workflow `.github/workflows/db-audit.yml` with cron schedule (Monday 9 AM UTC) running db_audit.sh and posting results as workflow artifact
-- [ ] T006 Download SchemaSpy JAR file `tools/schemaspy.jar` (v6.2.4+) and create wrapper script `scripts/generate_erd.sh` with PostgreSQL JDBC driver configuration
-- [ ] T007 [P] Create SQLFluff configuration `.sqlfluff` with PostgreSQL dialect, line length 100, and pre-commit hook integration in `.pre-commit-config.yaml`
+- [x] T001 Create database audit orchestration script `scripts/db_audit.sh` to execute orphan tables, missing indexes, and sensitive column checks
+- [x] T002 [P] Implement orphaned tables detector `scripts/detect_orphaned_tables.py` using SQLAlchemy reflection to find tables not in ORM models
+- [x] T003 [P] Implement missing indexes analyzer `scripts/analyze_missing_indexes.py` scanning for columns without indexes in WHERE/JOIN clauses (via query logs or static analysis)
+- [x] T004 [P] Implement sensitive column checker `scripts/check_sensitive_columns.py` detecting unencrypted PII columns (email, phone, SSN patterns)
+- [x] T005 Add GitHub Actions workflow `.github/workflows/db-audit.yml` with cron schedule (Monday 9 AM UTC) running db_audit.sh and posting results as workflow artifact
+- [x] T006 Download SchemaSpy JAR file `tools/schemaspy.jar` (v6.2.4+) and create wrapper script `scripts/generate_erd.sh` with PostgreSQL JDBC driver configuration
+- [x] T007 [P] Create SQLFluff configuration `.sqlfluff` with PostgreSQL dialect, line length 100, and pre-commit hook integration in `.pre-commit-config.yaml`
 
 ---
 

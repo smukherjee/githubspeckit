@@ -1,0 +1,54 @@
+# Pre-commit hooks configuration
+# Install: pre-commit install
+# Run manually: pre-commit run --all-files
+
+repos:
+  # SQLFluff - SQL Linting
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 2.3.5
+    hooks:
+      - id: sqlfluff-lint
+        name: sqlfluff-lint
+        description: 'Lint SQL files with SQLFluff'
+        entry: sqlfluff lint
+        language: python
+        types: [sql]
+        require_serial: true
+        additional_dependencies: ['sqlfluff==2.3.5', 'sqlfluff-templater-dbt==2.3.5']
+      
+      - id: sqlfluff-fix
+        name: sqlfluff-fix
+        description: 'Fix SQL files with SQLFluff'
+        entry: sqlfluff fix
+        language: python
+        types: [sql]
+        require_serial: true
+        additional_dependencies: ['sqlfluff==2.3.5']
+        stages: [manual]  # Only run when explicitly requested
+
+  # Trailing whitespace
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # Python code formatting (if needed)
+  - repo: https://github.com/psf/black
+    rev: 24.1.1
+    hooks:
+      - id: black
+        language_version: python3.13
+        files: '\.py$'
+
+  # Python import sorting
+  - repo: https://github.com/pycqa/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        args: ["--profile", "black"]

@@ -1,0 +1,83 @@
+[sqlfluff]
+# SQLFluff Configuration for PostgreSQL
+dialect = postgres
+templater = raw
+sql_file_exts = .sql,.sql.j2
+max_line_length = 100
+indent_unit = space
+
+# Rule Configuration
+[sqlfluff:rules]
+tab_space_size = 4
+max_line_length = 100
+indent_unit = space
+comma_style = trailing
+allow_scalar = True
+single_table_references = consistent
+unquoted_identifiers_policy = all
+
+[sqlfluff:rules:L010]
+# Inconsistent capitalisation of keywords
+capitalisation_policy = lower
+
+[sqlfluff:rules:L014]
+# Inconsistent capitalisation of unquoted identifiers
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:L030]
+# Inconsistent capitalisation of function names
+capitalisation_policy = lower
+
+[sqlfluff:rules:L040]
+# Null & Boolean Literals
+capitalisation_policy = lower
+
+[sqlfluff:rules:L042]
+# Join/From must be on separate line from previous statement
+forbid_subquery_in = both
+
+[sqlfluff:rules:L052]
+# Semi-colon formatting approach
+multiline_newline = True
+require_final_semicolon = False
+
+[sqlfluff:rules:L054]
+# GROUP BY/ORDER BY column references
+group_by_and_order_by_style = consistent
+
+[sqlfluff:rules:L063]
+# Data Types
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:L064]
+# Consistent usage of preferred quotes for quoted literals
+preferred_quoted_literal_style = single_quotes
+
+# Layout Configuration
+[sqlfluff:layout:type:comma]
+spacing_before = touch
+line_position = trailing
+
+[sqlfluff:layout:type:binary_operator]
+spacing_within = touch
+line_position = leading
+
+[sqlfluff:layout:type:statement_terminator]
+spacing_before = touch
+spacing_after = touch
+
+[sqlfluff:layout:type:end_of_file]
+spacing_before = touch
+
+[sqlfluff:layout:type:set_operator]
+line_position = alone:strict
+
+[sqlfluff:layout:type:start_bracket]
+spacing_after = touch
+
+[sqlfluff:layout:type:end_bracket]
+spacing_before = touch
+
+[sqlfluff:layout:type:casting_operator]
+spacing_before = touch
+spacing_after = touch:inline
