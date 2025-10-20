@@ -25,11 +25,15 @@ from fastapi import APIRouter
 
 # Import tenant-scoped sub-routers
 from .users import router as users_router
+from .policies import router as policies_router
+from .audit import router as audit_router
 
 # Main tenant-scoped router
 router = APIRouter(prefix="/tenants", tags=["tenant-scoped"])
 
 # Mount sub-routers
 router.include_router(users_router)
+router.include_router(policies_router)
+router.include_router(audit_router)
 
 __all__ = ["router"]

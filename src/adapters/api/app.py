@@ -77,7 +77,11 @@ def create_app() -> FastAPI:
         init_tracing()
     except Exception:  # pragma: no cover - defensive
         pass
-    app = FastAPI(title="Modern Backend", version="0.1.0")
+    app = FastAPI(
+        title="Modern Backend V1.0",
+        version="1.0.0",
+        description="Enterprise-grade multi-tenant FastAPI backend with hexagonal architecture"
+    )
     # Simple span collection list for TEST-XCUT-11
     app.state._test_spans = []  # noqa: SLF001
     

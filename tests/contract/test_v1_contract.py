@@ -34,18 +34,22 @@ class TestTenantScopedPaths:
         tenant_id = seeded_database["tenant_id"]
         
         response = await client.get(
-            f"/tenants/{tenant_id}/users",
+            f"/api/v1/tenants/{tenant_id}/users",
             headers=auth_headers
         )
         
         assert response.status_code == 200, (
             f"Expected 200, got {response.status_code}. "
-            f"V1.0 requires /tenants/{{id}}/users endpoint. "
+            f"V1.0 requires /api/v1/tenants/{{id}}/users endpoint. "
             f"Response: {response.text}"
         )
         
         data = response.json()
-        assert isinstance(data, list), "Response should be a list of users"
+        # Accept either list or paginated response with 'users' key
+        if isinstance(data, dict) and "users" in data:
+            assert isinstance(data["users"], list), "users field should be a list"
+        else:
+            assert isinstance(data, list), "Response should be a list of users"
     
     async def test_legacy_users_query_param_removed(self, client: AsyncClient, auth_headers: dict):
         """T022.2: GET /users?tenant_id={id} must NOT exist in V1.0."""
@@ -57,7 +61,7 @@ class TestTenantScopedPaths:
         assert response.status_code == 404, (
             f"Expected 404 (endpoint removed), got {response.status_code}. "
             f"V1.0 removed /users?tenant_id=X endpoint. "
-            f"Use /tenants/{{id}}/users instead."
+            f"Use /api/v1/tenants/{{id}}/users instead."
         )
     
     async def test_policies_endpoint_uses_tenant_path(self, client: AsyncClient, auth_headers: dict, seeded_database: dict):
@@ -65,13 +69,13 @@ class TestTenantScopedPaths:
         tenant_id = seeded_database["tenant_id"]
         
         response = await client.get(
-            f"/tenants/{tenant_id}/policies",
+            f"/api/v1/tenants/{tenant_id}/policies",
             headers=auth_headers
         )
         
         assert response.status_code == 200, (
             f"Expected 200, got {response.status_code}. "
-            f"V1.0 requires /tenants/{{id}}/policies endpoint. "
+            f"V1.0 requires /api/v1/tenants/{{id}}/policies endpoint. "
             f"Response: {response.text}"
         )
         
@@ -90,28 +94,28 @@ class TestSuperadminPaths:
     async def test_admin_tenants_endpoint_exists(self, client: AsyncClient, auth_headers: dict):
         """T023.1: GET /admin/tenants must exist for superadmin."""
         response = await client.get(
-            "/admin/tenants",
+            "/api/v1/admin/tenants",
             headers=auth_headers
         )
         
         # Should either succeed (200) or forbid non-superadmin (403)
         assert response.status_code in (200, 403), (
             f"Expected 200 or 403, got {response.status_code}. "
-            f"V1.0 requires /admin/tenants endpoint. "
+            f"V1.0 requires /api/v1/admin/tenants endpoint. "
             f"Response: {response.text}"
         )
     
     async def test_admin_users_endpoint_exists(self, client: AsyncClient, auth_headers: dict):
         """T023.2: GET /admin/users must exist for superadmin."""
         response = await client.get(
-            "/admin/users",
+            "/api/v1/admin/users",
             headers=auth_headers
         )
         
         # Should either succeed (200) or forbid non-superadmin (403)
         assert response.status_code in (200, 403), (
             f"Expected 200 or 403, got {response.status_code}. "
-            f"V1.0 requires /admin/users endpoint. "
+            f"V1.0 requires /api/v1/admin/users endpoint. "
             f"Response: {response.text}"
         )
 
@@ -264,15 +268,17 @@ class TestOpenAPIVersion:
         paths = schema.get("paths", {})
         
         # Should have tenant-scoped endpoints
-        tenant_paths = [p for p in paths.keys() if "/tenants/{" in p]
+        tenant_paths = [p for p in paths.keys() if "/api/v1/tenants/{" in p]
         assert len(tenant_paths) > 0, (
-            "Schema must document /tenants/{id}/... endpoints"
+            f"Schema must document /api/v1/tenants/{{id}}/... endpoints. "
+            f"Found paths: {list(paths.keys())}"
         )
         
-        # Should have admin endpoints
-        admin_paths = [p for p in paths.keys() if p.startswith("/admin/")]
+        # Should have admin endpoints  
+        admin_paths = [p for p in paths.keys() if p.startswith("/api/v1/admin/")]
         assert len(admin_paths) > 0, (
-            "Schema must document /admin/... endpoints"
+            f"Schema must document /api/v1/admin/... endpoints. "
+            f"Found paths: {list(paths.keys())}"
         )
 
 

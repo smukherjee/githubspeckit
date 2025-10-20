@@ -15,11 +15,15 @@ from fastapi import APIRouter
 
 # Import admin sub-routers
 from .context import router as context_router
+from .tenants import router as tenants_router
+from .users import router as users_router
 
 # Main admin router
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 # Mount sub-routers
 router.include_router(context_router)
+router.include_router(tenants_router)
+router.include_router(users_router)
 
 __all__ = ["router"]
