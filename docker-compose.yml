@@ -1,0 +1,121 @@
+version: '3.9'
+
+services:
+  # PostgreSQL 15 - Primary database
+  postgres:
+    image: postgres:15-alpine
+    container_name: githubspeckit-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: infysight_users
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - githubspeckit-net
+
+  # Redis 7 - Cache and rate limiting backend
+  redis:
+    image: redis:7-alpine
+    container_name: githubspeckit-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - githubspeckit-net
+
+  # pgAdmin 4 - Database management UI
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: githubspeckit-pgadmin
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - githubspeckit-net
+
+  # FastAPI Application - Multi-tenant backend
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: githubspeckit-api
+    ports:
+      - "8000:8000"
+    environment:
+      # Database configuration
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/infysight_users
+      
+      # Redis configuration
+      REDIS_URL: redis://redis:6379/0
+      
+      # JWT configuration
+      JWT_SECRET_KEY: dev-secret-key-change-in-production
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRATION_MINUTES: 60
+      
+      # Rate limiting (FR-121)
+      RATE_LIMIT_USER_CREATION: 100
+      
+      # Logging
+      LOG_LEVEL: INFO
+      
+      # Application
+      ENVIRONMENT: development
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+    volumes:
+      # Hot reload: mount source code for development
+      - ./src:/app/src:ro
+      - ./alembic:/app/alembic:ro
+      - ./config:/app/config:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - githubspeckit-net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+
+networks:
+  githubspeckit-net:
+    name: githubspeckit-net
+    driver: bridge

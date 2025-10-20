@@ -14,6 +14,7 @@ DB_URL_SQLITE ?= sqlite+aiosqlite:///./dev.db
 .PHONY: db-create db-drop db-reset db-migrate db-seed db-verify server-start server-stop server-restart bootstrap
 .PHONY: security-scan security-baseline security-api security-full security-all
 .PHONY: redis-start redis-stop redis-restart redis-cli redis-status redis-flush
+.PHONY: docker-up docker-down docker-logs docker-reset docker-build docker-ps docker-shell
 
 venv:
 	python3 -m venv .venv
@@ -244,3 +245,74 @@ security-all:  ## Run all OWASP ZAP scans sequentially
 	@./scripts/security/run-zap-scan.sh all --verbose
 
 security-scan: security-baseline  ## Alias for security-baseline (default security scan)
+
+# --- Docker Compose Management (V1.0 - Phase 3.9) ---
+
+docker-build:  ## Build Docker images without starting services
+	@echo "Building Docker images..."
+	@docker-compose build
+	@echo "✅ Docker images built"
+
+docker-up:  ## Start all services (PostgreSQL, Redis, pgAdmin, API) in detached mode
+	@echo "Starting Docker Compose services..."
+	@docker-compose up -d
+	@echo ""
+	@echo "⏳ Waiting for services to be healthy..."
+	@sleep 5
+	@echo ""
+	@echo "=========================================="
+	@echo "✅ Docker Compose Services Running"
+	@echo "=========================================="
+	@echo ""
+	@echo "🌐 Services:"
+	@echo "   API:      http://localhost:8000"
+	@echo "   Health:   http://localhost:8000/v1/health"
+	@echo "   Docs:     http://localhost:8000/docs"
+	@echo "   OpenAPI:  http://localhost:8000/openapi.json"
+	@echo ""
+	@echo "🗄️  Database:"
+	@echo "   pgAdmin:  http://localhost:5050"
+	@echo "   Login:    admin@example.com / admin"
+	@echo "   Host:     postgres (from pgAdmin)"
+	@echo "   Port:     5432"
+	@echo "   Database: infysight_users"
+	@echo "   User:     postgres / postgres"
+	@echo ""
+	@echo "💾 Cache:"
+	@echo "   Redis:    localhost:6379"
+	@echo ""
+	@echo "📊 View Logs:"
+	@echo "   make docker-logs"
+	@echo ""
+	@echo "🛑 Stop Services:"
+	@echo "   make docker-down"
+	@echo ""
+
+docker-down:  ## Stop and remove all Docker Compose services
+	@echo "Stopping Docker Compose services..."
+	@docker-compose down
+	@echo "✅ Docker Compose services stopped"
+
+docker-logs:  ## Follow API container logs (Ctrl+C to exit)
+	@docker-compose logs -f api
+
+docker-reset:  ## Stop, remove volumes (DESTRUCTIVE), rebuild, and start services
+	@echo "⚠️  Resetting Docker environment (will delete all data)..."
+	@docker-compose down -v
+	@docker-compose up --build -d
+	@sleep 5
+	@echo ""
+	@echo "=========================================="
+	@echo "✅ Docker Environment Reset Complete"
+	@echo "=========================================="
+	@echo ""
+	@echo "🌐 API:      http://localhost:8000"
+	@echo "🗄️  pgAdmin:  http://localhost:5050"
+	@echo "📊 Logs:     make docker-logs"
+	@echo ""
+
+docker-ps:  ## Show status of all Docker Compose services
+	@docker-compose ps
+
+docker-shell:  ## Open shell in running API container
+	@docker-compose exec api /bin/sh

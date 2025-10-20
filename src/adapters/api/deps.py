@@ -43,9 +43,19 @@ class AuditService:
         self.actor_user_id = actor_user_id
 
     async def log(self, *, action_type: str, tenant_id: str | None, metadata: dict[str, object] | None = None) -> None:
-        """Log audit event to database with actor tracking."""
+        """Log audit event to database with actor tracking.
+        
+        Automatically adds version metadata (v1.0.0) to all events for tracking
+        which API version generated the audit entry (FR-121, T074).
+        """
         from domain.audit.models import AuditEvent
         from uuid import uuid4
+        
+        # Merge version metadata with provided metadata (V1.0 - T074)
+        enriched_metadata = {
+            "version": "1.0.0",  # API version that generated this audit event
+            **(metadata or {})
+        }
         
         event = AuditEvent(
             event_id=str(uuid4()),
@@ -55,7 +65,7 @@ class AuditService:
             actor_user_id=self.actor_user_id,  # Now extracted from request context
             target_type=None,
             target_id=None,
-            metadata=metadata or {},
+            metadata=enriched_metadata,
         )
         await self.appender.append(event)
 
