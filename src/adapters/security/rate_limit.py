@@ -35,7 +35,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
 
-from src.domain.config.descriptor_parser import parse_descriptor
+from domain.config.descriptor_parser import parse_descriptor
 
 
 def _is_superadmin(request: Request) -> bool:
