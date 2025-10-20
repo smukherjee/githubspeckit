@@ -124,7 +124,17 @@ async def create_user(
 ) -> UserResponse:
     """Create user with RBAC enforcement (FR-019).
     
+    **Rate Limiting** (FR-046):
+    - Limit: {rate_limit}/hour per IP address
+    - Superadmins: Exempt from rate limiting
+    - Response: HTTP 429 with Retry-After header when exceeded
+    - Headers: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset
+    
+    **Authorization**:
     Only tenant_admin (within own tenant) or superadmin can create users.
+    
+    **V1.0 Email Uniqueness** (FR-116):
+    Email addresses must be unique within a tenant (same email allowed across tenants).
     """
     # RBAC enforcement: Only tenant_admin or superadmin can create users
     if not (current_user.has_role("tenant_admin") or current_user.is_superadmin()):

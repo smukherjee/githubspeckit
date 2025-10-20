@@ -84,7 +84,30 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Modern Backend V1.0",
         version="1.0.0",
-        description="Enterprise-grade multi-tenant FastAPI backend with hexagonal architecture"
+        description="""Enterprise-grade multi-tenant FastAPI backend with hexagonal architecture.
+
+## V1.0 Breaking Changes
+
+This is a major version release with breaking changes from v0.x:
+
+- **Tenant-scoped paths**: All tenant-specific endpoints now use `/api/v1/tenants/{tenant_id}/...` path structure instead of query parameters
+- **Superadmin namespace**: Cross-tenant operations moved to `/api/v1/admin/...` prefix
+- **Per-tenant email uniqueness**: Same email now allowed across different tenants (enforced at application + database layer)
+- **Rate limiting**: User creation endpoint limited to 100 requests/hour/IP to prevent abuse
+- **No deprecation headers**: Removed all Sunset/Deprecation/X-API-Warn headers (clean slate for V1.0)
+
+## Migration Guide
+
+See `docs/MIGRATION-TO-V1.0.md` for detailed upgrade instructions.
+
+## License
+
+MIT License - See LICENSE file for details.
+""",
+        license_info={
+            "name": "MIT",
+            "url": "https://opensource.org/licenses/MIT",
+        }
     )
     # Simple span collection list for TEST-XCUT-11
     app.state._test_spans = []  # noqa: SLF001
