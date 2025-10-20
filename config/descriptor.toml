@@ -161,7 +161,7 @@ description = "Refresh token expiration in days"
 scope = "backend"
 
 # ============================================================================
-# Rate Limiting
+# Rate Limiting (FR-046-054, Phase 3.6)
 # ============================================================================
 
 [rate_limiting.RATE_LIMIT_ENABLED]
@@ -180,11 +180,20 @@ default = 60
 description = "Default rate limit (requests per minute per user)"
 scope = "backend"
 
+[rate_limiting.RATE_LIMIT_USER_CREATION]
+type = "int"
+required = false
+secret = false
+default = 100
+description = "Rate limit for user creation endpoint (requests per hour per IP, FR-046)"
+scope = "backend"
+
 [rate_limiting.REDIS_URL]
 type = "string"
 required = false
 secret = true
-description = "Redis URL for distributed rate limiting (optional, fallback to in-memory)"
+default = "redis://localhost:6379/1"
+description = "Redis URL for distributed rate limiting (uses database 1, distinct from session storage)"
 scope = "backend"
 
 # ============================================================================

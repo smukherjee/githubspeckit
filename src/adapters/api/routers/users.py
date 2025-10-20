@@ -13,6 +13,9 @@ from adapters.persistence.repositories import SQLAlchemyUserRepository, SQLAlche
 from auth_core.hashers import default_hasher
 from services.csv_import_service import CSVImportService
 from domain.tenants.tenant_context import TenantContext
+# Rate limiting (Phase 3.6 - T051)
+from adapters.security.rate_limit import limiter, _is_superadmin
+from domain.config.descriptor_parser import parse_descriptor
 
 
 def validate_password_strength(password: str) -> None:
@@ -105,10 +108,17 @@ class UserUpdateRequest(BaseModel):
         return v
 
 
+# Load rate limit configuration
+_config = parse_descriptor("config/descriptor.toml")
+_rate_limit_user_creation = _config.get("RATE_LIMIT_USER_CREATION", (100, False))[0]
+
+
 @router.post("", response_model=UserResponse, status_code=201)
+@limiter.limit(f"{_rate_limit_user_creation}/hour", exempt_when=_is_superadmin)
 async def create_user(
     payload: UserCreateRequest,
     current_user: CurrentUser,
+    request: Request,  # Required by slowapi to extract IP address
     session: AsyncSession = Depends(get_db_session),
     audit_service: AuditService = Depends(get_audit_service)
 ) -> UserResponse:

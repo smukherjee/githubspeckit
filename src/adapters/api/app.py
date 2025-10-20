@@ -43,6 +43,10 @@ from adapters.api.middleware.session import SessionMiddleware
 from adapters.api.correlation_middleware import CorrelationMiddleware
 from adapters.api.actor_middleware import ActorTrackingMiddleware
 from observability.tracing import init_tracing
+# Import rate limiting (Phase 3.6 - T050)
+from adapters.security.rate_limit import limiter
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from fastapi import Request
 from fastapi.responses import JSONResponse
 import yaml
@@ -84,6 +88,12 @@ def create_app() -> FastAPI:
     )
     # Simple span collection list for TEST-XCUT-11
     app.state._test_spans = []  # noqa: SLF001
+    
+    # Rate limiting integration (Phase 3.6 - T050)
+    # Attach limiter to app.state so it's accessible to endpoints via dependency injection
+    app.state.limiter = limiter
+    # Register exception handler for rate limit exceeded (HTTP 429 responses)
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     
     # CORS middleware - environment-aware configuration
     cors_origins_str = os.getenv("CORS_ORIGINS", "*")
