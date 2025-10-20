@@ -30,7 +30,6 @@ from adapters.api.routers import feature_flags as feature_flags_router
 from adapters.api.routers import profile as profile_router
 from adapters.api.routers import roles as roles_router
 from adapters.api.routers import admin as admin_router
-from adapters.api.deprecation import DeprecationMiddleware
 from adapters.api.security_headers import SecurityHeadersMiddleware
 from adapters.observability.metrics import SimpleMetricsRegistry
 from adapters.observability.prometheus_client_adapter import PromClientAdapter
@@ -40,7 +39,6 @@ from services.log_export_service import LogExportService
 from adapters.api.middleware.tenant_context import TenantContextMiddleware
 from adapters.api.middleware.authorization import AuthorizationMiddleware
 from adapters.api.middleware.session import SessionMiddleware
-from adapters.api.middleware.deprecation_warning import DeprecationWarningMiddleware
 # Import correlation middleware from renamed file (was middleware.py, now correlation_middleware.py)
 from adapters.api.correlation_middleware import CorrelationMiddleware
 from adapters.api.actor_middleware import ActorTrackingMiddleware
@@ -161,17 +159,6 @@ def create_app() -> FastAPI:
     app.add_middleware(SessionMiddleware, redis_client=redis_client)
     app.add_middleware(AuthorizationMiddleware)  # Runs SECOND (enforces policies)
     app.add_middleware(TenantContextMiddleware)  # Runs FIRST (extracts context)
-    
-    # Load sunset date from config
-    try:
-        sunset_date = os.getenv("TENANT_QUERY_PARAM_SUNSET", "2025-11-19")
-        app.add_middleware(DeprecationWarningMiddleware, sunset_date=sunset_date)
-    except Exception:
-        # Fallback to default if config unavailable
-        app.add_middleware(DeprecationWarningMiddleware)
-    
-    app.add_middleware(DeprecationMiddleware)  # Legacy feature-flags deprecation
-    
     
     # Lightweight span capture middleware (placeholder instrumentation)
     @app.middleware("http")
