@@ -17,6 +17,18 @@ This is a **breaking change release** that removes all deprecated features and e
 
 ---
 
+## Clarifications
+
+### Session 2025-10-20
+
+- Q: What services should the Docker Compose setup include for the dev environment? → A: PostgreSQL + Redis + pgAdmin + API container (complete turnkey environment)
+- Q: How should the native `make bootstrap` and Docker Compose workflows interact? → A: Make-primary - Docker Compose file exists but `make docker-up` is separate target, not integrated (developers can work natively without Docker until needed)
+- Q: Which tool should generate the Entity-Relationship Diagram for `docs/database-erd-v1.0.png`? → A: SchemaSpy (Java-based, comprehensive HTML docs + ERD, minimal dev load, production-grade)
+- Q: What rate limiting threshold should be applied to user creation attempts to prevent email enumeration? → A: Configurable via environment variable with default of 100 attempts/hour/IP
+- Q: Is blue-green deployment strategy implementation in-scope for V1.0, or just documentation? → A: Out of scope - Remove from NFR-026, focus on code cleanup only
+
+---
+
 ## Business Context
 
 ### Problem Statement
@@ -178,12 +190,13 @@ async def create_user(...):
 
 **Acceptance Criteria**:
 - ✅ Database schema exported to `docs/database-schema-v1.0.sql`
-- ✅ Entity-relationship diagram generated
+- ✅ Entity-relationship diagram generated via **SchemaSpy** to `docs/database-erd-v1.0.png`
 - ✅ All foreign key constraints documented
 - ✅ Index strategy documented with justifications
 - ✅ Tenant isolation patterns clearly marked
 - ✅ Migration path from any pre-release version documented
 - ✅ Schema includes version metadata table
+- ✅ SchemaSpy HTML documentation published (includes interactive ERD, table details, relationships)
 
 **Deliverables**:
 1. **`docs/database-schema-v1.0.sql`**: Full DDL export (PostgreSQL)
@@ -350,22 +363,6 @@ servers:
 
 ## Non-Functional Requirements
 
-### NFR-026: Zero Downtime Migration
-
-**Requirement**: V1.0 upgrade should complete with minimal service interruption.
-
-**Implementation**:
-- Database migrations are backward-compatible for rollback window
-- Blue-green deployment strategy documented
-- Health check returns version info for verification
-
-**Acceptance Criteria**:
-- ✅ Migration plan tested in staging environment
-- ✅ Rollback procedure documented and tested
-- ✅ Downtime window <5 minutes (if required)
-
----
-
 ### NFR-026: Performance Maintained
 
 **Requirement**: V1.0 cleanup must not degrade performance.
@@ -467,10 +464,19 @@ curl -X POST http://localhost:8000/api/v1/auth/token \
   - [ ] `REDIS_URL` (default: `redis://localhost:6379/0`)
   - [ ] `SECRET_KEY` (placeholder, must be regenerated for production)
   - [ ] `LOG_LEVEL` (default: `INFO`)
-- [ ] **Docker Compose** alternative provided for contributors without local PostgreSQL/Redis:
-  - [ ] `docker-compose.yml` with PostgreSQL, Redis, and optional pgAdmin
-  - [ ] `make docker-up` target to start services
-  - [ ] Volume mounts for data persistence
+- [ ] **Docker Compose** complete turnkey environment for contributors without local setup:
+  - [ ] `docker-compose.yml` with **4 services**: PostgreSQL 15, Redis 7, pgAdmin 4, API container (Python 3.13)
+  - [ ] PostgreSQL service: Port 5432, persistent volume `postgres_data`, healthcheck
+  - [ ] Redis service: Port 6379, persistent volume `redis_data`
+  - [ ] pgAdmin service: Port 5050 (web UI), pre-configured server connection to PostgreSQL
+  - [ ] API service: Port 8000, built from `Dockerfile`, depends on PostgreSQL + Redis, hot-reload via volume mount
+  - [ ] **Network**: Single bridge network `githubspeckit-net` for service communication
+  - [ ] **Makefile integration**: 
+    - `make docker-up` - Start all services (detached mode)
+    - `make docker-down` - Stop and remove containers
+    - `make docker-logs` - Tail logs from all services
+    - `make docker-reset` - Full cleanup (containers + volumes)
+  - [ ] **Independent workflow**: Docker and native `make bootstrap` do NOT interact (user chooses one path)
 
 **Technical Details**:
 - **Hot reload**: `uvicorn --reload` watches file changes, restarts server automatically
@@ -544,7 +550,11 @@ CREATE UNIQUE INDEX idx_users_email_tenant ON users (email, tenant_id);
 **Risk**: Per-tenant email uniqueness could enable email enumeration attacks across tenants.
 
 **Mitigation**:
-- Rate limit user creation attempts
+- **Rate limiting**: User creation attempts limited to configurable threshold (default: 100 attempts/hour/IP)
+  - Configured via environment variable: `RATE_LIMIT_USER_CREATION` (default: `100`)
+  - Returns HTTP 429 (Too Many Requests) when exceeded
+  - Scope: Per source IP address
+  - Exemptions: Admin API tokens with appropriate RBAC can bypass for bulk operations
 - Generic error messages ("Email already exists") without tenant hints
 - Audit log suspicious patterns (rapid email checks across tenants)
 
