@@ -14,12 +14,10 @@ from adapters.api.correlation_middleware import CorrelationMiddleware
 from .tenant_context import TenantContextMiddleware
 from .authorization import AuthorizationMiddleware
 from .session import SessionMiddleware
-from .deprecation_warning import DeprecationWarningMiddleware
 
 __all__ = [
     "CorrelationMiddleware",
     "TenantContextMiddleware",
     "AuthorizationMiddleware",
     "SessionMiddleware",
-    "DeprecationWarningMiddleware",
 ]
