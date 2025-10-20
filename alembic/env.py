@@ -37,7 +37,7 @@ from alembic import context
 
 # Add src directory to Python path for imports
 PROJECT_ROOT = Path(__file__).parent.parent
-sys.path.insert(0, str(PROJECT_ROOT / "src"))
+sys.path.insert(0, str(PROJECT_ROOT))
 
 # Import all models to ensure they're registered with metadata
 from src.adapters.persistence.models import Base

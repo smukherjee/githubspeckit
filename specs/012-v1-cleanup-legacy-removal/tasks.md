@@ -45,13 +45,56 @@ Remove all backward compatibility code, unify admin routes under `/api/v1/admin/
 
 ---
 
-## Phase 3.2: Database Schema & Migration (Day 3)
+#### Phase 3.2: Database Schema & Migration (5 tasks, ~2 hours)
+**Purpose**: Implement database changes for V1.0 email uniqueness  
+**Dependencies**: Phase 3.1 complete  
+**Output**: Alembic migrations, schema validation script  
+**Reference**: data-model.md (email uniqueness change)
 
-- [ ] T017 Create Alembic migration `alembic/versions/XXXX_drop_global_email_unique.py` to drop `users_email_key` unique constraint (use `op.drop_constraint('users_email_key', 'users', type_='unique')`)
-- [ ] T018 Create Alembic migration `alembic/versions/YYYY_add_per_tenant_email_unique.py` to add composite unique index `idx_users_email_tenant` on `(email, tenant_id)` (use `op.create_index(..., unique=True)`)
-- [ ] T019 Create Alembic migration `alembic/versions/ZZZZ_add_schema_version_table.py` to create `schema_version` metadata table with columns: `version VARCHAR(20) PK`, `applied_at TIMESTAMP`, `description TEXT`, `checksum VARCHAR(64)`
-- [ ] T020 Implement pre-migration validation script `scripts/validate_email_migration.py` to query duplicate (email, tenant_id) pairs and fail with clear error if conflicts detected
-- [ ] T021 Test migration upgrade/downgrade cycle: run `alembic upgrade head`, then `alembic downgrade -1`, verify no data corruption and index correctly recreated
+- [x] T017: Create Alembic migration to drop global email unique constraint ✅
+  - **Command**: `alembic revision -m "drop_global_email_unique_constraint"`
+  - **Location**: `alembic/versions/TIMESTAMP_drop_global_email_unique_constraint.py`
+  - **Logic**: Drop `users_email_key` constraint (if exists), PostgreSQL-aware
+  - **SQLite**: No-op (constraints work differently)
+  - **Definition of Done**: Migration file created, idempotent constraint drop
+
+- [x] T018: Create Alembic migration to ensure per-tenant email unique index ✅
+  - **Command**: `alembic revision -m "ensure_per_tenant_email_unique_index"`
+  - **Location**: `alembic/versions/TIMESTAMP_ensure_per_tenant_email_unique_index.py`
+  - **Logic**: CREATE UNIQUE INDEX IF NOT EXISTS on (email, tenant_id)
+  - **Note**: Index `ix_users_tenant_email` may already exist from earlier migrations
+  - **Definition of Done**: Composite unique index enforced
+
+- [x] T019: Create Alembic migration to add schema_version metadata table ✅
+  - **Command**: `alembic revision -m "add_schema_version_metadata_table"`
+  - **Location**: `alembic/versions/TIMESTAMP_add_schema_version_metadata_table.py`
+  - **Schema**: `version VARCHAR(20) PRIMARY KEY, applied_at TIMESTAMP, description TEXT, checksum VARCHAR(64)`
+  - **Initial Row**: Insert `('1.0.0', NOW(), 'V1.0 release: Per-tenant email uniqueness...', NULL)`
+  - **Definition of Done**: Table created, V1.0 marker inserted
+
+- [x] T020: Create pre-migration validation script ✅
+  - **Location**: `scripts/validate_email_migration.py`
+  - **Check 1**: Query for duplicate (email, tenant_id) pairs → FAIL if found
+  - **Check 2**: Query for emails shared across tenants → INFO only (allowed in V1.0)
+  - **Exit Codes**: 0 if safe to migrate, 1 if conflicts require resolution
+  - **Definition of Done**: Script runs, provides actionable error messages
+
+- [x] T021: Test migration upgrade/downgrade cycle ✅
+  - **Script**: `scripts/test_v1_migrations.sh` (created for automation)
+  - **Steps**:
+    1. Run pre-migration validation script → PASSED
+    2. `alembic upgrade head` → Applied 3 migrations (56b3e20010a2, 9a6e88ad1601, 3da4ba72b3b5)
+    3. Verify schema_version table exists with V1.0 marker → CONFIRMED
+    4. `alembic downgrade -1` → Rolled back schema_version table
+    5. `alembic upgrade head` → Re-applied successfully (idempotency verified)
+  - **Results**:
+    - All migrations applied successfully ✅
+    - schema_version table created with V1.0 marker ✅
+    - Composite index idx_users_email_tenant enforced ✅
+    - Downgrade/upgrade cycle works correctly ✅
+    - SQLite compatibility verified ✅
+  - **Definition of Done**: All migrations tested, Phase 3.2 complete
+
 
 ---
 
