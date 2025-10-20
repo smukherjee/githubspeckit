@@ -36,15 +36,26 @@ def upgrade() -> None:
         ),
         sa.Column('description', sa.Text(), nullable=True),
         sa.Column('checksum', sa.String(64), nullable=True),
+        if_not_exists=True,
     )
     
-    # Insert V1.0 marker
-    op.execute(
-        """
-        INSERT INTO schema_version (version, description)
-        VALUES ('1.0.0', 'V1.0 release: Per-tenant email uniqueness, removed deprecation middleware')
-        """
-    )
+    # Insert V1.0 marker (ignore if already exists)
+    conn = op.get_bind()
+    if conn.dialect.name == 'sqlite':
+        op.execute(
+            """
+            INSERT OR IGNORE INTO schema_version (version, description)
+            VALUES ('1.0.0', 'V1.0 release: Per-tenant email uniqueness, removed deprecation middleware')
+            """
+        )
+    else:
+        op.execute(
+            """
+            INSERT INTO schema_version (version, description)
+            VALUES ('1.0.0', 'V1.0 release: Per-tenant email uniqueness, removed deprecation middleware')
+            ON CONFLICT (version) DO NOTHING
+            """
+        )
 
 
 def downgrade() -> None:

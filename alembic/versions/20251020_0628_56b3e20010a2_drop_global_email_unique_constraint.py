@@ -32,16 +32,9 @@ def upgrade() -> None:
         # The composite index ix_users_tenant_email already handles uniqueness
         pass
     else:
-        # PostgreSQL: try to drop named constraints
-        try:
-            op.drop_constraint('users_email_key', 'users', type_='unique')
-        except Exception:
-            pass
-        
-        try:
-            op.drop_constraint('uq_users_email', 'users', type_='unique')
-        except Exception:
-            pass
+        # PostgreSQL: drop named constraints if they exist
+        op.drop_constraint('users_email_key', 'users', type_='unique', if_exists=True)
+        op.drop_constraint('uq_users_email', 'users', type_='unique', if_exists=True)
 
 
 def downgrade() -> None:
@@ -56,12 +49,5 @@ def downgrade() -> None:
         # SQLite: no action needed
         pass
     else:
-        # PostgreSQL: try to recreate constraint
-        try:
-            op.create_unique_constraint('users_email_key', 'users', ['email'])
-        except Exception:
-            import warnings
-            warnings.warn(
-                "Cannot restore global email unique constraint: "
-                "duplicate emails exist across tenants (expected in V1.0)"
-            )
+        # PostgreSQL: recreate constraint (may fail with duplicate emails)
+        op.create_unique_constraint('users_email_key', 'users', ['email'])

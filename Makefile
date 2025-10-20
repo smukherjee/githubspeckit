@@ -1,5 +1,6 @@
 PYTHON := .venv/bin/python
 PIP := .venv/bin/pip
+PYTHON3 := python3.13
 UV := uv
 APP_MODULE := adapters.api.app:create_app
 DEFAULT_PORT ?= 8000
@@ -17,24 +18,26 @@ DB_URL_SQLITE ?= sqlite+aiosqlite:///./dev.db
 .PHONY: docker-up docker-down docker-logs docker-reset docker-build docker-ps docker-shell
 
 venv:
-	python3 -m venv .venv
+	$(PYTHON3) -m venv .venv
 	$(PIP) install --upgrade pip
-	@which $(UV) >/dev/null 2>&1 || pip install uv
+	@which $(UV) >/dev/null 2>&1 || $(PIP) install uv
 
 # Compile a fully hashed requirements lock from pyproject (idempotent)
 compile-requirements:
 	$(UV) pip compile pyproject.toml -o requirements.txt --generate-hashes
 
-# Sync environment exactly to requirements.txt (removes extraneous pkgs)
+# Install runtime dependencies from requirements.txt (non-destructive)
 sync: venv
-	$(UV) pip sync requirements.txt
+	$(PIP) install -r requirements.txt
 
 install: compile-requirements sync
 
 # Add dev/test tooling (keep runtime lock clean)
 # Note: Installs dev dependency group which includes pytest-asyncio
-dev: install
-	$(UV) pip install --group dev --editable .
+dev: venv
+	$(PIP) install -r requirements.txt
+	$(PIP) install -e ".[email]"
+	$(PIP) install pytest pytest-asyncio hypothesis coverage ruff mypy types-redis safety radon xenon pyyaml pytest-cov
 
 test: dev
 	$(PYTHON) -m pytest -q
@@ -163,7 +166,7 @@ up: install db-migrate run
 # --- Bootstrap: Complete Fresh Installation ---
 
 # Complete bootstrap from zero (PostgreSQL)
-bootstrap: reset db-reset server-start
+bootstrap: dev db-reset server-start
 	@echo ""
 	@echo "=========================================="
 	@echo "✅ Bootstrap Complete!"
@@ -210,11 +213,14 @@ openapi-serve: openapi-html
 # New target: Reset env, install dev, and run tests together without errors
 full-dev-setup: reset dev test
 
-reset: clean venv install
+reset: clean-cache venv install
 
-clean:
+clean: clean-cache
 	rm -rf .venv
+
+clean-cache:
 	find . -name __pycache__ -prune -exec rm -rf {} +
+	find . -name "*.pyc" -delete
 	rm -f /tmp/githubspeckit-api.pid /tmp/githubspeckit-api.log
 
 # --- OWASP ZAP Security Scanning ---
