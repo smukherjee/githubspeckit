@@ -135,10 +135,13 @@ async def create_user(
     if payload.tenant_id != current_user.tenant_id and not current_user.is_superadmin():
         raise HTTPException(status_code=403, detail="Cannot create users in other tenants")
     
-    # Check for duplicate email
-    existing_user = await user_repo.get_by_email(payload.email)
+    # Check for duplicate email within tenant (V1.0: per-tenant email uniqueness - FR-116)
+    existing_user = await user_repo.get_by_email_and_tenant(payload.email, payload.tenant_id)
     if existing_user:
-        raise HTTPException(status_code=409, detail="User with this email already exists")
+        raise HTTPException(
+            status_code=409,
+            detail=f"Email '{payload.email}' is already registered in this tenant"
+        )
     
     # Create user
     user = User(
@@ -349,10 +352,13 @@ async def update_user(
     
     # Apply updates
     if payload.email is not None and payload.email != u.email:
-        # Check email uniqueness
-        existing = await user_repo.get_by_email(payload.email)
+        # Check email uniqueness within tenant (V1.0: per-tenant email uniqueness - FR-116)
+        existing = await user_repo.get_by_email_and_tenant(payload.email, u.tenant_id)
         if existing and existing.user_id != user_id:
-            raise HTTPException(status_code=409, detail="Email already in use")
+            raise HTTPException(
+                status_code=409,
+                detail=f"Email '{payload.email}' is already in use in this tenant"
+            )
         u.email = payload.email
     
     # Role updates (admin only)

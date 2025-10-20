@@ -378,10 +378,51 @@ class SQLAlchemyUserRepository:
         return user_model_to_domain(model, roles)
 
     async def get_by_email(self, email: str) -> Optional[User]:
-        """Get user by email address (case-insensitive)."""
+        """Get user by email address (case-insensitive).
+        
+        NOTE: This method searches across ALL tenants. For per-tenant email
+        uniqueness checks (V1.0 behavior), use get_by_email_and_tenant() instead.
+        """
         result = await self.session.execute(
             select(UserModel).where(
                 UserModel.email.ilike(email),  # Case-insensitive match
+                UserModel.status != UserStatusEnum.disabled
+            )
+        )
+        model = result.scalar_one_or_none()
+        
+        if not model:
+            return None
+        
+        # Fetch roles
+        roles = await self._get_user_roles(model.user_id)
+        return user_model_to_domain(model, roles)
+    
+    async def get_by_email_and_tenant(self, email: str, tenant_id: str) -> Optional[User]:
+        """Get user by email address scoped to specific tenant (case-insensitive).
+        
+        This method implements V1.0 per-tenant email uniqueness (FR-116).
+        Use this for email validation during user creation to enforce
+        that emails must be unique within a tenant, but can be reused
+        across different tenants.
+        
+        Args:
+            email: User email address (case-insensitive comparison)
+            tenant_id: Tenant UUID to scope the search
+            
+        Returns:
+            User entity if found in the specified tenant, None otherwise
+            
+        Example:
+            # Check if email exists in tenant before creating user
+            existing = await repo.get_by_email_and_tenant("user@example.com", tenant_id)
+            if existing:
+                raise DomainError(code="EMAIL_ALREADY_EXISTS")
+        """
+        result = await self.session.execute(
+            select(UserModel).where(
+                UserModel.email.ilike(email),  # Case-insensitive match
+                UserModel.tenant_id == UUID(tenant_id),
                 UserModel.status != UserStatusEnum.disabled
             )
         )
