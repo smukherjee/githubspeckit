@@ -20,9 +20,7 @@ This enables superadmin cross-tenant operations.
 
 Status: Phase 3.4 - Endpoint Implementation (T038)
 """
-from __future__ import annotations
-
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -44,8 +42,8 @@ class UserResponse(BaseModel):
     email: EmailStr
     status: UserStatus
     roles: List[str]
-    created_at: str | None = None
-    updated_at: str | None = None
+    created_at: Optional[str] = None
+    updated_at: Optional[str] = None
     model_config = ConfigDict(use_enum_values=True)
 
 

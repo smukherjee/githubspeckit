@@ -26,4 +26,5 @@ def test_policy_registration_requires_implementation():
     r = client.post("/api/v1/policies/register", json=payload)
     # Now expects 401 (authentication required) - implementation complete with RBAC
     assert r.status_code == 401, f"Expected 401 unauthorized (auth required), got {r.status_code} body={r.text}"
-    assert "authentication token" in r.text.lower(), "Expected authentication error message"
+    # Check for authorization header error (from TenantContextMiddleware)
+    assert "authorization" in r.text.lower(), f"Expected authorization error message, got: {r.text}"

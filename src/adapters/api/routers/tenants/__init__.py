@@ -20,7 +20,6 @@ can only access their own tenant unless they have superadmin role.
 
 Status: Phase 3.4 - Endpoint Implementation (T037)
 """
-from __future__ import annotations
 
 from fastapi import APIRouter
 

@@ -10,7 +10,6 @@ This package contains admin-level routes for platform operations:
 
 Status: Phase 3.4 - Endpoint Implementation (T035)
 """
-from __future__ import annotations
 
 from fastapi import APIRouter
 

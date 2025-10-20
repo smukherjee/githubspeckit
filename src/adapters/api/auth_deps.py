@@ -2,9 +2,7 @@
 
 Provides JWT token validation and user authentication for protected endpoints.
 """
-from __future__ import annotations
-
-from typing import Annotated, Any
+from typing import Annotated, Any, List
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,7 +22,7 @@ class AuthenticatedUser:
         self,
         user_id: str,
         tenant_id: str,
-        roles: list[str],
+        roles: List[str],
         email: str,
         status: UserStatus
     ):

@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request, status
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
 from typing import List, Optional, Annotated

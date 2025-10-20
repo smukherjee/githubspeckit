@@ -23,7 +23,7 @@ from adapters.api.routers import users as users_router
 from adapters.api.routers import auth as auth_router
 from adapters.api.routers import embed as embed_router
 from adapters.api.routers import audit as audit_router
-from adapters.api.routers import tenants as tenants_crud_router  # Legacy tenant CRUD (CREATE/LIST)
+from adapters.api.routers import tenants_crud  # Legacy tenant CRUD (CREATE/LIST)
 from adapters.api.routers.tenants import router as tenants_scoped_router  # New tenant-scoped routes
 from adapters.api.routers import policies as policies_router
 from adapters.api.routers import feature_flags as feature_flags_router
@@ -248,7 +248,7 @@ def create_app() -> FastAPI:
     app.include_router(feature_flags_router.router, prefix="/api")
     app.include_router(embed_router.router, prefix="/api")
     app.include_router(audit_router.router, prefix="/api")
-    app.include_router(tenants_crud_router.router, prefix="/api")  # Legacy tenant CRUD routes
+    app.include_router(tenants_crud.router, prefix="/api")  # Legacy tenant CRUD routes
     app.include_router(profile_router.router, prefix="/api")  # User profile details
     app.include_router(roles_router.router, prefix="/api")  # Role hierarchy (FR-089)
     app.include_router(admin_router.router, prefix="/api/v1")  # Admin routes (FR-004 tenant security)

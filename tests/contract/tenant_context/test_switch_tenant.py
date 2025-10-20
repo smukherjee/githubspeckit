@@ -8,31 +8,31 @@ Constitutional Compliance:
 
 import pytest
 from httpx import AsyncClient
-from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
+from uuid import uuid4  # Still used in test_switch_tenant_not_found_404
 
 
 @pytest.mark.asyncio
 async def test_switch_tenant_success_200(
     client: AsyncClient,
-    db_session,
     superadmin_headers: dict
 ):
     """Superadmin successfully switches active tenant, returns TenantSwitchResponse."""
-    # Create a second tenant to switch to
-    from adapters.persistence.models import TenantModel, TenantStatusEnum
-    target_tenant = TenantModel(
-        tenant_id=uuid4(),
-        name=f"Target Tenant {datetime.utcnow().timestamp()}",
-        status=TenantStatusEnum.active
+    # Create a second tenant via API
+    tenant_name = f"Target Tenant {datetime.now(timezone.utc).timestamp()}"
+    create_response = await client.post(
+        "/api/v1/tenants",
+        json={"name": tenant_name},
+        headers=superadmin_headers
     )
-    db_session.add(target_tenant)
-    await db_session.commit()
+    assert create_response.status_code == 201
+    target_tenant_data = create_response.json()
+    target_tenant_id = target_tenant_data["tenant_id"]
     
     # Perform tenant switch
     response = await client.post(
         "/api/v1/admin/context/tenant",
-        json={"target_tenant_id": str(target_tenant.tenant_id)},
+        json={"target_tenant_id": target_tenant_id},
         headers=superadmin_headers
     )
     
@@ -40,7 +40,7 @@ async def test_switch_tenant_success_200(
     data = response.json()
     # Match actual response schema from endpoint
     assert "active_tenant_id" in data
-    assert data["active_tenant_id"] == str(target_tenant.tenant_id)
+    assert data["active_tenant_id"] == target_tenant_id
     assert "switched_at" in data
     assert "tenant_name" in data
 
@@ -90,24 +90,24 @@ async def test_switch_tenant_not_found_404(
 @pytest.mark.asyncio
 async def test_switch_tenant_schema_validation(
     client: AsyncClient,
-    db_session,
     superadmin_headers: dict
 ):
     """Request and response match expected schema."""
-    # Create target tenant
-    from adapters.persistence.models import TenantModel, TenantStatusEnum
-    target_tenant = TenantModel(
-        tenant_id=uuid4(),
-        name=f"Schema Validation Target {datetime.utcnow().timestamp()}",
-        status=TenantStatusEnum.active
+    # Create target tenant via API
+    tenant_name = f"Schema Validation Target {datetime.now(timezone.utc).timestamp()}"
+    create_response = await client.post(
+        "/api/v1/tenants",
+        json={"name": tenant_name},
+        headers=superadmin_headers
     )
-    db_session.add(target_tenant)
-    await db_session.commit()
+    assert create_response.status_code == 201
+    target_tenant_data = create_response.json()
+    target_tenant_id = target_tenant_data["tenant_id"]
     
     # Test with valid request schema
     response = await client.post(
         "/api/v1/admin/context/tenant",
-        json={"target_tenant_id": str(target_tenant.tenant_id)},
+        json={"target_tenant_id": target_tenant_id},
         headers=superadmin_headers
     )
     

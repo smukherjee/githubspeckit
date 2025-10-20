@@ -11,7 +11,6 @@ Future placeholder for platform-level operations:
 
 Status: Phase 3.4 - Placeholder for future implementation
 """
-from __future__ import annotations
 
 from fastapi import APIRouter
 

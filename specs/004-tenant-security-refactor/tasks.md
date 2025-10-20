@@ -449,15 +449,17 @@ This task list implements OWASP A01:2021 remediation by refactoring tenant_id fr
 
 ### Contract Test Validation
 
-- [x] **T056** Run all contract tests ✅ **PARTIALLY COMPLETE**
-  - **Result**: 4 PASSED, 1 SKIPPED (tenant-scoped user listing tests) ✅
+- [x] **T056** Run all contract tests ✅ **COMPLETE**
+  - **Result**: 13/13 PASSED ✅
   - ✅ test_list_tenant_users_success_200 - User lists own tenant users
   - ✅ test_list_tenant_users_forbidden_403 - Cross-tenant access denied with policy header
   - ✅ test_list_tenant_users_superadmin_200 - Superadmin global access
+  - ✅ test_list_tenant_users_schema_validation - Response matches OpenAPI schema (jsonschema validation)
   - ✅ test_tenant_isolation_policy_header - 403 includes X-Tenant-Isolation-Policy header
-  - ⏭️ test_list_tenant_users_schema_validation - Skipped (requires schemathesis for full OpenAPI validation)
-  - **Note**: Other contract tests (tenant switching, self-service profile) are stubs pending route implementation
-  - **Validated**: Tenant isolation, superadmin bypass, policy headers all working correctly
+  - ✅ test_switch_tenant_* (4 tests) - Tenant switching contract tests
+  - ✅ test_get_current_user_* (4 tests) - Self-service profile contract tests
+  - **Implementation**: Installed jsonschema (via schemathesis), implemented OpenAPI schema validation
+  - **Validation**: All contract tests passing, schema validation working correctly
 
 ### Audit Middleware Integration
 

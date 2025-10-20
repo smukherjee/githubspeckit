@@ -170,20 +170,26 @@ async def test_policy_list_superadmin_cross_tenant(
 
 @pytest.mark.asyncio
 
-async def test_policy_list_superadmin_requires_tenant_id(
+async def test_policy_list_superadmin_uses_jwt_tenant(
     client: AsyncClient,
     superadmin_headers,
 ):
-    """FR-065: Superadmin must specify tenant_id when listing policies."""
+    """FR-004 Tenant Security Refactor: Superadmin lists policies from their JWT tenant_id.
+    
+    The old behavior required explicit tenant_id query parameter (now deprecated).
+    New behavior: Uses effective_tenant_id from JWT automatically.
+    For cross-tenant access, superadmin must use session switching (POST /admin/context/tenant).
+    """
     
     response = await client.get(
         "/api/v1/policies",
         headers=superadmin_headers
     )
     
-    # Should require tenant_id parameter
-    assert response.status_code == 400
-    assert "tenant_id required" in response.json()["detail"]
+    # Should succeed with 200 OK (uses JWT tenant_id automatically)
+    assert response.status_code == 200, f"Expected 200 OK, got {response.status_code}: {response.text}"
+    # Returns list of policies (may be empty)
+    assert isinstance(response.json(), list), "Expected list response"
 
 
 @pytest.mark.asyncio

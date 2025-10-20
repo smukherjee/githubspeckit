@@ -3,7 +3,6 @@
 Implements database-backed create (idempotent by name), list, soft delete, restore.
 Idempotency rule: creating a tenant with an existing exact lowercase name returns the existing tenant.
 """
-from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, status, Header, Depends
 from pydantic import BaseModel, field_validator, ConfigDict

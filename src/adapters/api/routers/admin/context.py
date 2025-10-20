@@ -15,7 +15,6 @@ This enables cross-tenant operations without re-authentication.
 
 Status: Phase 3.4 - Endpoint Implementation (T036)
 """
-from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Annotated
