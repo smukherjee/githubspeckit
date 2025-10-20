@@ -2,33 +2,52 @@ import pytest
 
 
 def test_log_export_bounds_and_truncation():
-    """Test log export with filtering, bounds, and redaction (FR-016, FR-072, FR-073)."""
+    """Test log export with filtering, bounds, and redaction (FR-016, FR-072, FR-073).
+    
+    Note: Log export endpoint requires authentication (superadmin or tenant_admin role).
+    """
     from fastapi.testclient import TestClient
     from adapters.api.app import create_app
+    from auth_core.jwt import JWTService, JWTKeySet
 
     app = create_app()
+
+    # Create authenticated client with superadmin token
+    # Use the same JWT configuration as the app's get_jwt_service() in deps.py
+    jwt_keys = JWTKeySet(active_kid="v1", keys={"v1": "dev-secret-key"})
+    jwt_service = JWTService(keys=jwt_keys, issuer="modern-backend", audience="modern-backend")
+    
+    # Generate superadmin token (using valid UUID format for user_id)
+    token = jwt_service.issue(
+        sub="11111111-1111-1111-1111-111111111111",  # Superadmin user UUID
+        tenant_id="00000000-0000-0000-0000-000000000000",  # Superadmin tenant UUID
+        roles=["superadmin"],
+        extra={}
+    )
+    
     client = TestClient(app)
+    headers = {"Authorization": f"Bearer {token}"}
     
     # Generate > limit logs (middleware logs each request)
     for i in range(30):
         client.get("/api/v1/health")
     
-    # Test basic limit and truncation
-    resp = client.get("/api/v1/logs/export", params={"limit": 10})
+    # Test basic limit and truncation (with authentication)
+    resp = client.get("/api/v1/logs/export", params={"limit": 10}, headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert len(data["records"]) == 10
     assert data["truncated"] is True
     assert data["total_available"] >= 30
     
-    # Test category filter
-    resp = client.get("/api/v1/logs/export", params={"category": "info", "limit": 5})
+    # Test category filter (with authentication)
+    resp = client.get("/api/v1/logs/export", params={"category": "info", "limit": 5}, headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     assert all(r.get("level") == "info" for r in data["records"])
     
-    # Test redaction - sensitive fields should be redacted
-    resp = client.get("/api/v1/logs/export", params={"limit": 5})
+    # Test redaction - sensitive fields should be redacted (with authentication)
+    resp = client.get("/api/v1/logs/export", params={"limit": 5}, headers=headers)
     assert resp.status_code == 200
     data = resp.json()
     for record in data["records"]:
@@ -75,13 +94,31 @@ def test_token_validation_failure_logging():
 
 
 def test_metrics_snapshot_and_policy_latency_histogram():
-    """Test policy evaluation histogram is exposed (FR-032, FR-034, C-044)."""
+    """Test policy evaluation histogram is exposed (FR-032, FR-034, C-044).
+    
+    Note: Metrics endpoints now require authentication per V1.0 RBAC enforcement.
+    """
     from fastapi.testclient import TestClient
     from adapters.api.app import create_app
     from domain.policy.evaluator import PolicyEvaluator, Policy, Decision
+    from auth_core.jwt import JWTService, JWTKeySet
 
     app = create_app()
+
+    # Create authenticated client with superadmin token
+    # Use the same JWT configuration as the app's get_jwt_service() in deps.py
+    jwt_keys = JWTKeySet(active_kid="v1", keys={"v1": "dev-secret-key"})
+    jwt_service = JWTService(keys=jwt_keys, issuer="modern-backend", audience="modern-backend")
+    
+    token = jwt_service.issue(
+        sub="11111111-1111-1111-1111-111111111111",  # Superadmin user UUID
+        tenant_id="00000000-0000-0000-0000-000000000000",  # Superadmin tenant UUID
+        roles=["superadmin"],
+        extra={}
+    )
+    
     client = TestClient(app)
+    headers = {"Authorization": f"Bearer {token}"}
     
     # Register policy and evaluate to produce latency samples
     p = Policy(
@@ -97,8 +134,8 @@ def test_metrics_snapshot_and_policy_latency_histogram():
     for _ in range(5):
         pe.evaluate("doc", {"tenant_id": "t-1"})
     
-    # Check Prometheus metrics text format
-    metrics_resp = client.get("/metrics")
+    # Check Prometheus metrics text format (with authentication)
+    metrics_resp = client.get("/metrics", headers=headers)
     assert metrics_resp.status_code == 200
     metrics_text = metrics_resp.text
     
@@ -110,8 +147,8 @@ def test_metrics_snapshot_and_policy_latency_histogram():
     # Verify companion counter is present
     assert "policy_evaluations_total" in metrics_text
     
-    # Check metrics snapshot endpoint
-    snapshot_resp = client.get("/api/v1/metrics/snapshot")
+    # Check metrics snapshot endpoint (with authentication)
+    snapshot_resp = client.get("/api/v1/metrics/snapshot", headers=headers)
     assert snapshot_resp.status_code == 200
     snapshot = snapshot_resp.json()
     assert "metrics" in snapshot

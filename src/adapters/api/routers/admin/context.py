@@ -30,7 +30,7 @@ from adapters.api.models.session import TenantSwitchRequest, TenantSwitchRespons
 from adapters.api.deps import get_db_session, get_audit_service, get_redis_client, AuditService
 from domain.tenants.tenant_context import TenantContext
 
-router = APIRouter(prefix="/context", tags=["admin-context"])
+router = APIRouter(prefix="/context", tags=["admin"])
 
 
 def get_tenant_context(request: Request) -> TenantContext:

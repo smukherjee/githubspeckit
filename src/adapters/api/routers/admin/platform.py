@@ -15,7 +15,7 @@ Status: Phase 3.4 - Placeholder for future implementation
 from fastapi import APIRouter
 
 # Placeholder router for future platform admin routes
-router = APIRouter(prefix="/platform", tags=["admin-platform"])
+router = APIRouter(prefix="/platform", tags=["admin"])
 
 # Example placeholder endpoint (to be implemented in future phases)
 # @router.get("/health")

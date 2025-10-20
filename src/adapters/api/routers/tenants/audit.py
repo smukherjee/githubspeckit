@@ -18,7 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from adapters.api.deps import get_db_session
 from domain.tenants.tenant_context import TenantContext
 
-router = APIRouter(prefix="/{tenant_id}/audit", tags=["tenant-scoped-audit"])
+router = APIRouter(prefix="/{tenant_id}/audit", tags=["tenant-scoped"])
 
 
 class AuditEventResponse(BaseModel):

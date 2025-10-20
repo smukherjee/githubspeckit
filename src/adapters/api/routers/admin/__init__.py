@@ -19,7 +19,9 @@ from .tenants import router as tenants_router
 from .users import router as users_router
 
 # Main admin router
-router = APIRouter(prefix="/admin", tags=["admin"])
+# Note: No tags here to avoid duplication in OpenAPI docs
+# Sub-routers define their own tags for proper organization
+router = APIRouter(prefix="/admin")
 
 # Mount sub-routers
 router.include_router(context_router)

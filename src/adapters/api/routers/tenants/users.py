@@ -32,7 +32,7 @@ from adapters.persistence.repositories import SQLAlchemyUserRepository
 from domain.tenants.tenant_context import TenantContext
 from domain.users.models import UserStatus
 
-router = APIRouter(prefix="/{tenant_id}/users", tags=["tenant-scoped-users"])
+router = APIRouter(prefix="/{tenant_id}/users", tags=["tenant-scoped"])
 
 
 class UserResponse(BaseModel):

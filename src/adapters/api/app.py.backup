@@ -27,8 +27,8 @@ from adapters.api.routers import embed as embed_router
 from adapters.api.routers import audit as audit_router
 from adapters.api.routers import tenants_crud  # Legacy tenant CRUD (CREATE/LIST)
 from adapters.api.routers.tenants import router as tenants_scoped_router  # New tenant-scoped routes
-# from adapters.api.routers import policies as policies_router  # Hidden from OpenAPI docs
-# from adapters.api.routers import feature_flags as feature_flags_router  # Hidden from OpenAPI docs
+from adapters.api.routers import policies as policies_router
+from adapters.api.routers import feature_flags as feature_flags_router
 from adapters.api.routers import profile as profile_router
 from adapters.api.routers import roles as roles_router
 from adapters.api.routers import admin as admin_router
@@ -284,8 +284,8 @@ MIT License - See LICENSE file for details.
     app.include_router(invitations_router.router, prefix="/api")
     app.include_router(users_router.router, prefix="/api")
     app.include_router(auth_router.router, prefix="/api")
-    # app.include_router(policies_router.router, prefix="/api")  # Hidden from OpenAPI docs
-    # app.include_router(feature_flags_router.router, prefix="/api")  # Hidden from OpenAPI docs
+    app.include_router(policies_router.router, prefix="/api")
+    app.include_router(feature_flags_router.router, prefix="/api")
     app.include_router(embed_router.router, prefix="/api")
     app.include_router(audit_router.router, prefix="/api")
     app.include_router(tenants_crud.router, prefix="/api")  # Legacy tenant CRUD routes
