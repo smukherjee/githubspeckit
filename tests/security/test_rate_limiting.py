@@ -18,7 +18,7 @@ Related:
 """
 
 import pytest
-from httpx import AsyncClient
+from httpx import AsyncClient, ASGITransport
 from unittest.mock import AsyncMock
 from uuid import uuid4
 from datetime import datetime, timezone
@@ -26,7 +26,7 @@ from datetime import datetime, timezone
 from adapters.api.app import create_app
 from adapters.persistence.db_config import DatabaseConfig
 from adapters.persistence.repositories import SQLAlchemyTenantRepository, SQLAlchemyUserRepository
-from domain.tenants.models import Tenant
+from domain.tenants.models import Tenant, TenantStatus
 from domain.users.models import User, UserStatus
 from auth_core.hashers import default_hasher
 
@@ -38,16 +38,19 @@ async def app_with_rate_limiting():
 
 
 @pytest.fixture
-async def setup_test_data(test_db_session):
+async def setup_test_data(db_session):
     """Setup test tenant and users (tenant_admin and superadmin)."""
-    tenant_repo = SQLAlchemyTenantRepository(test_db_session)
-    user_repo = SQLAlchemyUserRepository(test_db_session)
+    tenant_repo = SQLAlchemyTenantRepository(db_session)
+    user_repo = SQLAlchemyUserRepository(db_session)
+    
+    # Use unique identifiers to avoid conflicts across tests
+    unique_id = str(uuid4())[:8]
     
     # Create test tenant
     tenant = Tenant(
         tenant_id=str(uuid4()),
-        name="Rate Limit Test Tenant",
-        status="active",
+        name=f"RateLimitTest-{unique_id}",
+        status=TenantStatus.active,
     )
     await tenant_repo.upsert(tenant)
     
@@ -55,7 +58,7 @@ async def setup_test_data(test_db_session):
     admin_user = User(
         user_id=str(uuid4()),
         tenant_id=tenant.tenant_id,
-        email="admin@ratelimitest.com",
+        email=f"admin-{unique_id}@ratelimitest.com",
         password_hash=default_hasher.hash("SecurePass123!"),
         roles=["tenant_admin"],
         status=UserStatus.active,
@@ -68,7 +71,7 @@ async def setup_test_data(test_db_session):
     superadmin_user = User(
         user_id=str(uuid4()),
         tenant_id=tenant.tenant_id,
-        email="superadmin@ratelimitest.com",
+        email=f"superadmin-{unique_id}@ratelimitest.com",
         password_hash=default_hasher.hash("SuperPass123!"),
         roles=["superadmin"],
         status=UserStatus.active,
@@ -76,43 +79,43 @@ async def setup_test_data(test_db_session):
         updated_by="system",
     )
     await user_repo.upsert(superadmin_user)
-    
-    await test_db_session.commit()
-    
+
+    await db_session.commit()
+
     return {
         "tenant": tenant,
         "admin_user": admin_user,
         "superadmin_user": superadmin_user,
     }
-
-
 @pytest.fixture
 async def admin_token(app_with_rate_limiting, setup_test_data):
     """Get JWT token for tenant_admin user."""
-    async with AsyncClient(app=app_with_rate_limiting, base_url="http://test") as client:
+    transport = ASGITransport(app=app_with_rate_limiting)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
-            "/api/v1/auth/token",
+            "/api/v1/auth/login",
             json={
-                "email": "admin@ratelimitest.com",
+                "email": setup_test_data["admin_user"].email,
                 "password": "SecurePass123!",
             },
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Login failed: {response.json()}"
         return response.json()["access_token"]
 
 
 @pytest.fixture
 async def superadmin_token(app_with_rate_limiting, setup_test_data):
     """Get JWT token for superadmin user."""
-    async with AsyncClient(app=app_with_rate_limiting, base_url="http://test") as client:
+    transport = ASGITransport(app=app_with_rate_limiting)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
-            "/api/v1/auth/token",
+            "/api/v1/auth/login",
             json={
-                "email": "superadmin@ratelimitest.com",
+                "email": setup_test_data["superadmin_user"].email,
                 "password": "SuperPass123!",
             },
         )
-        assert response.status_code == 200
+        assert response.status_code == 200, f"Login failed: {response.json()}"
         return response.json()["access_token"]
 
 
@@ -144,7 +147,8 @@ async def test_rate_limit_enforcement_exceeding_threshold_returns_429(
     """
     tenant_id = setup_test_data["tenant"].tenant_id
     
-    async with AsyncClient(app=app_with_rate_limiting, base_url="http://test") as client:
+    transport = ASGITransport(app=app_with_rate_limiting)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         # NOTE: slowapi's in-memory storage is shared across tests
         # Need to use unique source IP to avoid cross-test interference
         # Using X-Forwarded-For header to simulate different IPs
@@ -225,7 +229,8 @@ async def test_rate_limit_headers_present_in_responses(
     """
     tenant_id = setup_test_data["tenant"].tenant_id
     
-    async with AsyncClient(app=app_with_rate_limiting, base_url="http://test") as client:
+    transport = ASGITransport(app=app_with_rate_limiting)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Use unique IP to avoid cross-test interference
         test_ip = f"10.0.0.{uuid4().int % 255}"
         headers = {
@@ -294,7 +299,8 @@ async def test_superadmin_bypasses_rate_limit(
     """
     tenant_id = setup_test_data["tenant"].tenant_id
     
-    async with AsyncClient(app=app_with_rate_limiting, base_url="http://test") as client:
+    transport = ASGITransport(app=app_with_rate_limiting)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
         # Use unique IP (though superadmin should be exempt anyway)
         test_ip = f"10.0.0.{uuid4().int % 255}"
         headers = {

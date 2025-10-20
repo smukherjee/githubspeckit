@@ -37,19 +37,21 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
     """
     
     # Define PUBLIC routes that don't require authentication
+    # Only health and invitation acceptance endpoints are public per V1.0 spec
     PUBLIC_ROUTES = {
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
         "/api/v1/health",
-        "/api/v1/config",
-        "/api/v1/config/errors",
-        "/api/v1/embed/exchange",
-        "/api/v1/metrics/snapshot",
-        "/api/v1/logs/export",
-        "/metrics",
         "/docs",
         "/redoc",
         "/openapi.json",
+    }
+    
+    # Routes that support public access (no auth token required)
+    # These include path patterns that should be checked with startswith()
+    PUBLIC_ROUTE_PREFIXES = {
+        "/api/v1/invitations/",  # Invitation acceptance is public
+        "/static",  # Static files
     }
     
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
@@ -68,9 +70,14 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
             400 Bad Request if tenant_id format invalid
         """
         try:
-            # Skip authentication for PUBLIC routes
-            if request.url.path in self.PUBLIC_ROUTES or request.url.path.startswith("/static"):
+            # Skip authentication for PUBLIC routes (exact match)
+            if request.url.path in self.PUBLIC_ROUTES:
                 return await call_next(request)
+            
+            # Skip authentication for PUBLIC route prefixes (startswith check)
+            for prefix in self.PUBLIC_ROUTE_PREFIXES:
+                if request.url.path.startswith(prefix):
+                    return await call_next(request)
             
             # Extract JWT token from Authorization header
             authorization = request.headers.get("Authorization")

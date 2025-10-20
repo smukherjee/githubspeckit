@@ -12,6 +12,8 @@ and key rotation version placeholders.
 from __future__ import annotations
 
 from typing import Any
+import logging
+import traceback
 from fastapi import FastAPI, Response, Request
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,6 +36,7 @@ from adapters.api.security_headers import SecurityHeadersMiddleware
 from adapters.observability.metrics import SimpleMetricsRegistry
 from adapters.observability.prometheus_client_adapter import PromClientAdapter
 from adapters.logging.middleware import StructuredLoggingMiddleware, InMemoryStructuredLogSink
+from adapters.logging.config import configure_logging
 from services.log_export_service import LogExportService
 # Import tenant security middleware (Phase 3.3 - T034)
 from adapters.api.middleware.tenant_context import TenantContextMiddleware
@@ -43,10 +46,10 @@ from adapters.api.middleware.session import SessionMiddleware
 from adapters.api.correlation_middleware import CorrelationMiddleware
 from adapters.api.actor_middleware import ActorTrackingMiddleware
 from observability.tracing import init_tracing
-# Import rate limiting (Phase 3.6 - T050)
-from adapters.security.rate_limit import limiter
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
+# V1.0: Rate limiting disabled for intranet deployment (see ADR-004)
+# from adapters.security.rate_limit import limiter
+# from slowapi import _rate_limit_exceeded_handler
+# from slowapi.errors import RateLimitExceeded
 from fastapi import Request
 from fastapi.responses import JSONResponse
 import yaml
@@ -55,6 +58,18 @@ from pathlib import Path
 
 
 def create_app() -> FastAPI:
+    # Configure central logging (Constitution V: Central Control)
+    # Must happen before any logging calls
+    log_level = os.getenv("LOG_LEVEL", "INFO")
+    log_format = os.getenv("LOG_FORMAT", "json")  # json or text
+    log_sink = os.getenv("LOG_SINK", "stdout")  # stdout, stderr, or file path
+    
+    configure_logging(
+        log_level=log_level,
+        log_format=log_format,
+        log_sink=log_sink,
+    )
+    
     # Early config validation fail-fast hook (FR-041 C-045)
     if os.getenv("SIMULATE_CONFIG_FAIL") == "1":  # pragma: no cover - integration scenario
         try:
@@ -112,11 +127,12 @@ MIT License - See LICENSE file for details.
     # Simple span collection list for TEST-XCUT-11
     app.state._test_spans = []  # noqa: SLF001
     
+    # V1.0: Rate limiting disabled for intranet deployment (see ADR-004)
     # Rate limiting integration (Phase 3.6 - T050)
     # Attach limiter to app.state so it's accessible to endpoints via dependency injection
-    app.state.limiter = limiter
+    # app.state.limiter = limiter
     # Register exception handler for rate limit exceeded (HTTP 429 responses)
-    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+    # app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
     
     # CORS middleware - environment-aware configuration
     cors_origins_str = os.getenv("CORS_ORIGINS", "*")
@@ -166,6 +182,22 @@ MIT License - See LICENSE file for details.
             return await call_next(request)
         except Exception as exc:  # noqa: PIE786
             cid = request.headers.get("X-Correlation-ID") or "pending"
+            
+            # Log exception with full context (Constitution V: Security/audit logs MUST be structured)
+            logger = logging.getLogger("githubspeckit.error")
+            logger.error(
+                "Unhandled exception in request processing",
+                extra={
+                    "correlation_id": cid,
+                    "exception_type": exc.__class__.__name__,
+                    "exception_message": str(exc),
+                    "path": request.url.path,
+                    "method": request.method,
+                    "traceback": traceback.format_exc(),
+                },
+                exc_info=True,
+            )
+            
             return JSONResponse(status_code=500, content={"error": {"code": exc.__class__.__name__, "message": "internal_error", "correlation_id": cid}})
     # Attach structured logging middleware (TEST-OBS-01) with in-memory sink for tests
     sink = InMemoryStructuredLogSink()
@@ -317,6 +349,7 @@ MIT License - See LICENSE file for details.
 
     @app.get("/api/v1/logs/export", tags=["system"])
     async def export_logs(
+        request: Request,
         limit: int = 100,
         tenant_id: str | None = None,
         category: str | None = None,
@@ -326,9 +359,14 @@ MIT License - See LICENSE file for details.
     ) -> dict[str, list[dict[str, object]] | bool | int | str | None]:
         """Export logs with filtering and redaction (FR-016, FR-072, FR-073).
         
+        **RBAC Enforcement**:
+        - Superadmin: Can export logs from any tenant (or all if tenant_id not specified)
+        - Tenant Admin: Can ONLY export logs from their own tenant (tenant_id forced to match JWT)
+        - Regular Users: Access denied (403 Forbidden)
+        
         Query Parameters:
             limit: Maximum records to return (default 100, max 10000)
-            tenant_id: Filter by tenant ID
+            tenant_id: Filter by tenant ID (forced to match JWT for non-superadmin)
             category: Filter by log level/category (info, warning, error)
             correlation_id: Filter by correlation ID
             since: ISO8601 timestamp lower bound (inclusive)
@@ -340,6 +378,34 @@ MIT License - See LICENSE file for details.
         """
         from datetime import datetime
         from fastapi import HTTPException
+        
+        # RBAC enforcement: Check authentication and roles
+        if not hasattr(request.state, "tenant_context"):
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication required for log export"
+            )
+        
+        tenant_context = request.state.tenant_context
+        roles = tenant_context.roles
+        is_superadmin = tenant_context.is_superadmin
+        
+        # Regular users cannot access log export
+        if not is_superadmin and "tenant_admin" not in roles:
+            raise HTTPException(
+                status_code=403,
+                detail="Log export requires superadmin or tenant_admin role"
+            )
+        
+        # Tenant admin can ONLY see logs from their own tenant
+        if not is_superadmin:
+            if tenant_id and tenant_id != str(tenant_context.tenant_id):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Tenant admins can only export logs from their own tenant ({tenant_context.tenant_id})"
+                )
+            # Force tenant_id to match JWT claims
+            tenant_id = str(tenant_context.tenant_id)
         
         # Parse timestamp parameters
         since_dt = None

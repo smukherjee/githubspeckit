@@ -26,6 +26,7 @@ This is a **breaking change release** that removes all deprecated features and e
 - Q: Which tool should generate the Entity-Relationship Diagram for `docs/database-erd-v1.0.png`? → A: SchemaSpy (Java-based, comprehensive HTML docs + ERD, minimal dev load, production-grade)
 - Q: What rate limiting threshold should be applied to user creation attempts to prevent email enumeration? → A: Configurable via environment variable with default of 100 attempts/hour/IP
 - Q: Is blue-green deployment strategy implementation in-scope for V1.0, or just documentation? → A: Out of scope - Remove from NFR-026, focus on code cleanup only
+- Q: Should log export endpoint integrate with Prometheus/Grafana for real-time dashboards? → A: V1.0 implementation provides detailed JSON logs for debugging/forensics only. V2.0 will add Grafana Loki integration for real-time log dashboards. Current `/metrics` endpoint already Prometheus-compatible for metrics visualization.
 
 ---
 
@@ -118,6 +119,40 @@ app.add_middleware(DeprecationMiddleware)
 | `/api/v1/admin/context/tenant` | **KEEP** | Admin (already correct) |
 | `/api/v1/roles` | `/api/v1/admin/roles` | Admin |
 | `/api/v1/feature-flags` | `/api/v1/admin/feature-flags` | Admin |
+
+**Route Classification Matrix** (Complete V1.0 Endpoint Catalog):
+
+| Endpoint | Method | RBAC Scope | Roles Allowed | Tenant Isolation |
+|----------|--------|------------|---------------|------------------|
+| `/api/v1/auth/login` | POST | Public | None (unauthenticated) | N/A |
+| `/api/v1/auth/refresh` | POST | Public | None (unauthenticated) | N/A |
+| `/api/v1/auth/revoke` | POST | Authenticated | Any authenticated user | N/A |
+| `/api/v1/health` | GET | Public | None (unauthenticated) | N/A |
+| `/api/v1/config` | GET | Public | None (unauthenticated) | N/A |
+| `/api/v1/embed/exchange` | POST | Public | None (unauthenticated) | N/A |
+| `/metrics` | GET | Public | None (monitoring) | N/A |
+| `/api/v1/admin/tenants` | GET, POST | Admin | superadmin | Cross-tenant (superadmin sees all) |
+| `/api/v1/admin/tenants/{id}` | GET, PUT, DELETE | Admin | superadmin, tenant_admin (own tenant) | Tenant-filtered for tenant_admin |
+| `/api/v1/admin/users` | GET, POST | Admin | superadmin, tenant_admin | Cross-tenant for superadmin, tenant-scoped for tenant_admin |
+| `/api/v1/admin/users/{id}` | GET, PUT, DELETE | Admin | superadmin, tenant_admin (same tenant) | Tenant-filtered |
+| `/api/v1/admin/policies` | GET, POST | Admin | superadmin, tenant_admin | Tenant-scoped |
+| `/api/v1/admin/policies/{id}` | GET, PUT, DELETE | Admin | superadmin, tenant_admin (same tenant) | Tenant-filtered |
+| `/api/v1/admin/roles` | GET | Admin | superadmin, tenant_admin | Global (read-only) |
+| `/api/v1/admin/feature-flags` | GET, POST | Admin | superadmin, tenant_admin | Tenant-scoped |
+| `/api/v1/admin/context/tenant` | POST | Admin | superadmin, tenant_admin | Cross-tenant switch (superadmin only) |
+| `/api/v1/tenants/{tenant_id}/users` | GET | Tenant-Scoped | Any authenticated user in tenant | Tenant-filtered by path param |
+| `/api/v1/tenants/{tenant_id}/policies` | GET | Tenant-Scoped | Any authenticated user in tenant | Tenant-filtered by path param |
+| `/api/v1/audit/events` | GET | Tenant-Scoped | Any authenticated user | Tenant-filtered automatically |
+| `/api/v1/users/{id}/profile` | GET, PUT | User | Owner, tenant_admin, superadmin | Tenant-filtered |
+| `/api/v1/users/{id}/profile/photo` | POST, DELETE | User | Owner, tenant_admin | Tenant-filtered |
+| `/api/v1/logs/export` | GET | **Admin** | **superadmin, tenant_admin** | **Tenant-filtered for tenant_admin, cross-tenant for superadmin** |
+| `/api/v1/metrics/snapshot` | GET | Public | None (monitoring) | N/A |
+
+**RBAC Scope Definitions**:
+- **Public**: No authentication required, accessible to anyone
+- **Admin**: Requires `superadmin` or `tenant_admin` role (specific permissions vary by endpoint)
+- **Tenant-Scoped**: Authenticated users can access resources within their tenant only
+- **User**: Resource owner + authorized admins can access
 
 **Implementation**:
 ```python
@@ -521,6 +556,37 @@ graph TD
     style C fill:#f9f,stroke:#333
     style J fill:#9f9,stroke:#333
     style K fill:#9f9,stroke:#333
+```
+
+### Observability Architecture (V1.0)
+
+**Metrics (Prometheus-Compatible)**:
+- Endpoint: `GET /metrics` (Prometheus text format)
+- Purpose: Real-time numeric metrics (counters, gauges, histograms)
+- Integration: Prometheus scrapes `/metrics` → Grafana visualizes via Prometheus datasource
+- Metrics Available:
+  - `active_users` (gauge, per-tenant)
+  - `auth_failures_total` (counter, per-tenant)
+  - `policy_denials_total` (counter, per-tenant)
+  - `rate_limit_hits_total` (counter, per-tenant)
+  - `policy_evaluation_latency_seconds` (histogram)
+
+**Logs (JSON Export for Forensics)**:
+- Endpoint: `GET /api/v1/logs/export` (JSON format, **authenticated**)
+- Purpose: On-demand export for compliance, debugging, forensic analysis
+- Filters: `tenant_id`, `category`, `correlation_id`, `since`, `until`, `limit`
+- **NOT for real-time dashboards**: Grafana cannot query REST JSON endpoints directly
+- **V2.0 Roadmap**: Add Grafana Loki integration for real-time log aggregation + searchable dashboards
+
+**Data Flow Separation**:
+```
+Application Metrics → PromClientAdapter → /metrics → Prometheus → Grafana (real-time dashboards)
+Application Logs → InMemoryStructuredLogSink → /api/v1/logs/export → JSON download (forensic analysis)
+```
+
+**V2.0 Enhancement** (Deferred):
+```
+Application Logs → LokiLogSink → Loki → Grafana (unified metrics + logs dashboards)
 ```
 
 ### Removed Components

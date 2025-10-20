@@ -31,33 +31,39 @@ Related:
     - FR-053-054: Security testing
 """
 
+from contextvars import ContextVar
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.requests import Request
 
 from domain.config.descriptor_parser import parse_descriptor
 
+# Context variable to make current request available to exempt_when callback
+_current_request: ContextVar[Request | None] = ContextVar("current_request", default=None)
 
-def _is_superadmin(request: Request) -> bool:
+
+def _is_superadmin() -> bool:
     """
     Check if the current request is from a superadmin user.
     
     Used by slowapi's exempt_when parameter to bypass rate limits for admin operations.
-    
-    Args:
-        request: Starlette Request object
         
     Returns:
         True if user is authenticated and has superadmin role, False otherwise
         
     Implementation Note:
-        Accesses request.state.user set by auth middleware (dependency injection).
+        Uses ContextVar to access the current request (set by the endpoint receiving the Request parameter).
+        slowapi's exempt_when expects a callable with NO arguments, so we use contextvars.
         Returns False if user not authenticated (middleware not run yet).
         
     Related:
         - FR-051: Superadmin bypass mechanism
         - src/adapters/api/dependencies/auth.py: Sets request.state.user
     """
+    request = _current_request.get()
+    if not request:
+        return False
+    
     # Check if user object exists in request state (set by auth middleware)
     if not hasattr(request.state, "user"):
         return False
@@ -67,8 +73,8 @@ def _is_superadmin(request: Request) -> bool:
         return False
     
     # Check if user has superadmin role
-    # Superadmin role is stored in user.roles list
-    return any(role.name == "superadmin" for role in getattr(user, "roles", []))
+    # Superadmin role is stored in user.roles list as strings (not role objects)
+    return "superadmin" in getattr(user, "roles", [])
 
 
 # Initialize slowapi Limiter instance
@@ -104,4 +110,4 @@ limiter = Limiter(
 )
 
 
-__all__ = ["limiter", "_is_superadmin"]
+__all__ = ["limiter", "_is_superadmin", "_current_request"]

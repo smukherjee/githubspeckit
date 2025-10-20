@@ -66,9 +66,19 @@ class StructuredLoggingMiddleware(BaseHTTPMiddleware):
             span_id = (
                 f"{span_ctx.span_id:016x}" if span_ctx and span_ctx.span_id else None
             )
+            
+            # Determine log level based on status code and exception
+            level = "info"
+            if exc is not None:
+                level = "error"
+            elif status_code >= 500:
+                level = "error"
+            elif status_code >= 400:
+                level = "warning"
+            
             base = {
                 "ts": datetime.now(timezone.utc).isoformat(),
-                "level": "info",
+                "level": level,
                 "msg": "request",
                 "http_method": request.method,
                 "path": request.url.path,
@@ -79,6 +89,14 @@ class StructuredLoggingMiddleware(BaseHTTPMiddleware):
                 "trace_id": trace_id,
                 "span_id": span_id,
             }
+            
+            # Add exception details if present (Constitution V: structured and exportable)
+            if exc is not None:
+                base["exception_type"] = exc.__class__.__name__
+                base["exception_message"] = str(exc)
+                # Don't include full traceback in structured logs (too verbose)
+                # Full traceback is logged by error_envelope_middleware
+            
             # redact potentially sensitive inbound headers subset
             hdrs = {k.lower(): v for k, v in request.headers.items()}
             redacted_headers, had_secret = redact_dict(hdrs)

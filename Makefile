@@ -34,12 +34,20 @@ install: compile-requirements sync
 
 # Add dev/test tooling (keep runtime lock clean)
 # Note: Installs dev dependency group which includes pytest-asyncio
-dev: venv
+# Also ensures Redis is running for rate limiting tests
+dev: venv redis-start
 	$(PIP) install -r requirements.txt
 	$(PIP) install -e ".[email]"
 	$(PIP) install pytest pytest-asyncio hypothesis coverage ruff mypy types-redis safety radon xenon pyyaml pytest-cov
+	@echo ""
+	@echo "✅ Development environment ready!"
+	@echo "📦 Python packages installed"
+	@echo "🔴 Redis running on port 6379"
+	@echo ""
 
 test: dev
+	@echo "🧪 Running test suite (Redis required for rate limiting tests)..."
+	@redis-cli ping >/dev/null 2>&1 || (echo "⚠️  Redis not running. Starting Redis..." && make redis-start)
 	$(PYTHON) -m pytest -q
 
 # Show merged environment (base .env + optional env.dev / env.prod)
@@ -183,7 +191,11 @@ bootstrap: dev db-reset server-start
 	@echo "   Health:   http://localhost:$(DEFAULT_PORT)/v1/health"
 	@echo "   Docs:     http://localhost:$(DEFAULT_PORT)/docs"
 	@echo ""
-	@echo "📊 Logs:"
+	@echo "� Redis:"
+	@echo "   Port:     6379"
+	@echo "   Status:   make redis-status"
+	@echo ""
+	@echo "�📊 Logs:"
 	@echo "   tail -f /tmp/githubspeckit-api.log"
 	@echo ""
 
