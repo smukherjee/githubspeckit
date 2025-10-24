@@ -65,10 +65,13 @@ Remove all backward compatibility code, enforce per-tenant email uniqueness, mar
 
 ## Phase 3.1: Setup & Configuration (Day 2) - 4 tasks
 
-- [ ] **T008** Create schema_version metadata table migration `alembic/versions/001_create_schema_version_table.py` with version, applied_at, description, checksum columns
+- [x] **T008** Create schema_version metadata table migration `alembic/versions/001_create_schema_version_table.py` with version, applied_at, description, checksum columns
+  **Status**: ✅ COMPLETE - schema_version table created in consolidated V1.0 migration (20251021_0000_v1_0_0_consolidated_schema.py)
 - [x] **T009** Create pre-migration email validation script `scripts/validate_email_migration.py` to check for duplicate (email, tenant_id) pairs
-- [ ] **T010** [P] Update descriptor.toml: remove any rate limiting config (deferred to spec 018), verify no RATE_LIMIT_* variables
-- [ ] **T011** [P] Update `.env.example` with V1.0 requirements: DATABASE_URL, REDIS_URL, LOG_LEVEL; remove deprecated variables
+- [x] **T010** [P] Update descriptor.toml: remove any rate limiting config (deferred to spec 018), verify no RATE_LIMIT_* variables
+  **Status**: ✅ COMPLETE - No rate limiting configuration found in descriptor.toml (already clean)
+- [x] **T011** [P] Update `.env.example` with V1.0 requirements: DATABASE_URL, REDIS_URL, LOG_LEVEL; remove deprecated variables
+  **Status**: ✅ COMPLETE - .env.example contains all V1.0 requirements, no deprecated variables present
 
 ---
 

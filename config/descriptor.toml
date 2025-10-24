@@ -65,7 +65,7 @@ scope = "backend"
 type = "string"
 required = false
 secret = true
-default = "postgresql+asyncpg://postgres:postgres@localhost:5432/githubspeckit_dev"
+default = "postgresql+asyncpg://infysight_dbadmin:infysight_dbadmin123@localhost/infysight_users"
 description = "Database connection URL (V1.0: PostgreSQL only; SQLite support disabled)"
 scope = "backend"
 

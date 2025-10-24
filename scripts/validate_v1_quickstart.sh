@@ -182,7 +182,7 @@ if [ -n "$TOKEN" ]; then
             -H "Content-Type: application/json" \
             -d "{\"email\":\"$TEST_EMAIL\",\"password\":\"Test123!\",\"tenant_id\":\"$TENANT_ID\"}")
         
-        USER1_ID=$(echo "$USER1_RESPONSE" | jq -r '.id // empty')
+        USER1_ID=$(echo "$USER1_RESPONSE" | jq -r '.user_id // empty')
         
         if [ -n "$USER1_ID" ] && [ "$USER1_ID" != "null" ]; then
             # Try to create duplicate
