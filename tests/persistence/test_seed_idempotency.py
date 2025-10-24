@@ -54,63 +54,61 @@ def run_alembic_command(func, *args, **kwargs):
 @pytest.fixture(scope="module")
 def clean_db():
     """
-    Ensure test database is clean before each test module.
+    Ensure test database has fresh data before each test module.
     
-    Drops all tables and types to provide a fresh slate, then re-applies migrations.
+    Clears all data from tables and re-inserts system roles (needed for seeding).
+    Schema is managed by the session-level db_engine fixture from conftest.py.
     """
-    async def _clean():
+    # System role UUIDs (must match migration)
+    SUPERADMIN_ROLE_ID = "00000000-0000-0000-0000-000000000001"
+    TENANT_ADMIN_ROLE_ID = "00000000-0000-0000-0000-000000000002"
+    USER_ROLE_ID = "00000000-0000-0000-0000-000000000003"
+    
+    async def _clean_data():
         engine = create_async_engine(TEST_DATABASE_URL, echo=False)
         try:
             async with engine.connect() as conn:
-                if DB_CONFIG.is_sqlite:
-                    # SQLite: Drop tables individually (no CASCADE support)
-                    tables = [
-                        "alembic_version", "token_replay_records", "user_mfa", 
-                        "key_rotation_records", "feature_flags", "audit_events",
-                        "policy_evaluation_logs", "policies", "password_reset_requests",
-                        "invitations", "user_roles", "user_details", "users", "tenants"
-                    ]
-                    for table in tables:
-                        await conn.execute(text(f"DROP TABLE IF EXISTS {table}"))
-                    await conn.commit()
-                else:
-                    # PostgreSQL/MySQL: Drop all at once with CASCADE
-                    await conn.execute(text("""
-                        DROP TABLE IF EXISTS 
-                            alembic_version,
-                            token_replay_records, user_mfa, key_rotation_records, feature_flags, 
-                            audit_events, policy_evaluation_logs, policies, 
-                            password_reset_requests, invitations, user_roles, 
-                            user_details, users, tenants
-                        CASCADE;
+                try:
+                    # Delete all data (CASCADE ensures referential integrity)
+                    await conn.execute(text("TRUNCATE TABLE tenants, users, user_roles, user_details, "
+                                           "policies, feature_flags, audit_events, invitations, "
+                                           "password_reset_requests, user_mfa, policy_evaluation_logs, "
+                                           "token_replay_records, key_rotation_records, roles "
+                                           "RESTART IDENTITY CASCADE"))
+                    
+                    # Re-insert system roles (migrations create these, but TRUNCATE removes them)
+                    await conn.execute(text(f"""
+                        INSERT INTO roles (id, name, tenant_id, is_system, permissions, description, created_at, updated_at)
+                        VALUES 
+                        ('{SUPERADMIN_ROLE_ID}'::uuid, 'superadmin', NULL, TRUE, 
+                         '["*"]'::jsonb,
+                         'System administrator with cross-tenant access and all permissions',
+                         NOW(), NOW()),
+                        ('{TENANT_ADMIN_ROLE_ID}'::uuid, 'tenant_admin', NULL, TRUE,
+                         '["tenant:*", "users:*", "roles:create", "roles:update", "roles:delete", "policies:*"]'::jsonb,
+                         'Tenant administrator with full control within tenant scope',
+                         NOW(), NOW()),
+                        ('{USER_ROLE_ID}'::uuid, 'user', NULL, TRUE,
+                         '["users:read_own", "profile:update_own"]'::jsonb,
+                         'Standard authenticated user with read-only access to own resources',
+                         NOW(), NOW())
                     """))
                     
-                    # PostgreSQL: Drop enum types (SQLite doesn't have them)
-                    if DB_CONFIG.is_postgres:
-                        await conn.execute(text("""
-                            DROP TYPE IF EXISTS 
-                                mfa_factor_type, decision, flag_state, 
-                                user_status, tenant_status
-                            CASCADE;
-                        """))
-                    
                     await conn.commit()
+                except Exception:
+                    # Tables might not exist yet if db_engine fixture hasn't run
+                    # This is fine - the session fixture will create them
+                    pass
         finally:
             await engine.dispose()
     
-    # Run cleanup before module
-    asyncio.run(_clean())
-    
-    # Re-apply migrations after cleanup so schema exists for subsequent tests
-    config = get_alembic_config()
-    run_alembic_command(command.upgrade, config, "head")
+    # Run cleanup before module tests
+    asyncio.run(_clean_data())
     
     yield
     
-    # Re-apply migrations after module cleanup to restore schema for other test modules
-    asyncio.run(_clean())
-    config = get_alembic_config()
-    run_alembic_command(command.upgrade, config, "head")
+    # Run cleanup after module tests to leave clean state for other modules
+    asyncio.run(_clean_data())
 
 
 @pytest.fixture(scope="function")

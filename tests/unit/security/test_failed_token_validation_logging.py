@@ -28,11 +28,12 @@ def test_failed_token_validation_logging():
     app = create_app()
     client = TestClient(app, raise_server_exceptions=False)
     
-    # First verify that logging works at all by testing with /api/v1/health
+    # First verify that logging works at all by testing with /health
+    # V1.0: Health endpoint is at /health (not /api/v1/health)
     app.state.log_sink.records.clear()
-    health_resp = client.get("/api/v1/health", headers={"X-Correlation-ID": "health-check"})
+    health_resp = client.get("/health", headers={"X-Correlation-ID": "health-check"})
     assert health_resp.status_code == 200
-    assert len(app.state.log_sink.records) > 0, "Logging middleware not working for /api/v1/health"
+    assert len(app.state.log_sink.records) > 0, "Logging middleware not working for /health"
     
     # Now clear and test with a protected endpoint that requires auth
     app.state.log_sink.records.clear()

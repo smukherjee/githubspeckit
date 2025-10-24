@@ -3,8 +3,9 @@ Database configuration and abstraction layer.
 
 Provides centralized database configuration with support for multiple backends:
 - PostgreSQL (primary, production)
-- SQLite (local dev, testing)
 - MySQL (future support)
+
+V1.0: SQLite support disabled - use PostgreSQL only
 
 Constitution Section IV: "Swappable implementations: SQLAlchemy (PostgreSQL primary),
 optional in-memory (tests), SQLite (local dev), and future cloud variants."
@@ -39,7 +40,7 @@ if TYPE_CHECKING:
 class DatabaseDialect(str, Enum):
     """Supported database dialects."""
     POSTGRESQL = "postgresql"
-    SQLITE = "sqlite"
+    # SQLITE = "sqlite"  # V1.0: SQLite support disabled, use PostgreSQL only
     MYSQL = "mysql"
 
 
@@ -119,8 +120,9 @@ class DatabaseConfig:
         
         Supported URL patterns:
         - postgresql:// or postgresql+asyncpg:// → PostgreSQL
-        - sqlite:// or sqlite+aiosqlite:// → SQLite
         - mysql:// or mysql+aiomysql:// → MySQL
+        
+        V1.0: SQLite support disabled (sqlite:// not supported)
         """
         parsed = urlparse(url)
         scheme = parsed.scheme.lower()
@@ -130,14 +132,14 @@ class DatabaseConfig:
         
         if base_scheme == 'postgresql':
             return DatabaseDialect.POSTGRESQL
-        elif base_scheme == 'sqlite':
-            return DatabaseDialect.SQLITE
+        # elif base_scheme == 'sqlite':  # V1.0: SQLite support disabled
+        #     return DatabaseDialect.SQLITE
         elif base_scheme == 'mysql':
             return DatabaseDialect.MYSQL
         else:
             raise ValueError(
                 f"Unsupported database scheme: {scheme}. "
-                f"Supported: postgresql, sqlite, mysql"
+                f"Supported: postgresql, mysql (sqlite disabled in V1.0)"
             )
     
     @staticmethod
@@ -149,12 +151,12 @@ class DatabaseConfig:
                 "pool_size": 5,
                 "max_overflow": 10,
             }
-        elif dialect == DatabaseDialect.SQLITE:
-            return {
-                "echo": False,
-                "pool_size": 1,  # SQLite doesn't benefit from connection pooling
-                "max_overflow": 0,
-            }
+        # elif dialect == DatabaseDialect.SQLITE:  # V1.0: SQLite support disabled
+        #     return {
+        #         "echo": False,
+        #         "pool_size": 1,  # SQLite doesn't benefit from connection pooling
+        #         "max_overflow": 0,
+        #     }
         elif dialect == DatabaseDialect.MYSQL:
             return {
                 "echo": False,
@@ -183,12 +185,12 @@ class DatabaseConfig:
         if self.dialect == DatabaseDialect.POSTGRESQL:
             kwargs["pool_size"] = self.pool_size
             kwargs["max_overflow"] = self.max_overflow
-        elif self.dialect == DatabaseDialect.SQLITE:
-            # SQLite-specific: enable foreign keys, shared cache
-            kwargs["connect_args"] = {
-                "check_same_thread": False,  # Allow multi-threaded access
-            }
-            # Note: pool_size=1 is implicit for SQLite in SQLAlchemy
+        # elif self.dialect == DatabaseDialect.SQLITE:  # V1.0: SQLite support disabled
+        #     # SQLite-specific: enable foreign keys, shared cache
+        #     kwargs["connect_args"] = {
+        #         "check_same_thread": False,  # Allow multi-threaded access
+        #     }
+        #     # Note: pool_size=1 is implicit for SQLite in SQLAlchemy
         elif self.dialect == DatabaseDialect.MYSQL:
             kwargs["pool_size"] = self.pool_size
             kwargs["max_overflow"] = self.max_overflow
@@ -209,7 +211,7 @@ class DatabaseConfig:
         return self.dialect in (
             DatabaseDialect.POSTGRESQL,
             DatabaseDialect.MYSQL,
-            DatabaseDialect.SQLITE,  # SQLite 3.38+
+            # DatabaseDialect.SQLITE,  # V1.0: SQLite support disabled
         )
     
     @property
@@ -222,10 +224,10 @@ class DatabaseConfig:
         """Check if using PostgreSQL."""
         return self.dialect == DatabaseDialect.POSTGRESQL
     
-    @property
-    def is_sqlite(self) -> bool:
-        """Check if using SQLite."""
-        return self.dialect == DatabaseDialect.SQLITE
+    # @property  # V1.0: SQLite support disabled
+    # def is_sqlite(self) -> bool:
+    #     """Check if using SQLite."""
+    #     return self.dialect == DatabaseDialect.SQLITE
     
     @property
     def is_mysql(self) -> bool:
@@ -246,7 +248,9 @@ class PortableUUID(TypeDecorator[Any]):
     Portable UUID type that works across databases.
     
     - PostgreSQL: Uses native UUID type
-    - SQLite/MySQL: Uses CHAR(36) with string conversion
+    - MySQL: Uses CHAR(36) with string conversion
+    
+    V1.0: SQLite support disabled
     
     This ensures UUIDs work consistently across all supported databases
     without requiring schema changes when switching backends.
@@ -269,7 +273,7 @@ class PortableUUID(TypeDecorator[Any]):
         if dialect.name == 'postgresql':
             return value  # PostgreSQL handles UUID objects natively
         else:
-            # Convert UUID to string for SQLite/MySQL
+            # Convert UUID to string for MySQL (SQLite disabled in V1.0)
             return str(value) if hasattr(value, 'hex') else value
     
     def process_result_value(self, value: Any, dialect: Any) -> Any:
@@ -280,7 +284,7 @@ class PortableUUID(TypeDecorator[Any]):
         if dialect.name == 'postgresql':
             return value  # Already a UUID object
         else:
-            # Parse string to UUID for SQLite/MySQL
+            # Parse string to UUID for MySQL (SQLite disabled in V1.0)
             from uuid import UUID
             return UUID(value) if isinstance(value, str) else value
 
@@ -317,19 +321,19 @@ def get_database_url(default: Optional[str] = None) -> str:
     
     Constitution VII Compliance: Uses domain.config.settings which respects:
     1. DATABASE_URL environment variable (highest priority)
-    2. config/descriptor.toml default (SQLite for local dev)
+    2. config/descriptor.toml default (PostgreSQL for V1.0)
     
     Args:
-        default: Deprecated parameter (kept for backwards compatibility, ignored)
+        default: Legacy parameter (V1.0: ignored, kept for API stability)
     
     Returns:
         Database connection URL (from env var or descriptor default)
     
     Note:
-        The descriptor.toml default is SQLite for developer-friendly local testing.
+        V1.0 requires PostgreSQL. SQLite support disabled.
         For production/PostgreSQL, set DATABASE_URL environment variable.
     """
-    from src.domain.config.settings import get_database_settings
+    from domain.config.settings import get_database_settings
     settings = get_database_settings()
     return settings.database_url
 

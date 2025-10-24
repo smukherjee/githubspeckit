@@ -15,6 +15,8 @@ Related:
     - FR-046-054: Rate limiting implementation
     - src/adapters/security/rate_limit.py: Limiter configuration
     - src/adapters/api/routers/users.py: @limiter.limit decorator
+
+DEFERRED TO PHASE 2: All rate limiting tests marked as skipped (spec 018)
 """
 
 import pytest
@@ -29,6 +31,9 @@ from adapters.persistence.repositories import SQLAlchemyTenantRepository, SQLAlc
 from domain.tenants.models import Tenant, TenantStatus
 from domain.users.models import User, UserStatus
 from auth_core.hashers import default_hasher
+
+
+pytestmark = pytest.mark.skip(reason="Deferred to Phase 2: Rate limiting - spec 018")
 
 
 @pytest.fixture

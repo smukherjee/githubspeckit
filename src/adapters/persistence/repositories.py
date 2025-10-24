@@ -24,13 +24,14 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import select, update, or_, func, delete as sql_delete, join
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .models import (
     TenantModel,
     UserModel,
     UserRoleModel,
+    RoleModel,
     PolicyModel,
     FeatureFlagModel,
     InvitationModel,
@@ -40,6 +41,13 @@ from .models import (
 )
 from domain.tenants.models import Tenant, TenantStatus
 from domain.users.models import User, UserStatus
+from domain.roles.entities import Role
+from domain.roles.repositories import RoleRepository as IRoleRepository
+from domain.roles.exceptions import (
+    RoleNotFoundError,
+    DuplicateRoleNameError,
+    SystemRoleImmutableError,
+)
 from domain.policy.models import Policy, PolicyRule, Decision
 from domain.featureflags.models import FeatureFlag, FlagState
 from domain.invitations.models import Invitation, InvitationStatus
@@ -126,6 +134,38 @@ def user_domain_to_model(entity: User) -> UserModel:
         updated_at=entity.updated_at,
         created_by=to_uuid_or_none(entity.created_by),
         updated_by=to_uuid_or_none(entity.updated_by),
+    )
+
+
+def role_model_to_domain(model: RoleModel) -> Role:
+    """Convert RoleModel (ORM) to Role (domain entity)."""
+    return Role(
+        id=model.id,
+        name=model.name,
+        tenant_id=model.tenant_id,
+        is_system=model.is_system,
+        permissions=model.permissions,
+        description=model.description,
+        created_at=model.created_at,
+        updated_at=model.updated_at,
+        created_by=model.created_by,
+        updated_by=model.updated_by,
+    )
+
+
+def role_domain_to_model(entity: Role) -> RoleModel:
+    """Convert Role (domain entity) to RoleModel (ORM)."""
+    return RoleModel(
+        id=entity.id,
+        name=entity.name,
+        tenant_id=entity.tenant_id,
+        is_system=entity.is_system,
+        permissions=entity.permissions,
+        description=entity.description,
+        created_at=entity.created_at,
+        updated_at=entity.updated_at,
+        created_by=entity.created_by,
+        updated_by=entity.updated_by,
     )
 
 
@@ -478,26 +518,229 @@ class SQLAlchemyUserRepository:
         await self.session.flush()
 
     async def _get_user_roles(self, user_id: UUID) -> list[str]:
-        """Get roles for user."""
+        """Get role names for user (for domain model and JWT payload).
+        
+        Returns role names (e.g., ["superadmin", "tenant_admin"]) not UUIDs.
+        This maintains V1.0 behavior where User.roles contains names.
+        """
         result = await self.session.execute(
-            select(UserRoleModel.role_id).where(UserRoleModel.user_id == user_id)
+            select(RoleModel.name)
+            .join(UserRoleModel, UserRoleModel.role_id == RoleModel.id)
+            .where(UserRoleModel.user_id == user_id)
         )
-        return [row[0] for row in result.all()]
+        return [str(row[0]) for row in result.all()]
 
     async def _update_roles(self, user_id: UUID, roles: list[str]) -> None:
-        """Update user roles (delete all, insert new)."""
+        """Update user roles (delete all, insert new).
+        
+        Args:
+            user_id: User UUID
+            roles: List of role names or role UUIDs (will attempt to resolve)
+        
+        Note: In V1.0, roles should be UUIDs from map_role_names_to_uuids().
+        This method assumes the input is already UUIDs.
+        """
         # Delete existing roles
         from sqlalchemy import delete
         await self.session.execute(
             delete(UserRoleModel).where(UserRoleModel.user_id == user_id)
         )
         
-        # Insert new roles
-        for role in roles:
-            role_model = UserRoleModel(user_id=user_id, role_id=role)
+        # Insert new roles (expecting UUID strings)
+        for role_uuid_str in roles:
+            role_model = UserRoleModel(user_id=user_id, role_id=UUID(role_uuid_str))
             self.session.add(role_model)
         
         await self.session.flush()
+
+
+class SQLAlchemyRoleRepository(IRoleRepository):
+    """
+    Database-backed role repository (FR-122: Role Management & Hierarchy).
+    
+    Implements async CRUD operations with:
+    - Tenant isolation for custom roles
+    - System role immutability protection
+    - Permission validation
+    - Role assignment/revocation
+    """
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def get_by_id(self, role_id: UUID) -> Optional[Role]:
+        """Get role by ID."""
+        result = await self.session.execute(
+            select(RoleModel).where(RoleModel.id == role_id)
+        )
+        model = result.scalar_one_or_none()
+        return role_model_to_domain(model) if model else None
+
+    async def get_by_name(self, name: str, tenant_id: Optional[UUID] = None) -> Optional[Role]:
+        """Get role by name within tenant scope (or system role if tenant_id=None)."""
+        query = select(RoleModel).where(RoleModel.name == name)
+        
+        if tenant_id is None:
+            # System role
+            query = query.where(RoleModel.tenant_id.is_(None))
+        else:
+            # Tenant-specific role
+            query = query.where(RoleModel.tenant_id == tenant_id)
+        
+        result = await self.session.execute(query)
+        model = result.scalar_one_or_none()
+        return role_model_to_domain(model) if model else None
+
+    async def list_all(self, include_system: bool = True) -> list[Role]:
+        """List all roles (optionally including system roles)."""
+        query = select(RoleModel)
+        
+        if not include_system:
+            query = query.where(RoleModel.is_system == False)
+        
+        result = await self.session.execute(query)
+        return [role_model_to_domain(m) for m in result.scalars().all()]
+
+    async def list_by_tenant(self, tenant_id: UUID, include_system: bool = True) -> list[Role]:
+        """List roles for a tenant (custom + optionally system roles)."""
+        if include_system:
+            # Include tenant's custom roles AND system roles
+            query = select(RoleModel).where(
+                or_(
+                    RoleModel.tenant_id == tenant_id,
+                    RoleModel.tenant_id.is_(None)
+                )
+            )
+        else:
+            # Only tenant's custom roles
+            query = select(RoleModel).where(RoleModel.tenant_id == tenant_id)
+        
+        result = await self.session.execute(query)
+        return [role_model_to_domain(m) for m in result.scalars().all()]
+
+    async def create(self, role: Role) -> Role:
+        """Create a new role."""
+        # Check for duplicate name within tenant scope
+        existing = await self.get_by_name(role.name, role.tenant_id)
+        if existing:
+            raise DuplicateRoleNameError(f"Role '{role.name}' already exists in this scope")
+        
+        model = role_domain_to_model(role)
+        self.session.add(model)
+        await self.session.flush()
+        await self.session.refresh(model)
+        
+        return role_model_to_domain(model)
+
+    async def update(self, role: Role) -> Role:
+        """Update an existing role (system roles cannot be modified)."""
+        # Get existing role
+        existing_model = await self.session.get(RoleModel, role.id)
+        if not existing_model:
+            raise RoleNotFoundError(f"Role {role.id} not found")
+        
+        # Protect system roles
+        if existing_model.is_system:
+            raise SystemRoleImmutableError(existing_model.name, "modify")
+        
+        # Check for name conflicts (if name changed)
+        if existing_model.name != role.name:
+            conflict = await self.get_by_name(role.name, role.tenant_id)
+            if conflict and conflict.id != role.id:
+                raise DuplicateRoleNameError(f"Role '{role.name}' already exists in this scope")
+        
+        # Update fields
+        existing_model.name = role.name
+        existing_model.permissions = role.permissions
+        existing_model.description = role.description
+        existing_model.updated_at = datetime.now(timezone.utc)
+        existing_model.updated_by = role.updated_by
+        
+        await self.session.flush()
+        await self.session.refresh(existing_model)
+        
+        return role_model_to_domain(existing_model)
+
+    async def delete(self, role_id: UUID) -> None:
+        """Delete a role (system roles cannot be deleted)."""
+        # Get role to check if system
+        model = await self.session.get(RoleModel, role_id)
+        if not model:
+            raise RoleNotFoundError(f"Role {role_id} not found")
+        
+        if model.is_system:
+            raise SystemRoleImmutableError(model.name, "delete")
+        
+        # Delete role (CASCADE will remove user_roles associations)
+        await self.session.execute(
+            sql_delete(RoleModel).where(RoleModel.id == role_id)
+        )
+        await self.session.flush()
+
+    async def assign_to_user(
+        self, 
+        user_id: UUID, 
+        role_id: UUID, 
+        assigned_by: Optional[UUID] = None
+    ) -> None:
+        """Assign role to user."""
+        # Check if role exists
+        role_model = await self.session.get(RoleModel, role_id)
+        if not role_model:
+            raise RoleNotFoundError(f"Role {role_id} not found")
+        
+        # Check if assignment already exists
+        result = await self.session.execute(
+            select(UserRoleModel).where(
+                UserRoleModel.user_id == user_id,
+                UserRoleModel.role_id == role_id
+            )
+        )
+        if result.scalar_one_or_none():
+            # Already assigned, skip
+            return
+        
+        # Create assignment
+        assignment = UserRoleModel(
+            user_id=user_id,
+            role_id=role_id,
+            assigned_at=datetime.now(timezone.utc),
+            assigned_by=assigned_by
+        )
+        self.session.add(assignment)
+        await self.session.flush()
+
+    async def revoke_from_user(self, user_id: UUID, role_id: UUID) -> None:
+        """Revoke role from user."""
+        await self.session.execute(
+            sql_delete(UserRoleModel).where(
+                UserRoleModel.user_id == user_id,
+                UserRoleModel.role_id == role_id
+            )
+        )
+        await self.session.flush()
+
+    async def get_user_roles(self, user_id: UUID) -> list[Role]:
+        """Get all roles assigned to a user."""
+        # Join user_roles with roles
+        result = await self.session.execute(
+            select(RoleModel)
+            .select_from(
+                join(UserRoleModel, RoleModel, UserRoleModel.role_id == RoleModel.id)
+            )
+            .where(UserRoleModel.user_id == user_id)
+        )
+        
+        return [role_model_to_domain(m) for m in result.scalars().all()]
+
+    async def count_role_users(self, role_id: UUID) -> int:
+        """Count how many users have this role assigned."""
+        result = await self.session.execute(
+            select(func.count(UserRoleModel.user_id))
+            .where(UserRoleModel.role_id == role_id)
+        )
+        
+        return result.scalar_one()
 
 
 class SQLAlchemyPolicyRepository:

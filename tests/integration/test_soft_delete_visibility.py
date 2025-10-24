@@ -83,6 +83,7 @@ class TestIncludeDeletedParameter:
         all_tenants = response.json()["tenants"]
         assert len(all_tenants) >= len(default_tenants)
     
+    @pytest.mark.skip(reason="Deferred to Phase 2: Policy engine - spec 014")
     async def test_policies_accepts_include_deleted_parameter(
         self,
         client: AsyncClient,
@@ -119,13 +120,14 @@ class TestIncludeDeletedParameter:
         all_policies = response.json()
         assert len(all_policies) >= len(default_policies)
     
+    @pytest.mark.skip(reason="Deferred to Phase 2: Feature flags - spec 017")
     async def test_feature_flags_accepts_include_deleted_parameter(
         self,
         client: AsyncClient,
         auth_headers: dict,
         seeded_database: dict
     ):
-        """Test that feature flags list endpoint accepts include_deleted parameter (FR-086, FR-087)."""
+        """Test that feature_flags list endpoint accepts include_deleted parameter (FR-085, FR-087)."""
         tenant_id = seeded_database["tenant_id"]
         
         # Test without parameter (default)

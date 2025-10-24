@@ -161,7 +161,7 @@ make security-scan           # Alias for security-baseline
 3. **Health Checks**:
    ```bash
    # Validates target is accessible before scanning
-   curl -s -f --max-time 5 "${TARGET_URL}/api/v1/health" || exit 1
+   curl -s -f --max-time 5 "${TARGET_URL}/health" || exit 1
    ```
 
 4. **Safe Mode Flag**:

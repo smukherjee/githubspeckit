@@ -57,12 +57,13 @@ target_metadata = Base.metadata
 # Constitution Section IV: "Swappable implementations: SQLAlchemy (PostgreSQL primary),
 # optional in-memory (tests), SQLite (local dev), and future cloud variants."
 #
+# V1.0: SQLite support disabled - use PostgreSQL only
+#
 # Supports:
 # - PostgreSQL: postgresql+asyncpg://user:pass@host/db (production)
-# - SQLite: sqlite+aiosqlite:///./database.db (local dev)
 # - MySQL: mysql+aiomysql://user:pass@host/db (future)
 DATABASE_URL = get_database_url(
-    default="sqlite+aiosqlite:///./infysight_dev.db"
+    default="postgresql+asyncpg://infysight_dbadmin:infysight_dbadmin123@localhost/infysight_users"  # V1.0: Default credentials
 )
 DB_CONFIG = DatabaseConfig.from_url(DATABASE_URL)
 
@@ -93,18 +94,18 @@ def run_migrations_offline() -> None:
 
 def do_run_migrations(connection: Connection) -> None:
     """Execute migrations within a connection context."""
-    # SQLite-specific: Use batch mode for ALTER TABLE support
-    # (SQLite has limited ALTER TABLE support, batch mode works around this)
-    render_as_batch = DB_CONFIG.is_sqlite
+    # V1.0: SQLite support disabled - batch mode not needed
+    # render_as_batch = DB_CONFIG.is_sqlite  # Commented out - SQLite disabled
+    render_as_batch = False  # PostgreSQL doesn't need batch mode
     
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
         # Naming conventions for constraints (FR-015: deterministic naming)
         render_as_batch=render_as_batch,
-        # SQLite-specific: Enable foreign key pragma
-        # (Foreign keys disabled by default in SQLite)
-        dialect_opts={"sqlite_synchronous": 0} if DB_CONFIG.is_sqlite else {},
+        # V1.0: SQLite-specific options removed (SQLite disabled)
+        # dialect_opts={"sqlite_synchronous": 0} if DB_CONFIG.is_sqlite else {},
+        dialect_opts={},
     )
 
     with context.begin_transaction():

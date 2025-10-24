@@ -55,8 +55,9 @@ async def test_tenant_admin_user_management(
     assert created_user["tenant_id"] == test_tenant_id
     
     # 3. Update user roles (tenant admin can manage roles within their tenant)
+    # Note: For now, only system roles are supported. Custom roles require creation first.
     update_data = {
-        "roles": ["user", "developer"]
+        "roles": ["user", "tenant_admin"]  # Use system roles only
     }
     
     update_response = await client.put(
@@ -67,7 +68,7 @@ async def test_tenant_admin_user_management(
     assert update_response.status_code == 200, f"Failed to update user: {update_response.text}"
     
     updated_user = update_response.json()
-    assert "developer" in updated_user["roles"], "Updated roles not reflected"
+    assert "tenant_admin" in updated_user["roles"], "Updated roles not reflected"
     
     # 4. Try to access different tenant (should fail with 403)
     other_tenant_id = str(uuid4())

@@ -33,6 +33,7 @@ from adapters.persistence.models import (
     UserModel,
     UserRoleModel,
 )
+from domain.roles.entities import SYSTEM_ROLE_IDS
 
 
 @pytest.mark.asyncio
@@ -118,7 +119,7 @@ class TestForeignKeyCascadeBehavior:
         async_session.add(user)
         await async_session.flush()
 
-        role = UserRoleModel(user_id=user.user_id, role_id="tenant_admin")
+        role = UserRoleModel(user_id=user.user_id, role_id=SYSTEM_ROLE_IDS["tenant_admin"])
         async_session.add(role)
         await async_session.commit()
 

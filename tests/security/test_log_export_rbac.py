@@ -15,7 +15,8 @@ async def test_log_export_requires_authentication(client: AsyncClient):
     """GET /api/v1/logs/export requires authentication (no public access)."""
     response = await client.get("/api/v1/logs/export")
     assert response.status_code == 401, "Log export must require authentication"
-    assert "Authentication required" in response.json()["detail"]
+    # V1.0: Error message changed to "Missing or invalid Authorization header"
+    assert "Authorization" in response.json()["detail"]
 
 
 @pytest.mark.asyncio
@@ -74,7 +75,8 @@ async def test_tenant_admin_cannot_see_other_tenant_logs(client: AsyncClient, te
     )
     
     assert response.status_code == 403, "Tenant admin should not access other tenant's logs"
-    assert "can only export logs from their own tenant" in response.json()["detail"]
+    # V1.0: Error message changed to "Access denied by tenant isolation policy"
+    assert "tenant isolation" in response.json()["detail"].lower()
 
 
 @pytest.mark.asyncio

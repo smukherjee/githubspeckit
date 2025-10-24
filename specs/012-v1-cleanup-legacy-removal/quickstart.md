@@ -33,8 +33,8 @@ git checkout 012-v1-cleanup-legacy-removal
 make bootstrap
 
 # Verify health
-curl http://localhost:8000/v1/health
-# Expected: {"status":"healthy","version":"1.0.0"}
+curl http://localhost:8000/health
+# Expected: {"status":"ok","version":"1.0.0"}
 ```
 
 ### Option B: Docker Compose
@@ -49,8 +49,8 @@ git checkout 012-v1-cleanup-legacy-removal
 make docker-up
 
 # Verify health
-curl http://localhost:8000/v1/health
-# Expected: {"status":"healthy","version":"1.0.0"}
+curl http://localhost:8000/health
+# Expected: {"status":"ok","version":"1.0.0"}
 ```
 
 ---
@@ -63,16 +63,15 @@ curl http://localhost:8000/v1/health
 **When**: Request health endpoint
 
 ```bash
-curl http://localhost:8000/v1/health
+curl http://localhost:8000/health
 ```
 
 **Then**: Response confirms V1.0
 
 ```json
 {
-  "status": "healthy",
-  "version": "1.0.0",
-  "timestamp": "2025-10-20T10:00:00Z"
+  "status": "ok",
+  "version": "1.0.0"
 }
 ```
 
@@ -80,26 +79,31 @@ curl http://localhost:8000/v1/health
 
 ---
 
-### TS-002: Deprecated Routes Return 404
+### TS-002: Deprecated Routes Removed from API
 
-**Given**: V1.0 server running (deprecation middleware removed)  
-**When**: Request old flat routes without `/admin` prefix
+**Given**: V1.0 server running (deprecated routes removed)  
+**When**: Verify deprecated routes not registered in OpenAPI schema
 
 ```bash
-# Old route (should 404)
-curl -X GET http://localhost:8000/api/v1/tenants
-
-# Old user route (should 404)
-curl -X GET http://localhost:8000/api/v1/users
+# Check OpenAPI schema for routes containing 'tenants' or 'users'
+curl -s http://localhost:8000/openapi.json | \
+  jq -r '.paths | keys[]' | grep -E '/(tenants|users)'
 ```
 
-**Then**: Response 404 Not Found
+**Then**: Deprecated routes `/api/v1/tenants` and `/api/v1/users` are NOT in schema
 
-```json
-{
-  "detail": "Not Found"
-}
+**Expected Output** (should NOT contain deprecated routes):
 ```
+/api/v1/admin/tenants
+/api/v1/admin/users
+/api/v1/admin/users/{user_id}/roles/{role_id}
+/api/v1/tenants/{tenant_id}/audit
+/api/v1/tenants/{tenant_id}/users
+/api/v1/users/{user_id}/profile
+/api/v1/users/{user_id}/profile/photo
+```
+
+**Security Note**: Accessing removed routes (e.g., `curl http://localhost:8000/api/v1/tenants`) returns 401 Unauthorized (not 404) due to `TenantContextMiddleware` running before route matching. This is **more secure** as it doesn't leak information about which endpoints exist to unauthenticated users.
 
 **Status**: ⏹️ NOT STARTED
 

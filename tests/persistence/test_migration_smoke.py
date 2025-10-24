@@ -33,61 +33,47 @@ from conftest import DATABASE_URL as TEST_DATABASE_URL, DB_CONFIG
 @pytest.fixture(scope="module")
 def clean_db_for_migration_tests():
     """
-    Ensure test database is clean before each test.
+    Ensure test database is clean before migration tests.
     
-    Drops all tables and types to provide a fresh slate.
+    Drops all tables and types to provide a fresh slate for migration testing.
+    Does NOT run migrations - each test runs migrations as part of its test logic.
     Database-agnostic: Works with PostgreSQL, SQLite, MySQL.
     """
     async def _clean():
+        # V1.0: PostgreSQL only (SQLite support removed)
         engine = create_async_engine(TEST_DATABASE_URL, echo=False)
         try:
             async with engine.connect() as conn:
-                if DB_CONFIG.is_sqlite:
-                    # SQLite: Drop tables individually (no CASCADE support)
-                    tables = [
-                        "alembic_version", "token_replay_records", "user_mfa", 
-                        "key_rotation_records", "feature_flags", "audit_events",
-                        "policy_evaluation_logs", "policies", "password_reset_requests",
-                        "invitations", "user_roles", "user_details", "users", "tenants"
-                    ]
-                    for table in tables:
-                        await conn.execute(text(f"DROP TABLE IF EXISTS {table}"))
-                    await conn.commit()
-                else:
-                    # PostgreSQL/MySQL: Drop all at once with CASCADE
-                    await conn.execute(text("""
-                        DROP TABLE IF EXISTS 
-                            alembic_version,
-                            token_replay_records, user_mfa, key_rotation_records, feature_flags, 
-                            audit_events, policy_evaluation_logs, policies, 
-                            password_reset_requests, invitations, user_roles, 
-                            user_details, users, tenants
-                        CASCADE;
-                    """))
-                    
-                    # PostgreSQL: Drop enum types (SQLite doesn't have them)
-                    if DB_CONFIG.is_postgres:
-                        await conn.execute(text("""
-                            DROP TYPE IF EXISTS 
-                                mfa_factor_type, decision, flag_state, 
-                                user_status, tenant_status
-                            CASCADE;
-                        """))
-                    
-                    await conn.commit()
+                # Drop all tables with CASCADE
+                await conn.execute(text("""
+                    DROP TABLE IF EXISTS 
+                        roles, alembic_version,
+                        token_replay_records, user_mfa, key_rotation_records, feature_flags, 
+                        audit_events, policy_evaluation_logs, policies, 
+                        password_reset_requests, invitations, user_roles, 
+                        user_details, users, tenants, schema_version
+                    CASCADE;
+                """))
+                
+                # Drop enum types (PostgreSQL-specific)
+                await conn.execute(text("""
+                    DROP TYPE IF EXISTS 
+                        mfa_factor_type, decision, flag_state, 
+                        user_status, tenant_status
+                    CASCADE;
+                """))
+                
+                await conn.commit()
         finally:
             await engine.dispose()
     
-    # Run cleanup before module
+    # Run cleanup before tests start
     asyncio.run(_clean())
-    
-    # Re-apply migrations after cleanup so schema exists for subsequent tests
-    config = get_alembic_config()
-    run_alembic_command(command.upgrade, config, "head")
     
     yield
     
-    # Re-apply migrations after module cleanup to restore schema for other test modules
+    # Run cleanup after tests end to leave database clean for other test modules
+    # Then restore schema by running migrations (for other tests that depend on schema existing)
     asyncio.run(_clean())
     config = get_alembic_config()
     run_alembic_command(command.upgrade, config, "head")
@@ -258,7 +244,7 @@ class TestMigrationSmoke:
                     
                     # Users indexes
                     user_indexes = {idx['name'] for idx in inspector.get_indexes('users')}
-                    assert 'ix_users_tenant_email' in user_indexes
+                    assert 'ix_users_email_tenant' in user_indexes
                     assert 'ix_users_tenant_status' in user_indexes
                     
                     # Policies indexes
@@ -293,10 +279,12 @@ class TestMigrationSmoke:
                     assert tenant_fk is not None, "Missing FK: users -> tenants"
                     assert tenant_fk['options'].get('ondelete') == 'CASCADE', "Wrong FK policy for users.tenant_id"
                     
-                    # User_roles should have FK to users
+                    # User_roles should have FK to users (user_id column, not assigned_by)
                     role_fks = inspector.get_foreign_keys('user_roles')
-                    user_fk = next((fk for fk in role_fks if fk['referred_table'] == 'users'), None)
-                    assert user_fk is not None, "Missing FK: user_roles -> users"
+                    user_fk = next((fk for fk in role_fks 
+                                   if fk['referred_table'] == 'users' 
+                                   and 'user_id' in fk['constrained_columns']), None)
+                    assert user_fk is not None, "Missing FK: user_roles.user_id -> users"
                     assert user_fk['options'].get('ondelete') == 'CASCADE', "Wrong FK policy for user_roles.user_id"
                     
                     # Policies should have FK to tenants

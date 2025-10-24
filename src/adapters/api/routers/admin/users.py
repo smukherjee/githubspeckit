@@ -9,18 +9,30 @@ Implements user management operations across all tenants for platform administra
 Status: Phase 3.4 - T035 (Admin users endpoint)
 """
 from typing import Annotated, List
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from adapters.api.deps import get_db_session
 from adapters.persistence.repositories import SQLAlchemyUserRepository
 from domain.tenants.tenant_context import TenantContext
-from domain.users.models import UserStatus
+from domain.users.models import UserStatus, User
+from domain.users.exceptions import DuplicateEmailError
+from auth_core.hashers import default_hasher
 
 router = APIRouter(prefix="/users", tags=["admin"])
+
+
+class UserCreateRequest(BaseModel):
+    """Request model for creating a user (admin)."""
+    email: EmailStr = Field(..., description="User email address")
+    password: str = Field(..., min_length=8, description="User password")
+    tenant_id: str = Field(..., description="Tenant ID to assign user to")
+    roles: List[str] = Field(default_factory=list, description="User roles (optional)")
+    
+    model_config = ConfigDict()
 
 
 class UserResponse(BaseModel):
@@ -144,6 +156,117 @@ async def list_all_users(
                 "error": {
                     "code": "USER_LIST_ERROR",
                     "message": f"Failed to list users: {str(e)}",
+                }
+            },
+        )
+
+
+@router.post(
+    "",
+    response_model=UserResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new user (superadmin only)",
+    description="""
+    Creates a new user in the specified tenant.
+    
+    **Authorization**:
+    - Superadmin: Full access
+    - All other roles: 403 Forbidden
+    
+    **V1.0 API**: Admin-level user creation under /admin namespace.
+    Email uniqueness is per-tenant (same email can exist in different tenants).
+    """,
+)
+async def create_user(
+    request_data: UserCreateRequest,
+    tenant_context: Annotated[TenantContext, Depends(get_tenant_context)],
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> UserResponse:
+    """
+    Create a new user (superadmin only).
+    
+    Args:
+        request_data: User creation request
+        tenant_context: Current tenant context from middleware
+        db: Database session
+    
+    Returns:
+        UserResponse with created user details
+    
+    Raises:
+        HTTPException 403: If user is not superadmin
+        HTTPException 409: If user email already exists in tenant
+        HTTPException 500: If database error occurs
+    """
+    try:
+        # Check if user is superadmin
+        if not tenant_context.is_superadmin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": {
+                        "code": "SUPERADMIN_REQUIRED",
+                        "message": "Only superadmin can create users",
+                    }
+                },
+            )
+        
+        repo = SQLAlchemyUserRepository(db)
+        
+        # Check if email already exists in this tenant (per-tenant uniqueness)
+        # Use get_by_email_and_tenant() for efficient single-query lookup (V1.0 FR-116)
+        existing_user = await repo.get_by_email_and_tenant(
+            email=request_data.email,
+            tenant_id=request_data.tenant_id
+        )
+        if existing_user:
+            raise DuplicateEmailError(
+                email=request_data.email,
+                tenant_id=request_data.tenant_id
+            )
+        
+        # Hash the password
+        password_hash = default_hasher.hash(request_data.password)
+        
+        # Create user domain entity
+        user = User(
+            user_id=str(uuid4()),
+            tenant_id=request_data.tenant_id,
+            email=request_data.email.lower(),  # Normalize email
+            password_hash=password_hash,
+            status=UserStatus.active,  # Admin-created users are immediately active
+            roles=request_data.roles if request_data.roles else [],
+        )
+        
+        # Save to repository
+        created_user = await repo.upsert(user)
+        await db.commit()
+        
+        return UserResponse(
+            user_id=str(created_user.user_id),
+            tenant_id=str(created_user.tenant_id),
+            email=created_user.email,
+            status=created_user.status.value,
+            roles=created_user.roles,
+            created_at=created_user.created_at.isoformat() if created_user.created_at else None,
+        )
+    
+    except DuplicateEmailError as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=e.message,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "USER_CREATE_ERROR",
+                    "message": f"Failed to create user: {str(e)}",
                 }
             },
         )

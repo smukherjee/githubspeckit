@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File, Query, Request, status
 from pydantic import BaseModel, EmailStr, ConfigDict, field_validator
 from typing import List, Optional, Annotated
-from uuid import uuid4
+from uuid import uuid4, UUID
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 import re
@@ -9,13 +9,102 @@ import re
 from domain.users.models import User, UserStatus
 from adapters.api.deps import get_db_session, get_audit_service, AuditService
 from adapters.api.auth_deps import CurrentUser
-from adapters.persistence.repositories import SQLAlchemyUserRepository, SQLAlchemyTenantRepository
+from adapters.persistence.repositories import SQLAlchemyUserRepository, SQLAlchemyTenantRepository, SQLAlchemyRoleRepository
 from auth_core.hashers import default_hasher
 from services.csv_import_service import CSVImportService
 from domain.tenants.tenant_context import TenantContext
+from domain.roles.entities import SYSTEM_ROLE_IDS
 # V1.0: Rate limiting disabled for intranet deployment (see ADR-004)
 # from adapters.security.rate_limit import limiter, _is_superadmin, _current_request
 from domain.config.descriptor_parser import parse_descriptor
+
+
+async def map_role_names_to_uuids(role_names: List[str], session: AsyncSession, tenant_id: Optional[str] = None) -> List[str]:
+    """
+    Convert role names to UUIDs for storage in database.
+    
+    For system roles (superadmin, tenant_admin, user), returns fixed UUIDs.
+    For custom tenant roles, queries the roles table to find tenant-specific role.
+    
+    Args:
+        role_names: List of role names (e.g., ["tenant_admin", "user", "developer"])
+        session: Database session for querying custom roles
+        tenant_id: Tenant ID for scoping custom role lookup
+    
+    Returns:
+        List of role UUIDs as strings
+    
+    Raises:
+        ValueError: If role name is not found in system or tenant roles
+    """
+    role_uuids = []
+    role_repo = SQLAlchemyRoleRepository(session)
+    
+    for role_name in role_names:
+        # Check system roles first
+        if role_name in SYSTEM_ROLE_IDS:
+            role_uuids.append(str(SYSTEM_ROLE_IDS[role_name]))
+        else:
+            # Look up custom tenant role
+            if tenant_id is None:
+                raise ValueError(f"Unknown role: {role_name}. Valid system roles: {list(SYSTEM_ROLE_IDS.keys())}")
+            
+            custom_role = await role_repo.get_by_name(role_name, UUID(tenant_id) if tenant_id else None)
+            if custom_role is None:
+                raise ValueError(f"Unknown role: {role_name}. Not found in system or tenant roles.")
+            role_uuids.append(custom_role.id)
+    
+    return role_uuids
+
+
+async def map_role_uuids_to_names(role_uuids: List[str], session: AsyncSession) -> List[str]:
+    """
+    Convert role UUIDs to role names for API responses.
+    
+    Args:
+        role_uuids: List of role UUID strings
+        session: Database session for querying custom roles
+    
+    Returns:
+        List of role names
+    """
+    # Build reverse lookup for system roles
+    system_uuid_to_name = {str(uuid): name for name, uuid in SYSTEM_ROLE_IDS.items()}
+    
+    role_names = []
+    role_repo = SQLAlchemyRoleRepository(session)
+    
+    for role_uuid in role_uuids:
+        # Check system roles first
+        if role_uuid in system_uuid_to_name:
+            role_names.append(system_uuid_to_name[role_uuid])
+        else:
+            # Look up custom role by ID
+            custom_role = await role_repo.get_by_id(UUID(role_uuid))
+            if custom_role:
+                role_names.append(custom_role.name)
+            else:
+                # Fallback: include UUID if role not found (shouldn't happen)
+                role_names.append(role_uuid)
+    
+    return role_names
+
+
+def user_has_role_by_name(user_role_uuids: List[str], role_name: str) -> bool:
+    """
+    Check if user has a specific role by checking role name.
+    
+    Args:
+        user_role_uuids: List of role UUIDs from user.roles
+        role_name: Role name to check (e.g., "superadmin")
+    
+    Returns:
+        True if user has the role, False otherwise
+    """
+    if role_name in SYSTEM_ROLE_IDS:
+        target_uuid = str(SYSTEM_ROLE_IDS[role_name])
+        return target_uuid in user_role_uuids
+    return False
 
 
 def validate_password_strength(password: str) -> None:
@@ -161,12 +250,18 @@ async def create_user(
             detail=f"Email '{payload.email}' is already registered in this tenant"
         )
     
+    # Convert role names to UUIDs for storage
+    try:
+        role_uuids = await map_role_names_to_uuids(payload.roles, session, payload.tenant_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    
     # Create user
     user = User(
         user_id=str(uuid4()),
         tenant_id=payload.tenant_id,
         email=payload.email,
-        roles=payload.roles,
+        roles=role_uuids,  # Store UUIDs, not names
         status=UserStatus.active if payload.password else UserStatus.invited,
         password_hash=default_hasher.hash(payload.password) if payload.password else None,
         created_by=current_user.user_id,
@@ -175,14 +270,14 @@ async def create_user(
     await user_repo.upsert(user)
     await session.commit()
     
-    # Audit logging: User creation
+    # Audit logging: User creation (log role names for readability)
     await audit_service.log(
         action_type="user.create",
         tenant_id=user.tenant_id,
         metadata={
             "user_id": user.user_id,
             "email": user.email,
-            "roles": user.roles,
+            "roles": payload.roles,  # Log original names for audit trail
             "status": user.status.value,
             "created_by": current_user.user_id
         }
@@ -193,7 +288,7 @@ async def create_user(
         tenant_id=user.tenant_id,
         email=user.email,
         status=user.status,
-        roles=user.roles,
+        roles=payload.roles,  # Return role names in response, not UUIDs
         created_at=user.created_at,
         updated_at=user.updated_at,
     )
@@ -333,7 +428,7 @@ async def update_user(
                 detail="Tenant admins can only update users in their own tenant"
             )
         # Prevent modifying superadmin users unless you are superadmin
-        if "superadmin" in u.roles:
+        if user_has_role_by_name(u.roles, "superadmin"):
             raise HTTPException(
                 status_code=403,
                 detail="Only superadmins can modify superadmin users"
@@ -388,12 +483,17 @@ async def update_user(
                 detail="Only superadmins can assign the superadmin role"
             )
         # Prevent modifying superadmin users unless you are superadmin
-        if "superadmin" in u.roles and not current_user.is_superadmin():
+        if user_has_role_by_name(u.roles, "superadmin") and not current_user.is_superadmin():
             raise HTTPException(
                 status_code=403,
                 detail="Only superadmins can modify superadmin users"
             )
-        u.roles = payload.roles
+        # Convert role names to UUIDs for storage
+        try:
+            role_uuids = await map_role_names_to_uuids(payload.roles, session, u.tenant_id)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        u.roles = role_uuids
     
     # Status updates (admin only)
     if payload.is_disabled is not None:
@@ -434,7 +534,7 @@ async def update_user(
         tenant_id=u.tenant_id,
         email=u.email,
         status=u.status,
-        roles=u.roles,
+        roles=payload.roles if payload.roles is not None else u.roles,  # Return role names (from payload or existing)
         created_at=u.created_at,
         updated_at=u.updated_at,
     )
@@ -566,7 +666,7 @@ async def reset_user_password(
         )
     
     # Prevent resetting superadmin passwords unless you are a superadmin
-    if "superadmin" in u.roles and not current_user.is_superadmin():
+    if user_has_role_by_name(u.roles, "superadmin") and not current_user.is_superadmin():
         raise HTTPException(
             status_code=403,
             detail="Only superadmins can reset superadmin passwords"

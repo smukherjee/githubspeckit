@@ -100,14 +100,126 @@ GET /api/v1/tenants/{tenant_id}/users  # Tenant-scoped operations
 - Future deprecations will use same headers again
 
 **Impact**:
-- Clients relying on deprecation detection must update
-- No sunset dates present in responses
-- V1.0 represents stable API surface
+
+- Cleaner HTTP responses (no extra headers)
+- Explicit OpenAPI specification for breaking changes
+- Version-based API evolution
 
 **Migration**:
-- Remove deprecation header parsing from clients
-- Pin to V1.0 API version in client libraries
-- Subscribe to changelog notifications for future deprecations
+
+- Remove any client-side logic parsing these headers
+- Rely on OpenAPI schema versioning instead
+- Subscribe to changelog notifications
+
+---
+
+### 5. Role Management & Hierarchy (FR-122)
+
+**New (v1.0)**:
+Permission-based RBAC system with system roles and custom tenant roles.
+
+**System Roles** (immutable, seeded on startup):
+
+- `superadmin` (UUID: `00000000-0000-0000-0000-000000000001`) - Cross-tenant administration, all permissions
+- `tenant_admin` (UUID: `00000000-0000-0000-0000-000000000002`) - Tenant administration, manages users and roles
+- `user` (UUID: `00000000-0000-0000-0000-000000000003`) - Basic authenticated user, can update own profile
+
+**Custom Tenant Roles**:
+
+- Tenant admins can create custom roles with specific permission sets
+- Roles are tenant-scoped (except system roles which are global)
+- Flexible permission assignment (40+ permissions with wildcard support)
+
+**Permissions Model**:
+
+- **Wildcard permissions**: `*` (all), `tenant:*` (all tenant ops), `users:*` (all user ops)
+- **Granular permissions**: `users:read`, `users:create`, `users:update`, `users:delete`, `users:disable`
+- **Domain permissions**: `roles:*`, `policies:*`, `audit:*`, `profile:update_own`
+- **Permission validation**: Wildcard expansion, hierarchical matching
+- **Helper method**: `Role.has_permission(permission: str) -> bool`
+
+**New API Endpoints**:
+
+```http
+# Role Management (Admin Only)
+GET    /api/v1/admin/roles                    # List roles (tenant-scoped for admins)
+POST   /api/v1/admin/roles                    # Create custom role
+GET    /api/v1/admin/roles/{role_id}          # Get role details
+PUT    /api/v1/admin/roles/{role_id}          # Update role (custom only)
+DELETE /api/v1/admin/roles/{role_id}          # Delete role (custom only)
+
+# Role Assignment (Admin Only)
+POST   /api/v1/admin/users/{user_id}/roles/{role_id}     # Assign role to user
+DELETE /api/v1/admin/users/{user_id}/roles/{role_id}     # Remove role from user
+```
+
+**Database Changes**:
+
+- **New tables**:
+  - `roles` (id, name, tenant_id, is_system, permissions JSONB, created_at, updated_at)
+  - `user_roles` (user_id, role_id, assigned_at, assigned_by, composite PK)
+- **Migrations**:
+  - `001_add_roles_table.py` - Create roles table with indexes
+  - `002_add_user_roles_table.py` - Create user_roles junction table with FKs
+  - `003_seed_system_roles.py` - Insert 3 system roles with fixed UUIDs
+- **Indexes**:
+  - `idx_roles_tenant_id` (roles.tenant_id)
+  - `idx_roles_is_system` (roles.is_system)
+  - `idx_user_roles_user_id` (user_roles.user_id)
+  - `idx_user_roles_role_id` (user_roles.role_id)
+
+**Domain Layer**:
+
+- **Entity**: `Role` (id, name, tenant_id, is_system, permissions, validation)
+- **Exceptions**: `RoleNotFoundError`, `SystemRoleModificationError`, `PrivilegeEscalationError`, `InvalidPermissionError`, `RoleAssignmentError`, `DuplicateRoleError`
+- **Repository Interface**: `RoleRepository` (11 methods: create, get_by_id, get_by_name_and_tenant, list_by_tenant, list_system_roles, list_by_user, update, delete, assign_to_user, remove_from_user, user_has_role)
+
+**Persistence Layer**:
+
+- **Model**: `RoleModel`, `UserRoleModel` (SQLAlchemy with relationships)
+- **Implementation**: `SQLAlchemyRoleRepository` (async, full interface implementation)
+
+**RBAC Enforcement**:
+
+- **System role protection**: Cannot update/delete system roles (raises `SystemRoleModificationError`)
+- **Privilege escalation prevention**: Admins cannot assign roles with higher privileges than they have
+- **Tenant isolation**: Tenant admins can only manage roles and users within their tenant
+- **Superadmin bypass**: Superadmins can manage all roles across all tenants
+- **Permission checks**: `check_admin_access()`, `check_tenant_isolation()` helpers in API layer
+
+**TenantContext Pattern**:
+
+- All admin endpoints use `get_tenant_context()` from `request.state`
+- No direct User model usage in endpoints (cleaner separation of concerns)
+- `TenantContext(tenant_id, user_id, is_superadmin)` provides RBAC context
+
+**Testing Coverage**:
+
+- **Contract tests**: 20 tests in `test_role_management.py` (OpenAPI compliance)
+- **Integration tests**: 11 tests in `test_role_api.py` (API behavior, RBAC enforcement, error cases)
+- **Repository tests**: 15 tests in `test_role_repository.py` (database operations)
+- **Domain tests**: 8 tests in `test_role_entity.py` (permission validation, wildcards)
+
+**Impact**:
+
+- Replaces hardcoded role checks with flexible permission-based system
+- Enables fine-grained access control for tenant admins
+- Supports future feature flags and custom permission requirements
+- System roles provide stable foundation for core functionality
+
+**Migration**:
+
+- Database migrations run automatically on startup (Alembic)
+- System roles are seeded with fixed UUIDs (idempotent)
+- Existing users maintain current access (backward compatible)
+- No API client changes required (new endpoints are additive)
+- Tenant admins can now create custom roles via new admin endpoints
+
+---
+
+## Additional Features
+
+### Rate Limiting (FR-027)
 
 ---
 
@@ -392,7 +504,7 @@ pytest tests/contract/ -v
 
 7. **Verify Health**:
    ```bash
-   curl http://localhost:8000/api/v1/health
+   curl http://localhost:8000/health
    ```
 
 ### Rollback Procedure

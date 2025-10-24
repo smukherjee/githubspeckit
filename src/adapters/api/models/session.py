@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SessionTenantContext(BaseModel):
@@ -18,6 +18,13 @@ class SessionTenantContext(BaseModel):
     Used for superadmin tenant switching - stores the active tenant
     the user has switched to (overrides JWT tenant_id).
     """
+    
+    model_config = ConfigDict(
+        json_encoders={
+            UUID: str,
+            datetime: lambda v: v.isoformat()
+        }
+    )
     
     active_tenant_id: UUID = Field(
         description="The tenant ID the user has switched to"
@@ -29,28 +36,28 @@ class SessionTenantContext(BaseModel):
         default=None,
         description="The original JWT tenant_id before switching"
     )
-    
-    class Config:
-        json_encoders = {
-            UUID: str,
-            datetime: lambda v: v.isoformat()
-        }
 
 
 class TenantSwitchRequest(BaseModel):
     """Request to switch active tenant (superadmin only)."""
     
+    model_config = ConfigDict(populate_by_name=True)
+    
     target_tenant_id: UUID = Field(
         description="The tenant ID to switch to",
         alias="tenant_id"
     )
-    
-    class Config:
-        populate_by_name = True
 
 
 class TenantSwitchResponse(BaseModel):
     """Response after successful tenant switch."""
+    
+    model_config = ConfigDict(
+        json_encoders={
+            UUID: str,
+            datetime: lambda v: v.isoformat()
+        }
+    )
     
     active_tenant_id: UUID = Field(
         description="The tenant ID now active in the session"
@@ -62,9 +69,3 @@ class TenantSwitchResponse(BaseModel):
     switched_at: datetime = Field(
         description="Timestamp when the switch occurred"
     )
-    
-    class Config:
-        json_encoders = {
-            UUID: str,
-            datetime: lambda v: v.isoformat()
-        }

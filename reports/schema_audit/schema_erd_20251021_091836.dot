@@ -1,0 +1,32 @@
+digraph schema {
+  rankdir=LR;
+  node [shape=record];
+
+  alembic_version [label="{<table> alembic_version|<version_num> ⚷ version_num : VARCHAR(32)}"];
+  tenants [label="{<table> tenants|<tenant_id> ⚷ tenant_id : UUID|<name> name : VARCHAR(255)|<status> status : VARCHAR(12)|<config_version> config_version : INTEGER|<created_at> created_at : TIMESTAMP|<updated_at> updated_at : TIMESTAMP|<created_by> created_by : UUID|<updated_by> updated_by : UUID}"];
+  users [label="{<table> users|<user_id> ⚷ user_id : UUID|<tenant_id> tenant_id : UUID|<email> email : VARCHAR(255)|<status> status : VARCHAR(8)|<password_hash> password_hash : VARCHAR(255)|<last_login_at> last_login_at : TIMESTAMP|<created_at> created_at : TIMESTAMP|<updated_at> updated_at : TIMESTAMP|<created_by> created_by : UUID|<updated_by> updated_by : UUID}"];
+  user_roles [label="{<table> user_roles|<user_id> ⚷ user_id : UUID|<role_id> ⚷ role_id : VARCHAR(50)}"];
+  invitations [label="{<table> invitations|<invitation_id> ⚷ invitation_id : UUID|<tenant_id> tenant_id : UUID|<email> email : VARCHAR(255)|<token_hash> token_hash : VARCHAR(64)|<expires_at> expires_at : TIMESTAMP|<accepted_at> accepted_at : TIMESTAMP}"];
+  password_reset_requests [label="{<table> password_reset_requests|<reset_id> ⚷ reset_id : UUID|<user_id> user_id : UUID|<token_hash> token_hash : VARCHAR(64)|<issued_at> issued_at : TIMESTAMP|<expires_at> expires_at : TIMESTAMP|<consumed_at> consumed_at : TIMESTAMP}"];
+  policy_evaluation_logs [label="{<table> policy_evaluation_logs|<eval_id> ⚷ eval_id : UUID|<policy_id> policy_id : UUID|<decision> decision : VARCHAR(7)|<latency_ms> latency_ms : INTEGER|<tenant_id> tenant_id : UUID|<user_id> user_id : UUID|<correlation_id> correlation_id : VARCHAR(255)|<created_at> created_at : TIMESTAMP}"];
+  audit_events [label="{<table> audit_events|<event_id> ⚷ event_id : UUID|<tenant_id> tenant_id : UUID|<actor_user_id> actor_user_id : UUID|<action_type> action_type : VARCHAR(100)|<target_ref> target_ref : VARCHAR(255)|<metadata> metadata : JSON|<created_at> created_at : TIMESTAMP}"];
+  key_rotation_records [label="{<table> key_rotation_records|<key_version> ⚷ key_version : INTEGER|<activated_at> activated_at : TIMESTAMP|<retired_at> retired_at : TIMESTAMP|<algorithm> algorithm : VARCHAR(50)|<notes> notes : TEXT|<created_at> created_at : TIMESTAMP|<created_by> created_by : UUID}"];
+  user_mfa [label="{<table> user_mfa|<user_id> ⚷ user_id : UUID|<factor_type> ⚷ factor_type : VARCHAR(8)|<enrolled_at> enrolled_at : TIMESTAMP|<last_used_at> last_used_at : TIMESTAMP|<secret_hash> secret_hash : VARCHAR(255)|<credential_public_key> credential_public_key : BYTEA|<created_at> created_at : TIMESTAMP|<created_by> created_by : UUID}"];
+  token_replay_records [label="{<table> token_replay_records|<jti> ⚷ jti : VARCHAR(255)|<expires_at> expires_at : DOUBLE PRECISION|<registered_at> registered_at : DOUBLE PRECISION|<tenant_id> tenant_id : UUID}"];
+  user_details [label="{<table> user_details|<user_id> ⚷ user_id : UUID|<full_name> full_name : VARCHAR(100)|<phone> phone : VARCHAR(20)|<address> address : TEXT|<photo_display_url> photo_display_url : VARCHAR(512)|<photo_thumbnail_url> photo_thumbnail_url : VARCHAR(512)|<photo_avatar_url> photo_avatar_url : VARCHAR(512)|<created_at> created_at : TIMESTAMP|<updated_at> updated_at : TIMESTAMP|<created_by> created_by : UUID|<updated_by> updated_by : UUID}"];
+  policies [label="{<table> policies|<policy_id> ⚷ policy_id : UUID|<tenant_id> tenant_id : UUID|<name> name : VARCHAR(255)|<rules> rules : JSON|<created_at> created_at : TIMESTAMP|<updated_at> updated_at : TIMESTAMP|<created_by> created_by : UUID|<updated_by> updated_by : UUID|<status> status : VARCHAR(20)}"];
+  feature_flags [label="{<table> feature_flags|<flag_id> ⚷ flag_id : UUID|<tenant_id> tenant_id : UUID|<key> key : VARCHAR(100)|<state> state : VARCHAR(8)|<variant> variant : VARCHAR(50)|<rules> rules : JSON|<created_at> created_at : TIMESTAMP|<updated_at> updated_at : TIMESTAMP|<created_by> created_by : UUID|<updated_by> updated_by : UUID|<status> status : VARCHAR(20)}"];
+  schema_version [label="{<table> schema_version|<version> ⚷ version : VARCHAR(20)|<applied_at> applied_at : TIMESTAMP|<description> description : TEXT|<checksum> checksum : VARCHAR(64)}"];
+
+  users:tenant_id -> tenants:tenant_id [label="NO ACTION"];
+  user_roles:user_id -> users:user_id [label="NO ACTION"];
+  invitations:tenant_id -> tenants:tenant_id [label="NO ACTION"];
+  password_reset_requests:user_id -> users:user_id [label="NO ACTION"];
+  policy_evaluation_logs:policy_id -> policies:policy_id [label="NO ACTION"];
+  user_mfa:user_id -> users:user_id [label="NO ACTION"];
+  user_details:created_by -> users:user_id [label="NO ACTION"];
+  user_details:updated_by -> users:user_id [label="NO ACTION"];
+  user_details:user_id -> users:user_id [label="NO ACTION"];
+  policies:tenant_id -> tenants:tenant_id [label="NO ACTION"];
+  feature_flags:tenant_id -> tenants:tenant_id [label="NO ACTION"];
+}

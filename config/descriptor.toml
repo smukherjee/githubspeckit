@@ -65,8 +65,8 @@ scope = "backend"
 type = "string"
 required = false
 secret = true
-default = "sqlite+aiosqlite:///./dev_infysight.db"
-description = "Database connection URL (default: SQLite for local dev; set env var for PostgreSQL/production)"
+default = "postgresql+asyncpg://postgres:postgres@localhost:5432/githubspeckit_dev"
+description = "Database connection URL (V1.0: PostgreSQL only; SQLite support disabled)"
 scope = "backend"
 
 [database.DB_POOL_SIZE]
@@ -158,42 +158,6 @@ required = false
 secret = false
 default = 30
 description = "Refresh token expiration in days"
-scope = "backend"
-
-# ============================================================================
-# Rate Limiting (FR-046-054, Phase 3.6)
-# ============================================================================
-
-[rate_limiting.RATE_LIMIT_ENABLED]
-type = "bool"
-required = false
-secret = false
-default = true
-description = "Enable rate limiting"
-scope = "backend"
-
-[rate_limiting.RATE_LIMIT_PER_MINUTE]
-type = "int"
-required = false
-secret = false
-default = 60
-description = "Default rate limit (requests per minute per user)"
-scope = "backend"
-
-[rate_limiting.RATE_LIMIT_USER_CREATION]
-type = "int"
-required = false
-secret = false
-default = 100
-description = "Rate limit for user creation endpoint (requests per hour per IP, FR-046)"
-scope = "backend"
-
-[rate_limiting.REDIS_URL]
-type = "string"
-required = false
-secret = true
-default = "redis://localhost:6379/1"
-description = "Redis URL for distributed rate limiting (uses database 1, distinct from session storage)"
 scope = "backend"
 
 # ============================================================================

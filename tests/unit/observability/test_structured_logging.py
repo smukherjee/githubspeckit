@@ -9,8 +9,9 @@ def test_structured_logging_fields_and_redaction():
     client = TestClient(app, raise_server_exceptions=False)
 
     # Make a request with sensitive headers
+    # V1.0: Health endpoint is at /health (not /api/v1/health)
     resp = client.get(
-        "/api/v1/health",
+        "/health",
         headers={
             "X-Tenant-ID": "tenant-123",
             "Authorization": "Bearer secret-token",

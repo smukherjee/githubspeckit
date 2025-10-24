@@ -13,8 +13,9 @@ from adapters.api import deps
 from adapters.api.app import create_app
 
 # Set test environment
+# V1.0: PostgreSQL only (SQLite support disabled)
 if "DATABASE_URL" not in os.environ:
-    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
+    os.environ["DATABASE_URL"] = "postgresql+asyncpg://infysight_dbadmin:infysight_dbadmin123@localhost/githubspeckit_test"
 
 os.environ["APP_ENV"] = "test"
 os.environ["JWT_SECRET_KEY"] = "test_secret_key_min_32_chars_long_for_hs256"
@@ -41,6 +42,29 @@ def reset_session_maker() -> Generator[None, None, None]:
 async def db_engine():
     """Create database engine for the test session with migrations."""
     import subprocess
+    from sqlalchemy import text
+    from adapters.persistence.db_config import DatabaseConfig
+    
+    # Create a temporary engine to drop all tables first
+    temp_config = DatabaseConfig.from_env()
+    temp_engine = temp_config.create_engine()
+    
+    async with temp_engine.begin() as conn:
+        # Drop all tables to ensure clean state
+        await conn.execute(text("""
+            DROP TABLE IF EXISTS schema_version, token_replay_records, key_rotation_records, 
+                                 feature_flags, audit_events, policy_evaluation_logs, policies,
+                                 password_reset_requests, invitations, user_mfa, user_details,
+                                 user_roles, roles, users, tenants, alembic_version CASCADE;
+        """))
+        # Drop enum types (PostgreSQL-specific)
+        await conn.execute(text("DROP TYPE IF EXISTS mfa_factor_type CASCADE"))
+        await conn.execute(text("DROP TYPE IF EXISTS flag_state CASCADE"))
+        await conn.execute(text("DROP TYPE IF EXISTS decision CASCADE"))
+        await conn.execute(text("DROP TYPE IF EXISTS user_status CASCADE"))
+        await conn.execute(text("DROP TYPE IF EXISTS tenant_status CASCADE"))
+    
+    await temp_engine.dispose()
     
     # Run migrations
     result = subprocess.run(
@@ -96,6 +120,18 @@ async def seeded_database(db_engine):
             tenant_repo = SQLAlchemyTenantRepository(session)
             user_repo = SQLAlchemyUserRepository(session)
             
+            # Get system role UUIDs by name (FR-122)
+            from sqlalchemy import text
+            role_uuid_query = text("""
+                SELECT id, name FROM roles 
+                WHERE is_system = true AND name IN ('superadmin', 'tenant_admin', 'user')
+            """)
+            role_result = await session.execute(role_uuid_query)
+            role_uuid_map = {row[1]: str(row[0]) for row in role_result.all()}
+            
+            if len(role_uuid_map) != 3:
+                pytest.fail(f"Expected 3 system roles in test database, found {len(role_uuid_map)}: {list(role_uuid_map.keys())}")
+            
             # Create tenant
             tenant = Tenant(
                 tenant_id=tenant_id,
@@ -115,7 +151,7 @@ async def seeded_database(db_engine):
                 tenant_id=tenant_id,
                 email="infysightsa@infysight.com",
                 status=UserStatus.active,
-                roles=["superadmin"],
+                roles=[role_uuid_map["superadmin"]],  # UUID not name
                 password_hash=default_hasher.hash("infysightsa123"),
                 last_login_at=None,
                 created_at=datetime.now(timezone.utc),
@@ -131,7 +167,7 @@ async def seeded_database(db_engine):
                 tenant_id=tenant_id,
                 email="infysightadmin@infysight.com",
                 status=UserStatus.active,
-                roles=["tenant_admin"],
+                roles=[role_uuid_map["tenant_admin"]],  # UUID not name
                 password_hash=default_hasher.hash("infysightadmin123"),
                 last_login_at=None,
                 created_at=datetime.now(timezone.utc),
@@ -147,7 +183,7 @@ async def seeded_database(db_engine):
                 tenant_id=tenant_id,
                 email="infysightuser@infysight.com",
                 status=UserStatus.active,
-                roles=["user"],  # Use valid role 'user' instead of 'standard'
+                roles=[role_uuid_map["user"]],  # UUID not name
                 password_hash=default_hasher.hash("infysightuser123"),
                 last_login_at=None,
                 created_at=datetime.now(timezone.utc),
@@ -173,6 +209,34 @@ async def client(seeded_database) -> AsyncGenerator[AsyncClient, None]:
     
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
+    
+    # Clean up database connections from deps
+    from adapters.api import deps
+    if deps._session_maker:
+        engine = deps._session_maker.kw.get("bind")
+        if engine:
+            await engine.dispose()
+    deps._session_maker = None
+    deps._db_config = None
+
+
+@pytest_asyncio.fixture
+async def test_client(seeded_database) -> AsyncGenerator[AsyncClient, None]:
+    """Alias for client fixture for backward compatibility."""
+    app = create_app()
+    transport = ASGITransport(app=app)
+    
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+    
+    # Clean up database connections from deps
+    from adapters.api import deps
+    if deps._session_maker:
+        engine = deps._session_maker.kw.get("bind")
+        if engine:
+            await engine.dispose()
+    deps._session_maker = None
+    deps._db_config = None
 
 
 @pytest_asyncio.fixture
@@ -204,7 +268,7 @@ async def auth_headers(client: AsyncClient) -> dict:
     return {"Authorization": f"Bearer {data['access_token']}"}
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 def test_user_id(seeded_database) -> str:
     """Return superadmin user ID."""
     return seeded_database["user_id"]
@@ -225,7 +289,7 @@ async def regular_user_headers(client: AsyncClient) -> dict:
     return {"Authorization": f"Bearer {data['access_token']}"}
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 def regular_user_id(seeded_database) -> str:
     """Return standard user ID."""
     return seeded_database["standard_user_id"]
@@ -261,21 +325,21 @@ async def superadmin_headers(client: AsyncClient) -> dict:
     return {"Authorization": f"Bearer {data['access_token']}"}
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 def same_tenant_user_id(seeded_database) -> str:
     """Return tenant admin user ID (same tenant as standard user)."""
     return seeded_database["tenant_admin_id"]
 
 
-@pytest_asyncio.fixture
+@pytest.fixture
 def test_tenant_id(seeded_database) -> str:
     """Return test tenant ID (InfySight tenant)."""
     return seeded_database["tenant_id"]
 
 
 @pytest_asyncio.fixture
-async def superadmin_headers(client: AsyncClient) -> dict:
-    """Provide superadmin authentication headers."""
+async def superadmin_token(client: AsyncClient) -> str:
+    """Provide superadmin authentication token (string only, no Bearer prefix)."""
     response = await client.post(
         "/api/v1/auth/login",
         json={
@@ -283,7 +347,38 @@ async def superadmin_headers(client: AsyncClient) -> dict:
             "password": "infysightsa123"
         }
     )
-    assert response.status_code == 200
+    assert response.status_code == 200, f"Superadmin login failed: {response.text}"
     data = response.json()
-    return {"Authorization": f"Bearer {data['access_token']}"}
+    return data['access_token']
+
+
+@pytest_asyncio.fixture
+async def admin_token(client: AsyncClient) -> str:
+    """Provide tenant admin authentication token (string only, no Bearer prefix)."""
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": "infysightadmin@infysight.com",
+            "password": "infysightadmin123"
+        }
+    )
+    assert response.status_code == 200, f"Tenant admin login failed: {response.text}"
+    data = response.json()
+    return data['access_token']
+
+
+@pytest_asyncio.fixture
+async def regular_user_token(client: AsyncClient) -> str:
+    """Provide regular user authentication token (string only, no Bearer prefix)."""
+    response = await client.post(
+        "/api/v1/auth/login",
+        json={
+            "email": "infysightuser@infysight.com",
+            "password": "infysightuser123"
+        }
+    )
+    assert response.status_code == 200, f"Regular user login failed: {response.text}"
+    data = response.json()
+    return data['access_token']
+
 

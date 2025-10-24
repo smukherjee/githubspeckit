@@ -10,15 +10,15 @@ except ModuleNotFoundError:  # pragma: no cover
 
 @pytest.mark.contract
 def test_health_status_endpoint():
+    """V1.0: Health endpoint is at /health (simple check)"""
     app = create_app()
     client = TestClient(app)
-    resp = client.get("/api/v1/health")
+    resp = client.get("/health")
     assert resp.status_code == 200
     data = resp.json()
-    # Expected keys per FR-015 (partial implementation)
+    # V1.0: Simplified health check
     assert data["status"] == "ok"
-    assert isinstance(data["migrations_applied"], bool)
-    assert "key_rotation_version" in data
+    assert data["version"] == "1.0.0"
 
 
 @pytest.mark.contract

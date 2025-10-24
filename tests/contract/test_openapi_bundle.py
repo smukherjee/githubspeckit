@@ -22,8 +22,9 @@ def test_openapi_bundle_contains_expected_minimal_paths():
     paths = doc["paths"].keys()
     # Minimal expected paths (already implemented or stubbed)
     # Note: disable/restore are handled via POST to /v1/users/{user_id} with body
+    # V1.0: Health is at /health (not /api/v1/health)
     expected = [
-        "/api/v1/health",
+        "/health",
         "/api/v1/config",
         "/api/v1/invitations/{invitation_id}/accept",
         "/api/v1/users",

@@ -9,18 +9,27 @@ Implements tenant management operations for platform administrators.
 Status: Phase 3.4 - T034 (Admin tenants endpoint)
 """
 from typing import Annotated, List
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from pydantic import BaseModel, EmailStr, ConfigDict
+from pydantic import BaseModel, EmailStr, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from adapters.api.deps import get_db_session
 from adapters.persistence.repositories import SQLAlchemyTenantRepository
 from domain.tenants.tenant_context import TenantContext
-from domain.tenants.models import TenantStatus
+from domain.tenants.models import TenantStatus, Tenant
 
 router = APIRouter(prefix="/tenants", tags=["admin"])
+
+
+class TenantCreateRequest(BaseModel):
+    """Request model for creating a tenant (admin)."""
+    name: str = Field(..., min_length=1, max_length=255, description="Tenant display name")
+    slug: str | None = Field(None, pattern=r"^[a-z0-9-]+$", description="URL-safe slug (auto-generated if omitted)")
+    owner_email: EmailStr | None = Field(None, description="Owner email (optional)")
+    
+    model_config = ConfigDict()
 
 
 class TenantResponse(BaseModel):
@@ -28,7 +37,7 @@ class TenantResponse(BaseModel):
     tenant_id: str
     name: str
     slug: str
-    owner_email: EmailStr
+    owner_email: EmailStr | None = None
     status: str
     created_at: str | None = None
     model_config = ConfigDict()
@@ -106,17 +115,15 @@ async def list_all_tenants(
         repo = SQLAlchemyTenantRepository(db)
         
         # Query all tenants
-        # TODO: Implement list_all() method in repository
-        # For now, return empty list as placeholder
-        tenants = []
+        tenants = await repo.list(include_deleted=False)
         
         # Convert to response models
         response_tenants = [
             TenantResponse(
                 tenant_id=str(tenant.tenant_id),
                 name=tenant.name,
-                slug=tenant.slug,
-                owner_email=tenant.owner_email,
+                slug=tenant.name.lower().replace(" ", "-"),  # Auto-generate slug from name
+                owner_email=None,  # Not stored in domain model yet
                 status=tenant.status.value if hasattr(tenant, 'status') else 'active',
                 created_at=tenant.created_at.isoformat() if tenant.created_at else None,
             )
@@ -138,6 +145,112 @@ async def list_all_tenants(
                 "error": {
                     "code": "TENANT_LIST_ERROR",
                     "message": f"Failed to list tenants: {str(e)}",
+                }
+            },
+        )
+
+
+@router.post(
+    "",
+    response_model=TenantResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a new tenant (superadmin only)",
+    description="""
+    Creates a new tenant in the platform.
+    
+    **Authorization**:
+    - Superadmin: Full access
+    - All other roles: 403 Forbidden
+    
+    **V1.0 API**: Admin-level tenant creation under /admin namespace.
+    """,
+)
+async def create_tenant(
+    request_data: TenantCreateRequest,
+    tenant_context: Annotated[TenantContext, Depends(get_tenant_context)],
+    db: Annotated[AsyncSession, Depends(get_db_session)],
+) -> TenantResponse:
+    """
+    Create a new tenant (superadmin only).
+    
+    Args:
+        request_data: Tenant creation request
+        tenant_context: Current tenant context from middleware
+        db: Database session
+    
+    Returns:
+        TenantResponse with created tenant details
+    
+    Raises:
+        HTTPException 403: If user is not superadmin
+        HTTPException 409: If tenant slug already exists
+        HTTPException 500: If database error occurs
+    """
+    try:
+        # Check if user is superadmin
+        if not tenant_context.is_superadmin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": {
+                        "code": "SUPERADMIN_REQUIRED",
+                        "message": "Only superadmin can create tenants",
+                    }
+                },
+            )
+        
+        repo = SQLAlchemyTenantRepository(db)
+        
+        # Generate slug if not provided
+        slug = request_data.slug
+        if not slug:
+            # Simple slug generation from name
+            slug = request_data.name.lower().replace(" ", "-").replace("_", "-")
+            slug = "".join(c for c in slug if c.isalnum() or c == "-")
+        
+        # Check if slug/name already exists
+        existing = await repo.get_by_name(request_data.name)
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": {
+                        "code": "TENANT_EXISTS",
+                        "message": f"Tenant with name '{request_data.name}' already exists",
+                    }
+                },
+            )
+        
+        # Create tenant domain entity
+        tenant = Tenant(
+            tenant_id=str(uuid4()),
+            name=request_data.name,
+            status=TenantStatus.active,
+        )
+        
+        # Save to repository
+        created_tenant = await repo.upsert(tenant)
+        await db.commit()
+        
+        return TenantResponse(
+            tenant_id=str(created_tenant.tenant_id),
+            name=created_tenant.name,
+            slug=slug,  # Return the generated slug
+            owner_email=request_data.owner_email,
+            status=created_tenant.status.value,
+            created_at=created_tenant.created_at.isoformat() if created_tenant.created_at else None,
+        )
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error": {
+                    "code": "TENANT_CREATE_ERROR",
+                    "message": f"Failed to create tenant: {str(e)}",
                 }
             },
         )

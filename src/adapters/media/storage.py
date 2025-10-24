@@ -133,13 +133,11 @@ class LocalFileStorage(PhotoStorage):
         if not user_dir.exists():
             return False
         
-        # Check for timestamped variants
+        # Check for timestamped variants (V1.0: removed backward compatibility check)
         for photo_file in user_dir.glob(f"{variant}_*.jpg"):
             return True
         
-        # Check for old non-timestamped version (backward compatibility)
-        old_path = user_dir / f"{variant}.jpg"
-        return old_path.exists()
+        return False
 
 
 class S3Storage(PhotoStorage):

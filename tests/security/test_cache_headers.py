@@ -115,6 +115,7 @@ async def test_user_endpoints_prevent_caching(
 
 @pytest.mark.asyncio
 @pytest.mark.security
+@pytest.mark.skip(reason="Deferred to Phase 2: Policy engine - spec 014")
 async def test_policy_endpoints_prevent_caching(
     client: AsyncClient,
     superadmin_headers: dict[str, str],
@@ -203,8 +204,8 @@ async def test_health_endpoint_can_be_cached(
     This is a non-sensitive endpoint that benefits from caching
     to reduce load on health checks from monitoring systems.
     """
-    # Check both /health and /api/v1/health paths
-    response = await client.get("/api/v1/health")
+    # V1.0: Health endpoint is at /health (not /api/v1/health)
+    response = await client.get("/health")
     
     assert response.status_code == 200
     

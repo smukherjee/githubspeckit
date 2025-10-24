@@ -10,13 +10,16 @@ RUN apt-get update && apt-get install -y \
     gcc \
     postgresql-client \
     curl \
+    libmagic1 \
+    redis-tools \
     && rm -rf /var/lib/apt/lists/*
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONPATH=/app/src
 
 # Stage 2: Dependencies installation
 FROM base AS dependencies
@@ -39,10 +42,12 @@ COPY src /app/src
 COPY alembic /app/alembic
 COPY config /app/config
 COPY alembic.ini /app/alembic.ini
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
 
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+    chown -R appuser:appuser /app && \
+    chmod +x /app/docker-entrypoint.sh
 
 # Switch to non-root user
 USER appuser
@@ -51,8 +56,8 @@ USER appuser
 EXPOSE 8000
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:8000/v1/health || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
 
-# Run database migrations and start application
-CMD ["sh", "-c", "alembic upgrade head && uvicorn src.adapters.api.app:app --host 0.0.0.0 --port 8000 --reload"]
+# Use entrypoint script
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

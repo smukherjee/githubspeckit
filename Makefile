@@ -314,6 +314,23 @@ docker-down:  ## Stop and remove all Docker Compose services
 docker-logs:  ## Follow API container logs (Ctrl+C to exit)
 	@docker-compose logs -f api
 
+docker-clean:  ## DESTRUCTIVE: Remove githubspeckit containers, images, volumes, and networks only
+	@echo "⚠️  DESTRUCTIVE: Removing githubspeckit Docker resources..."
+	@echo "Stopping and removing githubspeckit containers..."
+	@docker-compose down -v 2>/dev/null || true
+	@echo "Removing githubspeckit API image..."
+	@docker rmi githubspeckit-api 2>/dev/null || true
+	@echo "Removing githubspeckit volumes..."
+	@docker volume rm githubspeckit_postgres_data 2>/dev/null || true
+	@docker volume rm githubspeckit_redis_data 2>/dev/null || true
+	@docker volume rm githubspeckit_pgadmin_data 2>/dev/null || true
+	@echo "Removing githubspeckit network..."
+	@docker network rm githubspeckit-net 2>/dev/null || true
+	@echo ""
+	@echo "✅ Githubspeckit Docker resources cleaned"
+	@echo "Note: Base images (postgres, redis, pgadmin4) are preserved for reuse"
+	@echo ""
+
 docker-reset:  ## Stop, remove volumes (DESTRUCTIVE), rebuild, and start services
 	@echo "⚠️  Resetting Docker environment (will delete all data)..."
 	@docker-compose down -v

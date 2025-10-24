@@ -11,7 +11,8 @@ and key rotation version placeholders.
 """
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, AsyncGenerator
+from contextlib import asynccontextmanager
 import logging
 import traceback
 from fastapi import FastAPI, Response, Request
@@ -30,7 +31,8 @@ from adapters.api.routers.tenants import router as tenants_scoped_router  # New 
 # from adapters.api.routers import policies as policies_router  # Hidden from OpenAPI docs
 # from adapters.api.routers import feature_flags as feature_flags_router  # Hidden from OpenAPI docs
 from adapters.api.routers import profile as profile_router
-from adapters.api.routers import roles as roles_router
+# from adapters.api.routers import roles as roles_router  # OLD static role hierarchy (replaced by admin/roles.py)
+from adapters.api.routers.admin import roles as admin_roles_router  # V1.0 role management (FR-122)
 from adapters.api.routers import admin as admin_router
 from adapters.api.security_headers import SecurityHeadersMiddleware
 from adapters.observability.metrics import SimpleMetricsRegistry
@@ -55,6 +57,19 @@ from fastapi.responses import JSONResponse
 import yaml
 from quality.metrics import QualityMetrics
 from pathlib import Path
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    """Manage application lifespan - startup and shutdown events."""
+    # Startup: Nothing specific needed yet
+    yield
+    # Shutdown: Clean up database connections
+    from adapters.api import deps
+    if deps._session_maker:
+        engine = deps._session_maker.kw.get("bind")
+        if engine:
+            await engine.dispose()
 
 
 def create_app() -> FastAPI:
@@ -99,11 +114,62 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Modern Backend V1.0",
         version="1.0.0",
-        description="""Enterprise-grade multi-tenant FastAPI backend with hexagonal architecture.
+        lifespan=lifespan,
+        description="""
+## Modern Multi-Tenant Backend - V1.0 Production Release
 
-## License
+Enterprise-grade FastAPI backend with hexagonal architecture, multi-tenancy, 
+RBAC, policy engine, and comprehensive observability.
 
-MIT License - See LICENSE file for details.
+### 🚨 Breaking Changes in V1.0
+
+**Database Support**:
+- ❌ SQLite support **removed** - PostgreSQL only
+- ✅ Per-tenant email uniqueness enforced (same email allowed across tenants)
+- ✅ Consolidated migrations with schema versioning
+
+**Authentication & Authorization**:
+- ✅ Argon2id password hashing (mandatory)
+- ✅ JWT with replay protection placeholders
+- ✅ Superadmin isolation via dedicated `/admin` routes
+
+**API Changes**:
+- ✅ Admin routes: `/api/v1/admin/tenants`, `/api/v1/admin/users`
+- ✅ Tenant-scoped routes require proper tenant context
+- ✅ Email uniqueness enforced per-tenant (409 Conflict on duplicates)
+
+**Observability**:
+- ✅ OpenTelemetry tracing (FastAPI + SQLAlchemy)
+- ✅ Structured JSON logging with redaction
+- ✅ Metrics snapshots with regression detection
+
+### 📚 Key Features
+
+- **Multi-Tenancy**: Full tenant isolation with superadmin override
+- **RBAC + Policy Engine**: Tri-state evaluation (ALLOW/DENY/ABSTAIN)
+- **Security**: OWASP best practices, rate limiting (optional), security headers
+- **Audit Trail**: Comprehensive audit events with metadata
+- **Observability**: Tracing, metrics, structured logging
+- **Configuration**: Single YAML descriptor with hash validation
+- **Quality Gates**: Complexity, duplication, security scans
+
+### 🔗 Documentation
+
+- [Migration Guide](https://github.com/yourusername/project/docs/MIGRATION-TO-V1.0.md)
+- [Changelog](https://github.com/yourusername/project/docs/CHANGELOG-V1.0.md)
+- [Database Schema](https://github.com/yourusername/project/docs/database-schema-v1.0.md)
+
+### 🏗️ Architecture
+
+**Hexagonal Design**:
+- Domain: Pure business logic (tenants, users, policies, audit)
+- Adapters: API (FastAPI), Persistence (SQLAlchemy), Observability
+- Services: Application orchestration layer
+
+**Tech Stack**:
+- Python 3.13, FastAPI 0.104+, SQLAlchemy 2.x (async)
+- PostgreSQL 14+, Alembic migrations
+- OpenTelemetry 0.58b0, pytest 8.4.2
 """,
         license_info={
             "name": "MIT",
@@ -237,32 +303,12 @@ MIT License - See LICENSE file for details.
             },
         )
 
-    @app.get("/api/v1/health", tags=["system"])
-    async def health() -> dict[str, str | bool | int | dict]:  # pragma: no cover - simple serialization
-        # Phase 3: Returns basic health status with migration state (IMPL-DB-15)
-        from adapters.persistence.migration_check import check_migration_head
-        from adapters.persistence.db_config import DatabaseConfig
-        
-        try:
-            config = DatabaseConfig.from_env()
-            engine = config.create_engine()
-            migration_status = await check_migration_head(
-                engine,
-                alembic_config_path="alembic.ini",
-                abort_on_mismatch=False  # Health endpoint should not fail
-            )
-            current_revision = migration_status.get("current_revision", "unknown")
-            is_up_to_date = migration_status.get("is_up_to_date", False)
-            await engine.dispose()  # Clean up connection
-        except Exception as e:
-            current_revision = f"error: {str(e)}"
-            is_up_to_date = False
-        
+    @app.get("/health", tags=["system"])
+    async def health() -> dict[str, str]:  # pragma: no cover
+        """Simple health check - indicates server is up. V1.0 baseline."""
         return {
             "status": "ok",
-            "migrations_applied": is_up_to_date,
-            "current_revision": current_revision,
-            "key_rotation_version": 1,
+            "version": "1.0.0"
         }
 
     @app.get("/api/v1/config", tags=["system"])
@@ -280,18 +326,19 @@ MIT License - See LICENSE file for details.
         # Satisfies FR-041 C-045 contract test (TEST-API-28)
         return {"errors": []}
 
-    # Include routers from adapters - Standard /api/v1 prefix only
-    app.include_router(invitations_router.router, prefix="/api")
-    app.include_router(users_router.router, prefix="/api")
-    app.include_router(auth_router.router, prefix="/api")
-    # app.include_router(policies_router.router, prefix="/api")  # Hidden from OpenAPI docs
-    # app.include_router(feature_flags_router.router, prefix="/api")  # Hidden from OpenAPI docs
-    app.include_router(embed_router.router, prefix="/api")
-    app.include_router(audit_router.router, prefix="/api")
-    app.include_router(tenants_crud.router, prefix="/api")  # Legacy tenant CRUD routes
+    # V1.0: Include routers - Unified /api/v1/admin/* prefix for admin routes
+    app.include_router(invitations_router.router, prefix="/api")  # Deferred to Phase 2 (spec 015)
+    # app.include_router(users_router.router, prefix="/api")  # V1.0 REMOVED: Migrated to /api/v1/admin/users (FR-115)
+    # app.include_router(tenants_crud.router, prefix="/api")  # V1.0 REMOVED: Migrated to /api/v1/admin/tenants (FR-115)
+    app.include_router(auth_router.router, prefix="/api")  # Public auth endpoints
+    # app.include_router(policies_router.router, prefix="/api")  # Deferred to Phase 2 (spec 014)
+    # app.include_router(feature_flags_router.router, prefix="/api")  # Deferred to Phase 2 (spec 017)
+    app.include_router(embed_router.router, prefix="/api")  # Public embed exchange
+    app.include_router(audit_router.router, prefix="/api")  # User audit events
     app.include_router(profile_router.router, prefix="/api")  # User profile details
-    app.include_router(roles_router.router, prefix="/api")  # Role hierarchy (FR-089)
-    app.include_router(admin_router.router, prefix="/api/v1")  # Admin routes (FR-004 tenant security)
+    # app.include_router(roles_router.router, prefix="/api")  # V1.0 REMOVED: Replaced by admin/roles.py (FR-122)
+    app.include_router(admin_roles_router.router, prefix="/api/v1/admin")  # V1.0 role management (FR-122)
+    app.include_router(admin_router.router, prefix="/api/v1")  # V1.0 Admin routes (FR-004, FR-115)
     app.include_router(tenants_scoped_router, prefix="/api/v1")  # Tenant-scoped routes (FR-004)
 
     # Mount static files for serving profile photos
@@ -399,7 +446,10 @@ MIT License - See LICENSE file for details.
         
         if since:
             try:
-                since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+                # Handle URL encoding: space in URL becomes '+', which is decoded as space
+                # Replace space with '+' to handle URL-decoded timestamps
+                normalized_since = since.replace(" ", "+").replace("Z", "+00:00")
+                since_dt = datetime.fromisoformat(normalized_since)
             except ValueError:
                 raise HTTPException(
                     status_code=400,
@@ -408,7 +458,9 @@ MIT License - See LICENSE file for details.
         
         if until:
             try:
-                until_dt = datetime.fromisoformat(until.replace("Z", "+00:00"))
+                # Handle URL encoding: space in URL becomes '+', which is decoded as space
+                normalized_until = until.replace(" ", "+").replace("Z", "+00:00")
+                until_dt = datetime.fromisoformat(normalized_until)
             except ValueError:
                 raise HTTPException(
                     status_code=400,
@@ -456,6 +508,9 @@ MIT License - See LICENSE file for details.
 
 
 # Create app instance for uvicorn
+# Note: This runs at module import time, which can cause issues during test discovery
+# if logging hasn't been configured yet. Tests should use the app_client fixture
+# from conftest.py which calls create_app() explicitly.
 app = create_app()
 
 __all__ = ["create_app", "app"]

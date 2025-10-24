@@ -41,7 +41,9 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
     PUBLIC_ROUTES = {
         "/api/v1/auth/login",
         "/api/v1/auth/refresh",
-        "/api/v1/health",
+        "/health",  # Simple health check - server is up
+        "/metrics",  # Prometheus metrics endpoint
+        "/api/v1/metrics/snapshot",  # Metrics snapshot for observability
         "/docs",
         "/redoc",
         "/openapi.json",

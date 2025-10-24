@@ -1,0 +1,375 @@
+<?xml version="1.0" encoding="UTF-8"?><database name="infysight_users" schema="public" type="PostgreSQL - 15.14">
+   <sequences>
+      <sequence increment="1" name="key_rotation_records_key_version_seq" startValue="1"/>
+   </sequences>
+   <tables>
+      <table name="alembic_version" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="version_num" nullable="false" remarks="" size="32" type="varchar" typeCode="12"/>
+         <primaryKey column="version_num" sequenceNumberInPK="1"/>
+         <index name="alembic_version_pkc" unique="true">
+            <column ascending="true" name="version_num"/>
+         </index>
+      </table>
+      <table name="audit_events" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="event_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="tenant_id" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="actor_user_id" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="action_type" nullable="false" remarks="" size="100" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="target_ref" nullable="false" remarks="" size="255" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="'{}'::json" digits="0" id="5" name="metadata" nullable="false" remarks="" size="2147483647" type="json" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="6" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <primaryKey column="event_id" sequenceNumberInPK="1"/>
+         <index name="audit_events_pkey" unique="true">
+            <column ascending="true" name="event_id"/>
+         </index>
+         <index name="ix_audit_events_action_created" unique="false">
+            <column ascending="true" name="action_type"/>
+            <column ascending="true" name="created_at"/>
+         </index>
+         <index name="ix_audit_events_tenant_created" unique="false">
+            <column ascending="true" name="tenant_id"/>
+            <column ascending="true" name="created_at"/>
+         </index>
+      </table>
+      <table name="feature_flags" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="flag_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="tenant_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="tenant_id" foreignKey="feature_flags_tenant_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="tenants"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="key" nullable="false" remarks="" size="100" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="'disabled'::flag_state" digits="0" id="3" name="state" nullable="false" remarks="" size="2147483647" type="flag_state" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="variant" nullable="true" remarks="" size="50" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="rules" nullable="true" remarks="" size="2147483647" type="json" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="'active'::character varying" digits="0" id="6" name="status" nullable="false" remarks="" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="7" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="8" name="updated_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="9" name="created_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="10" name="updated_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <primaryKey column="flag_id" sequenceNumberInPK="1"/>
+         <index name="feature_flags_pkey" unique="true">
+            <column ascending="true" name="flag_id"/>
+         </index>
+         <index name="ix_feature_flags_state" unique="false">
+            <column ascending="true" name="state"/>
+         </index>
+         <index name="ix_feature_flags_status" unique="false">
+            <column ascending="true" name="status"/>
+         </index>
+         <index name="ix_feature_flags_tenant_key" unique="true">
+            <column ascending="true" name="tenant_id"/>
+            <column ascending="true" name="key"/>
+         </index>
+      </table>
+      <table name="invitations" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="invitation_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="tenant_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="tenant_id" foreignKey="invitations_tenant_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="tenants"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="email" nullable="false" remarks="" size="255" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="token_hash" nullable="false" remarks="" size="64" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="4" name="expires_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="5" name="accepted_at" nullable="true" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <primaryKey column="invitation_id" sequenceNumberInPK="1"/>
+         <index name="invitations_pkey" unique="true">
+            <column ascending="true" name="invitation_id"/>
+         </index>
+         <index name="ix_invitations_expires_at" unique="false">
+            <column ascending="true" name="expires_at"/>
+         </index>
+         <index name="ix_invitations_tenant_email" unique="false">
+            <column ascending="true" name="tenant_id"/>
+            <column ascending="true" name="email"/>
+         </index>
+      </table>
+      <table name="key_rotation_records" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="true" defaultValue="nextval('key_rotation_records_key_version_seq'::regclass)" digits="0" id="0" name="key_version" nullable="false" remarks="" size="10" type="serial" typeCode="4"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="1" name="activated_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="2" name="retired_at" nullable="true" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="algorithm" nullable="false" remarks="" size="50" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="notes" nullable="true" remarks="" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="5" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="6" name="created_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <primaryKey column="key_version" sequenceNumberInPK="1"/>
+         <index name="key_rotation_records_pkey" unique="true">
+            <column ascending="true" name="key_version"/>
+         </index>
+      </table>
+      <table name="password_reset_requests" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="reset_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="user_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="user_id" foreignKey="password_reset_requests_user_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="users"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="token_hash" nullable="false" remarks="" size="64" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="3" name="issued_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="4" name="expires_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="5" name="consumed_at" nullable="true" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <primaryKey column="reset_id" sequenceNumberInPK="1"/>
+         <index name="password_reset_requests_pkey" unique="true">
+            <column ascending="true" name="reset_id"/>
+         </index>
+         <index name="ix_password_resets_token_hash" unique="false">
+            <column ascending="true" name="token_hash"/>
+         </index>
+         <index name="ix_password_resets_user_expires" unique="false">
+            <column ascending="true" name="user_id"/>
+            <column ascending="true" name="expires_at"/>
+         </index>
+         <index name="password_reset_requests_token_hash_key" unique="true">
+            <column ascending="true" name="token_hash"/>
+         </index>
+      </table>
+      <table name="policies" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="policy_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <child column="policy_id" foreignKey="policy_evaluation_logs_policy_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="policy_evaluation_logs"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="tenant_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="tenant_id" foreignKey="policies_tenant_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="tenants"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="name" nullable="false" remarks="" size="255" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="'[]'::json" digits="0" id="3" name="rules" nullable="false" remarks="" size="2147483647" type="json" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="'active'::character varying" digits="0" id="4" name="status" nullable="false" remarks="" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="5" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="6" name="updated_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="7" name="created_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="8" name="updated_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <primaryKey column="policy_id" sequenceNumberInPK="1"/>
+         <index name="policies_pkey" unique="true">
+            <column ascending="true" name="policy_id"/>
+         </index>
+         <index name="ix_policies_created_at" unique="false">
+            <column ascending="true" name="created_at"/>
+         </index>
+         <index name="ix_policies_status" unique="false">
+            <column ascending="true" name="status"/>
+         </index>
+         <index name="ix_policies_tenant_id" unique="false">
+            <column ascending="true" name="tenant_id"/>
+         </index>
+      </table>
+      <table name="policy_evaluation_logs" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="eval_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="policy_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="policy_id" foreignKey="policy_evaluation_logs_policy_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="policies"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="decision" nullable="false" remarks="" size="2147483647" type="decision" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="latency_ms" nullable="false" remarks="" size="10" type="int4" typeCode="4"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="tenant_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="user_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="6" name="correlation_id" nullable="false" remarks="" size="255" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="7" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <primaryKey column="eval_id" sequenceNumberInPK="1"/>
+         <index name="policy_evaluation_logs_pkey" unique="true">
+            <column ascending="true" name="eval_id"/>
+         </index>
+         <index name="ix_policy_eval_logs_decision_created" unique="false">
+            <column ascending="true" name="decision"/>
+            <column ascending="true" name="created_at"/>
+         </index>
+         <index name="ix_policy_eval_logs_policy_created" unique="false">
+            <column ascending="true" name="policy_id"/>
+            <column ascending="true" name="created_at"/>
+         </index>
+         <index name="ix_policy_eval_logs_tenant_created" unique="false">
+            <column ascending="true" name="tenant_id"/>
+            <column ascending="true" name="created_at"/>
+         </index>
+      </table>
+      <table name="roles" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <child column="role_id" foreignKey="user_roles_role_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="user_roles"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="name" nullable="false" remarks="" size="100" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="tenant_id" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="tenant_id" foreignKey="roles_tenant_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="tenants"/>
+         </column>
+         <column autoUpdated="false" defaultValue="false" digits="0" id="3" name="is_system" nullable="false" remarks="" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="'[]'::jsonb" digits="0" id="4" name="permissions" nullable="false" remarks="" size="2147483647" type="jsonb" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="description" nullable="true" remarks="" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="6" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="7" name="updated_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="8" name="created_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="user_id" foreignKey="roles_created_by_fkey" implied="false" onDeleteCascade="false" schema="public" table="users"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="9" name="updated_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="user_id" foreignKey="roles_updated_by_fkey" implied="false" onDeleteCascade="false" schema="public" table="users"/>
+         </column>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="roles_pkey" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="idx_roles_system" unique="false">
+            <column ascending="true" name="is_system"/>
+         </index>
+         <index name="idx_roles_tenant" unique="false">
+            <column ascending="true" name="tenant_id"/>
+         </index>
+         <index name="unique_role_name_per_tenant" unique="true">
+            <column ascending="true" name="name"/>
+            <column ascending="true" name="tenant_id"/>
+         </index>
+      </table>
+      <table name="schema_version" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="version" nullable="false" remarks="" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="CURRENT_TIMESTAMP" digits="6" id="1" name="applied_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="description" nullable="true" remarks="" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="checksum" nullable="true" remarks="" size="64" type="varchar" typeCode="12"/>
+         <primaryKey column="version" sequenceNumberInPK="1"/>
+         <index name="schema_version_pkey" unique="true">
+            <column ascending="true" name="version"/>
+         </index>
+      </table>
+      <table name="tenants" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="tenant_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <child column="tenant_id" foreignKey="feature_flags_tenant_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="feature_flags"/>
+            <child column="tenant_id" foreignKey="invitations_tenant_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="invitations"/>
+            <child column="tenant_id" foreignKey="policies_tenant_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="policies"/>
+            <child column="tenant_id" foreignKey="roles_tenant_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="roles"/>
+            <child column="tenant_id" foreignKey="users_tenant_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="users"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="name" nullable="false" remarks="" size="255" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="'active'::tenant_status" digits="0" id="2" name="status" nullable="false" remarks="" size="2147483647" type="tenant_status" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="1" digits="0" id="3" name="config_version" nullable="false" remarks="" size="10" type="int4" typeCode="4"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="4" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="5" name="updated_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="6" name="created_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="7" name="updated_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <primaryKey column="tenant_id" sequenceNumberInPK="1"/>
+         <index name="tenants_pkey" unique="true">
+            <column ascending="true" name="tenant_id"/>
+         </index>
+         <index name="ix_tenants_name" unique="false">
+            <column ascending="true" name="name"/>
+         </index>
+         <index name="ix_tenants_status_created_at" unique="false">
+            <column ascending="true" name="status"/>
+            <column ascending="true" name="created_at"/>
+         </index>
+         <index name="tenants_name_key" unique="true">
+            <column ascending="true" name="name"/>
+         </index>
+      </table>
+      <table name="token_replay_records" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="jti" nullable="false" remarks="" size="255" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="17" id="1" name="expires_at" nullable="false" remarks="" size="17" type="float8" typeCode="8"/>
+         <column autoUpdated="false" defaultValue="null" digits="17" id="2" name="registered_at" nullable="false" remarks="" size="17" type="float8" typeCode="8"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="tenant_id" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <primaryKey column="jti" sequenceNumberInPK="1"/>
+         <index name="token_replay_records_pkey" unique="true">
+            <column ascending="true" name="jti"/>
+         </index>
+         <index name="ix_token_replay_expires_at" unique="false">
+            <column ascending="true" name="expires_at"/>
+         </index>
+         <index name="ix_token_replay_tenant_id" unique="false">
+            <column ascending="true" name="tenant_id"/>
+         </index>
+      </table>
+      <table name="user_details" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="user_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="user_id" foreignKey="user_details_user_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="users"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="full_name" nullable="true" remarks="" size="100" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="phone" nullable="true" remarks="" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="address" nullable="true" remarks="" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="photo_display_url" nullable="true" remarks="" size="512" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="photo_thumbnail_url" nullable="true" remarks="" size="512" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="6" name="photo_avatar_url" nullable="true" remarks="" size="512" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="CURRENT_TIMESTAMP" digits="6" id="7" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="CURRENT_TIMESTAMP" digits="6" id="8" name="updated_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="9" name="created_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="user_id" foreignKey="user_details_created_by_fkey" implied="false" onDeleteCascade="false" schema="public" table="users"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="10" name="updated_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="user_id" foreignKey="user_details_updated_by_fkey" implied="false" onDeleteCascade="false" schema="public" table="users"/>
+         </column>
+         <primaryKey column="user_id" sequenceNumberInPK="1"/>
+         <index name="user_details_pkey" unique="true">
+            <column ascending="true" name="user_id"/>
+         </index>
+         <index name="ix_user_details_created_at" unique="false">
+            <column ascending="true" name="created_at"/>
+         </index>
+         <index name="ix_user_details_updated_at" unique="false">
+            <column ascending="true" name="updated_at"/>
+         </index>
+      </table>
+      <table name="user_mfa" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="user_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="user_id" foreignKey="user_mfa_user_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="users"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="factor_type" nullable="false" remarks="" size="2147483647" type="mfa_factor_type" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="2" name="enrolled_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="3" name="last_used_at" nullable="true" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="secret_hash" nullable="true" remarks="" size="255" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="credential_public_key" nullable="true" remarks="" size="2147483647" type="bytea" typeCode="-2"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="6" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="7" name="created_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <primaryKey column="user_id" sequenceNumberInPK="1"/>
+         <primaryKey column="factor_type" sequenceNumberInPK="2"/>
+         <index name="user_mfa_pkey" unique="true">
+            <column ascending="true" name="user_id"/>
+            <column ascending="true" name="factor_type"/>
+         </index>
+      </table>
+      <table name="user_roles" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="user_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="user_id" foreignKey="user_roles_user_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="users"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="role_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="id" foreignKey="user_roles_role_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="roles"/>
+         </column>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="2" name="assigned_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="assigned_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="user_id" foreignKey="user_roles_assigned_by_fkey" implied="false" onDeleteCascade="false" schema="public" table="users"/>
+         </column>
+         <primaryKey column="user_id" sequenceNumberInPK="1"/>
+         <primaryKey column="role_id" sequenceNumberInPK="2"/>
+         <index name="user_roles_pkey" unique="true">
+            <column ascending="true" name="user_id"/>
+            <column ascending="true" name="role_id"/>
+         </index>
+         <index name="idx_user_roles_role" unique="false">
+            <column ascending="true" name="role_id"/>
+         </index>
+         <index name="idx_user_roles_user" unique="false">
+            <column ascending="true" name="user_id"/>
+         </index>
+      </table>
+      <table name="users" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="user_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <child column="user_id" foreignKey="password_reset_requests_user_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="password_reset_requests"/>
+            <child column="created_by" foreignKey="roles_created_by_fkey" implied="false" onDeleteCascade="false" schema="public" table="roles"/>
+            <child column="updated_by" foreignKey="roles_updated_by_fkey" implied="false" onDeleteCascade="false" schema="public" table="roles"/>
+            <child column="created_by" foreignKey="user_details_created_by_fkey" implied="false" onDeleteCascade="false" schema="public" table="user_details"/>
+            <child column="updated_by" foreignKey="user_details_updated_by_fkey" implied="false" onDeleteCascade="false" schema="public" table="user_details"/>
+            <child column="user_id" foreignKey="user_details_user_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="user_details"/>
+            <child column="user_id" foreignKey="user_mfa_user_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="user_mfa"/>
+            <child column="assigned_by" foreignKey="user_roles_assigned_by_fkey" implied="false" onDeleteCascade="false" schema="public" table="user_roles"/>
+            <child column="user_id" foreignKey="user_roles_user_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="user_roles"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="tenant_id" nullable="false" remarks="" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="tenant_id" foreignKey="users_tenant_id_fkey" implied="false" onDeleteCascade="true" schema="public" table="tenants"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="email" nullable="false" remarks="" size="255" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="'invited'::user_status" digits="0" id="3" name="status" nullable="false" remarks="" size="2147483647" type="user_status" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="password_hash" nullable="true" remarks="" size="255" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="5" name="last_login_at" nullable="true" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="6" name="created_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="7" name="updated_at" nullable="false" remarks="" size="35" type="timestamptz" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="8" name="created_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="9" name="updated_by" nullable="true" remarks="" size="2147483647" type="uuid" typeCode="1111"/>
+         <primaryKey column="user_id" sequenceNumberInPK="1"/>
+         <index name="users_pkey" unique="true">
+            <column ascending="true" name="user_id"/>
+         </index>
+         <index name="ix_users_email_tenant" unique="true">
+            <column ascending="true" name="email"/>
+            <column ascending="true" name="tenant_id"/>
+         </index>
+         <index name="ix_users_tenant_status" unique="false">
+            <column ascending="true" name="tenant_id"/>
+            <column ascending="true" name="status"/>
+         </index>
+      </table>
+   </tables>
+</database>

@@ -1,0 +1,1488 @@
+{
+  "audit_timestamp": "2025-10-21T03:48:36.455109+00:00",
+  "database": {
+    "version": "PostgreSQL 14.19 (Homebrew) on aarch64-apple-darwin24.4.0, compiled by Apple clang version 17.0.0 (clang-1700.0.13.3), 64-bit",
+    "size": "11 MB",
+    "alembic_revision": "3da4ba72b3b5"
+  },
+  "tables": {
+    "alembic_version": {
+      "columns": [
+        {
+          "name": "version_num",
+          "type": "VARCHAR(32)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "alembic_version_pkc",
+        "columns": [
+          "version_num"
+        ]
+      },
+      "row_count": 1
+    },
+    "tenants": {
+      "columns": [
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(12)",
+          "nullable": false,
+          "default": "'active'::tenant_status",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "config_version",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "tenants_pkey",
+        "columns": [
+          "tenant_id"
+        ]
+      },
+      "row_count": 2
+    },
+    "users": {
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "email",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(8)",
+          "nullable": false,
+          "default": "'invited'::user_status",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "password_hash",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "last_login_at",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "users_pkey",
+        "columns": [
+          "user_id"
+        ]
+      },
+      "row_count": 3
+    },
+    "user_roles": {
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "role_id",
+          "type": "VARCHAR(50)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "user_roles_pkey",
+        "columns": [
+          "user_id",
+          "role_id"
+        ]
+      },
+      "row_count": 3
+    },
+    "invitations": {
+      "columns": [
+        {
+          "name": "invitation_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "email",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "token_hash",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "expires_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "accepted_at",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "invitations_pkey",
+        "columns": [
+          "invitation_id"
+        ]
+      },
+      "row_count": 1
+    },
+    "password_reset_requests": {
+      "columns": [
+        {
+          "name": "reset_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "user_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "token_hash",
+          "type": "VARCHAR(64)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "issued_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "expires_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "consumed_at",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "password_reset_requests_pkey",
+        "columns": [
+          "reset_id"
+        ]
+      },
+      "row_count": 0
+    },
+    "policy_evaluation_logs": {
+      "columns": [
+        {
+          "name": "eval_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "policy_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "decision",
+          "type": "VARCHAR(7)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "latency_ms",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "user_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "correlation_id",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "policy_evaluation_logs_pkey",
+        "columns": [
+          "eval_id"
+        ]
+      },
+      "row_count": 0
+    },
+    "audit_events": {
+      "columns": [
+        {
+          "name": "event_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "actor_user_id",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "action_type",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "target_ref",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "metadata",
+          "type": "JSON",
+          "nullable": false,
+          "default": "'{}'::json",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "audit_events_pkey",
+        "columns": [
+          "event_id"
+        ]
+      },
+      "row_count": 20
+    },
+    "key_rotation_records": {
+      "columns": [
+        {
+          "name": "key_version",
+          "type": "INTEGER",
+          "nullable": false,
+          "default": "nextval('key_rotation_records_key_version_seq'::regclass)",
+          "is_primary_key": true,
+          "autoincrement": true
+        },
+        {
+          "name": "activated_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "retired_at",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "algorithm",
+          "type": "VARCHAR(50)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "notes",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "key_rotation_records_pkey",
+        "columns": [
+          "key_version"
+        ]
+      },
+      "row_count": 0
+    },
+    "user_mfa": {
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "factor_type",
+          "type": "VARCHAR(8)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "enrolled_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "last_used_at",
+          "type": "TIMESTAMP",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "secret_hash",
+          "type": "VARCHAR(255)",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "credential_public_key",
+          "type": "BYTEA",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "user_mfa_pkey",
+        "columns": [
+          "user_id",
+          "factor_type"
+        ]
+      },
+      "row_count": 0
+    },
+    "token_replay_records": {
+      "columns": [
+        {
+          "name": "jti",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "expires_at",
+          "type": "DOUBLE PRECISION",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "registered_at",
+          "type": "DOUBLE PRECISION",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "token_replay_records_pkey",
+        "columns": [
+          "jti"
+        ]
+      },
+      "row_count": 0
+    },
+    "user_details": {
+      "columns": [
+        {
+          "name": "user_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "full_name",
+          "type": "VARCHAR(100)",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "phone",
+          "type": "VARCHAR(20)",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "address",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "photo_display_url",
+          "type": "VARCHAR(512)",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "photo_thumbnail_url",
+          "type": "VARCHAR(512)",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "photo_avatar_url",
+          "type": "VARCHAR(512)",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "pk_user_details",
+        "columns": [
+          "user_id"
+        ]
+      },
+      "row_count": 0
+    },
+    "policies": {
+      "columns": [
+        {
+          "name": "policy_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "name",
+          "type": "VARCHAR(255)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "rules",
+          "type": "JSON",
+          "nullable": false,
+          "default": "'[]'::json",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "default": "'active'::character varying",
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "policies_pkey",
+        "columns": [
+          "policy_id"
+        ]
+      },
+      "row_count": 0
+    },
+    "feature_flags": {
+      "columns": [
+        {
+          "name": "flag_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "UUID",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "key",
+          "type": "VARCHAR(100)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "state",
+          "type": "VARCHAR(8)",
+          "nullable": false,
+          "default": "'disabled'::flag_state",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "variant",
+          "type": "VARCHAR(50)",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "rules",
+          "type": "JSON",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "now()",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "created_by",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "updated_by",
+          "type": "UUID",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "status",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "default": "'active'::character varying",
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "feature_flags_pkey",
+        "columns": [
+          "flag_id"
+        ]
+      },
+      "row_count": 0
+    },
+    "schema_version": {
+      "columns": [
+        {
+          "name": "version",
+          "type": "VARCHAR(20)",
+          "nullable": false,
+          "default": null,
+          "is_primary_key": true,
+          "autoincrement": false
+        },
+        {
+          "name": "applied_at",
+          "type": "TIMESTAMP",
+          "nullable": false,
+          "default": "CURRENT_TIMESTAMP",
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "description",
+          "type": "TEXT",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        },
+        {
+          "name": "checksum",
+          "type": "VARCHAR(64)",
+          "nullable": true,
+          "default": null,
+          "is_primary_key": false,
+          "autoincrement": false
+        }
+      ],
+      "primary_key": {
+        "constraint_name": "schema_version_pkey",
+        "columns": [
+          "version"
+        ]
+      },
+      "row_count": 1
+    }
+  },
+  "foreign_keys": [
+    {
+      "from_table": "users",
+      "from_columns": [
+        "tenant_id"
+      ],
+      "to_table": "tenants",
+      "to_columns": [
+        "tenant_id"
+      ],
+      "constraint_name": "users_tenant_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION"
+    },
+    {
+      "from_table": "user_roles",
+      "from_columns": [
+        "user_id"
+      ],
+      "to_table": "users",
+      "to_columns": [
+        "user_id"
+      ],
+      "constraint_name": "user_roles_user_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION"
+    },
+    {
+      "from_table": "invitations",
+      "from_columns": [
+        "tenant_id"
+      ],
+      "to_table": "tenants",
+      "to_columns": [
+        "tenant_id"
+      ],
+      "constraint_name": "invitations_tenant_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION"
+    },
+    {
+      "from_table": "password_reset_requests",
+      "from_columns": [
+        "user_id"
+      ],
+      "to_table": "users",
+      "to_columns": [
+        "user_id"
+      ],
+      "constraint_name": "password_reset_requests_user_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION"
+    },
+    {
+      "from_table": "policy_evaluation_logs",
+      "from_columns": [
+        "policy_id"
+      ],
+      "to_table": "policies",
+      "to_columns": [
+        "policy_id"
+      ],
+      "constraint_name": "policy_evaluation_logs_policy_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION"
+    },
+    {
+      "from_table": "user_mfa",
+      "from_columns": [
+        "user_id"
+      ],
+      "to_table": "users",
+      "to_columns": [
+        "user_id"
+      ],
+      "constraint_name": "user_mfa_user_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION"
+    },
+    {
+      "from_table": "user_details",
+      "from_columns": [
+        "created_by"
+      ],
+      "to_table": "users",
+      "to_columns": [
+        "user_id"
+      ],
+      "constraint_name": "fk_user_details_created_by",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION"
+    },
+    {
+      "from_table": "user_details",
+      "from_columns": [
+        "updated_by"
+      ],
+      "to_table": "users",
+      "to_columns": [
+        "user_id"
+      ],
+      "constraint_name": "fk_user_details_updated_by",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION"
+    },
+    {
+      "from_table": "user_details",
+      "from_columns": [
+        "user_id"
+      ],
+      "to_table": "users",
+      "to_columns": [
+        "user_id"
+      ],
+      "constraint_name": "fk_user_details_user_id",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION"
+    },
+    {
+      "from_table": "policies",
+      "from_columns": [
+        "tenant_id"
+      ],
+      "to_table": "tenants",
+      "to_columns": [
+        "tenant_id"
+      ],
+      "constraint_name": "policies_tenant_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION"
+    },
+    {
+      "from_table": "feature_flags",
+      "from_columns": [
+        "tenant_id"
+      ],
+      "to_table": "tenants",
+      "to_columns": [
+        "tenant_id"
+      ],
+      "constraint_name": "feature_flags_tenant_id_fkey",
+      "on_delete": "NO ACTION",
+      "on_update": "NO ACTION"
+    }
+  ],
+  "indexes": [
+    {
+      "table": "tenants",
+      "name": "ix_tenants_name",
+      "columns": [
+        "name"
+      ],
+      "unique": false
+    },
+    {
+      "table": "tenants",
+      "name": "ix_tenants_status_created_at",
+      "columns": [
+        "status",
+        "created_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "tenants",
+      "name": "tenants_name_key",
+      "columns": [
+        "name"
+      ],
+      "unique": true
+    },
+    {
+      "table": "users",
+      "name": "idx_users_email_tenant",
+      "columns": [
+        "email",
+        "tenant_id"
+      ],
+      "unique": true
+    },
+    {
+      "table": "users",
+      "name": "ix_users_tenant_email",
+      "columns": [
+        "tenant_id",
+        "email"
+      ],
+      "unique": true
+    },
+    {
+      "table": "users",
+      "name": "ix_users_tenant_status",
+      "columns": [
+        "tenant_id",
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "table": "invitations",
+      "name": "ix_invitations_expires_at",
+      "columns": [
+        "expires_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "invitations",
+      "name": "ix_invitations_tenant_email",
+      "columns": [
+        "tenant_id",
+        "email"
+      ],
+      "unique": false
+    },
+    {
+      "table": "password_reset_requests",
+      "name": "ix_password_resets_token_hash",
+      "columns": [
+        "token_hash"
+      ],
+      "unique": false
+    },
+    {
+      "table": "password_reset_requests",
+      "name": "ix_password_resets_user_expires",
+      "columns": [
+        "user_id",
+        "expires_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "password_reset_requests",
+      "name": "password_reset_requests_token_hash_key",
+      "columns": [
+        "token_hash"
+      ],
+      "unique": true
+    },
+    {
+      "table": "policy_evaluation_logs",
+      "name": "ix_policy_eval_logs_decision_created",
+      "columns": [
+        "decision",
+        "created_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "policy_evaluation_logs",
+      "name": "ix_policy_eval_logs_policy_created",
+      "columns": [
+        "policy_id",
+        "created_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "policy_evaluation_logs",
+      "name": "ix_policy_eval_logs_tenant_created",
+      "columns": [
+        "tenant_id",
+        "created_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "audit_events",
+      "name": "ix_audit_events_action_created",
+      "columns": [
+        "action_type",
+        "created_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "audit_events",
+      "name": "ix_audit_events_tenant_created",
+      "columns": [
+        "tenant_id",
+        "created_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "token_replay_records",
+      "name": "ix_token_replay_expires_at",
+      "columns": [
+        "expires_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "token_replay_records",
+      "name": "ix_token_replay_tenant_id",
+      "columns": [
+        "tenant_id"
+      ],
+      "unique": false
+    },
+    {
+      "table": "user_details",
+      "name": "ix_user_details_created_at",
+      "columns": [
+        "created_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "user_details",
+      "name": "ix_user_details_updated_at",
+      "columns": [
+        "updated_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "policies",
+      "name": "ix_policies_created_at",
+      "columns": [
+        "created_at"
+      ],
+      "unique": false
+    },
+    {
+      "table": "policies",
+      "name": "ix_policies_status",
+      "columns": [
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "table": "policies",
+      "name": "ix_policies_tenant_id",
+      "columns": [
+        "tenant_id"
+      ],
+      "unique": false
+    },
+    {
+      "table": "feature_flags",
+      "name": "ix_feature_flags_state",
+      "columns": [
+        "state"
+      ],
+      "unique": false
+    },
+    {
+      "table": "feature_flags",
+      "name": "ix_feature_flags_status",
+      "columns": [
+        "status"
+      ],
+      "unique": false
+    },
+    {
+      "table": "feature_flags",
+      "name": "ix_feature_flags_tenant_key",
+      "columns": [
+        "tenant_id",
+        "key"
+      ],
+      "unique": true
+    }
+  ],
+  "enums": [
+    {
+      "name": "decision",
+      "values": [
+        "ALLOW",
+        "DENY",
+        "ABSTAIN"
+      ]
+    },
+    {
+      "name": "flag_state",
+      "values": [
+        "enabled",
+        "disabled"
+      ]
+    },
+    {
+      "name": "mfa_factor_type",
+      "values": [
+        "totp",
+        "webauthn"
+      ]
+    },
+    {
+      "name": "tenant_status",
+      "values": [
+        "active",
+        "soft_deleted",
+        "disabled"
+      ]
+    },
+    {
+      "name": "user_status",
+      "values": [
+        "invited",
+        "active",
+        "disabled"
+      ]
+    }
+  ],
+  "inconsistencies": [
+    {
+      "type": "pk_naming",
+      "severity": "warning",
+      "message": "Inconsistent PK naming: {'other': ['alembic_version'], 'standard': ['tenants', 'users', 'user_roles', 'invitations', 'password_reset_requests', 'policy_evaluation_logs', 'audit_events', 'key_rotation_records', 'user_mfa', 'token_replay_records', 'policies', 'feature_flags', 'schema_version'], 'prefixed': ['user_details']}",
+      "details": {
+        "other": [
+          "alembic_version"
+        ],
+        "standard": [
+          "tenants",
+          "users",
+          "user_roles",
+          "invitations",
+          "password_reset_requests",
+          "policy_evaluation_logs",
+          "audit_events",
+          "key_rotation_records",
+          "user_mfa",
+          "token_replay_records",
+          "policies",
+          "feature_flags",
+          "schema_version"
+        ],
+        "prefixed": [
+          "user_details"
+        ]
+      }
+    },
+    {
+      "type": "fk_naming",
+      "severity": "warning",
+      "message": "Inconsistent FK naming patterns: 8 standard, 3 prefixed",
+      "details": {
+        "standard": 8,
+        "prefixed": 3
+      }
+    },
+    {
+      "type": "missing_fk_indexes",
+      "severity": "info",
+      "message": "5 FK columns without indexes",
+      "details": [
+        "user_details.created_by",
+        "user_details.user_id",
+        "user_roles.user_id",
+        "user_mfa.user_id",
+        "user_details.updated_by"
+      ]
+    },
+    {
+      "type": "audit_field_nullability",
+      "severity": "warning",
+      "message": "Inconsistent nullability for audit fields",
+      "details": {
+        "created_by_nullable": [
+          "tenants",
+          "users",
+          "key_rotation_records",
+          "user_mfa",
+          "policies",
+          "feature_flags"
+        ],
+        "updated_by_nullable": [
+          "tenants",
+          "users",
+          "policies",
+          "feature_flags"
+        ],
+        "created_by_not_null": [
+          "user_details"
+        ],
+        "updated_by_not_null": [
+          "user_details"
+        ]
+      }
+    }
+  ],
+  "statistics": {
+    "total_tables": 15,
+    "total_columns": 102,
+    "total_foreign_keys": 11,
+    "total_indexes": 26,
+    "total_unique_indexes": 5,
+    "total_enums": 5,
+    "total_inconsistencies": 4,
+    "tables_with_data": 7
+  }
+}

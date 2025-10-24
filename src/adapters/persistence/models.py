@@ -173,11 +173,61 @@ class UserModel(Base):
     )
 
 
+class RoleModel(Base):
+    """
+    Role entity (FR-122: Role Management & Hierarchy).
+    
+    Supports system roles (immutable, tenant_id=NULL) and custom tenant roles.
+    Permissions stored as JSONB array with wildcard support.
+    """
+    __tablename__ = "roles"
+
+    id: Mapped[UUID] = mapped_column(PortableUUID(), primary_key=True)
+    name: Mapped[str] = mapped_column(String(100), nullable=False)
+    tenant_id: Mapped[Optional[UUID]] = mapped_column(
+        PortableUUID(),
+        ForeignKey("tenants.tenant_id", ondelete="CASCADE"),
+        nullable=True  # NULL for system roles
+    )
+    is_system: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    permissions: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    
+    # Audit fields (FR-077)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
+    created_by: Mapped[Optional[UUID]] = mapped_column(
+        PortableUUID(),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
+        nullable=True
+    )
+    updated_by: Mapped[Optional[UUID]] = mapped_column(
+        PortableUUID(),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
+        nullable=True
+    )
+
+    # Indexes per FR-122 spec
+    __table_args__ = (
+        Index("idx_roles_tenant", "tenant_id"),
+        Index("idx_roles_system", "is_system", postgresql_where="is_system = TRUE"),
+    )
+
+
 class UserRoleModel(Base):
     """
-    User-Role association table (many-to-many).
+    User-Role association table (many-to-many) (FR-122).
     
-    Role IDs are string enums (superadmin, tenant_admin, analyst, standard, etc.).
+    Updated to use UUID role_id referencing roles.id instead of string enum.
     """
     __tablename__ = "user_roles"
 
@@ -186,7 +236,29 @@ class UserRoleModel(Base):
         ForeignKey("users.user_id", ondelete="CASCADE"),
         primary_key=True
     )
-    role_id: Mapped[str] = mapped_column(String(50), primary_key=True)
+    role_id: Mapped[UUID] = mapped_column(
+        PortableUUID(),
+        ForeignKey("roles.id", ondelete="CASCADE"),
+        primary_key=True
+    )
+    
+    # Audit fields (FR-122)
+    assigned_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc)
+    )
+    assigned_by: Mapped[Optional[UUID]] = mapped_column(
+        PortableUUID(),
+        ForeignKey("users.user_id", ondelete="SET NULL"),
+        nullable=True
+    )
+    
+    # Indexes for efficient lookups
+    __table_args__ = (
+        Index("idx_user_roles_user", "user_id"),
+        Index("idx_user_roles_role", "role_id"),
+    )
 
 
 class InvitationModel(Base):

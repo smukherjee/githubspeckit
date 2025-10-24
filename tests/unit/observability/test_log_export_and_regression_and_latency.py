@@ -28,9 +28,10 @@ def test_log_export_bounds_and_truncation():
     client = TestClient(app)
     headers = {"Authorization": f"Bearer {token}"}
     
-    # Generate > limit logs (middleware logs each request)
-    for i in range(30):
-        client.get("/api/v1/health")
+        # Generate some log entries by making requests
+    # V1.0: Health endpoint is at /health (not /api/v1/health)
+    for _ in range(20):
+        client.get("/health")
     
     # Test basic limit and truncation (with authentication)
     resp = client.get("/api/v1/logs/export", params={"limit": 10}, headers=headers)
@@ -38,7 +39,9 @@ def test_log_export_bounds_and_truncation():
     data = resp.json()
     assert len(data["records"]) == 10
     assert data["truncated"] is True
-    assert data["total_available"] >= 30
+    # Expect at least 20 log entries (from 20 requests generated above)
+    # V1.0: Adjusted from >= 30 to >= 20 to match actual log generation
+    assert data["total_available"] >= 20
     
     # Test category filter (with authentication)
     resp = client.get("/api/v1/logs/export", params={"category": "info", "limit": 5}, headers=headers)

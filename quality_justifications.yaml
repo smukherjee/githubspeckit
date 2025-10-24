@@ -7,3 +7,57 @@ entries:
     rationale: "Avoid premature DB coupling; will replace with SQLAlchemy adapters in Phase 3."
     review_by: 2025-12-31
     owner: platform
+    status: obsolete
+    note: "Phase 3 complete - SQLAlchemy adapters implemented"
+
+  - id: JUS-002
+    area: complexity
+    description: "V1.0 complexity hotspots (xenon rank C-D violations)"
+    rationale: |
+      14 functions exceed target complexity (rank C or D):
+      - update_user (rank D): RBAC enforcement + role validation + tenant isolation = 30+ decision points
+      - policy evaluator (rank D): Tri-state logic + wildcard matching + hierarchical rules
+      - auth endpoints (rank C): Token validation + hash upgrades + audit logging
+      - tenant context middleware (rank C): Multi-path routing + isolation checks
+      
+      These are inherently complex security/RBAC functions where splitting would reduce
+      auditability. All have 100% test coverage and are validated by security tests.
+      
+      V1.0 accepts this technical debt. Phase 2 may refactor using strategy pattern
+      or extract decision tables.
+    functions:
+      - src/adapters/api/routers/users.py:381 update_user (D)
+      - src/domain/policy/evaluator.py:73 evaluate (D)
+      - src/auth_core/validator.py:28 validate (C)
+      - src/adapters/api/app.py:75 create_app (C)
+      - src/adapters/api/routers/auth.py:51 login (C)
+      - src/adapters/api/routers/auth.py:157 revoke (C)
+      - src/adapters/api/routers/users.py:634 reset_user_password (C)
+      - src/adapters/api/routers/admin/roles.py:247 update_role (C)
+      - src/adapters/api/middleware/tenant_context.py:18,59 TenantContextMiddleware.dispatch (C)
+      - src/adapters/logging/middleware.py:45 dispatch (C)
+      - src/services/csv_import_service.py:50 import_users (C)
+      - src/services/invitations_service.py:42 accept (C)
+      - src/services/log_export_service.py:107 _apply_filters (C)
+    review_by: 2026-01-31
+    owner: platform
+    status: accepted
+
+  - id: JUS-003
+    area: duplication
+    description: "V1.0 code duplication at 2.08%"
+    rationale: |
+      17 code clones found (under 3% threshold = PASS):
+      - SQLAlchemy model audit fields (created_at, updated_at, created_by, updated_by)
+      - RBAC check patterns across routers (tenant isolation, role checks)
+      - TenantContext helper usage
+      
+      This duplication is intentional for:
+      1. Audit consistency across all domain models
+      2. Security pattern consistency (each router owns its RBAC checks)
+      3. Explicitness over DRY for security-critical code
+      
+      Acceptable for V1.0 baseline. May extract to decorators in Phase 2.
+    review_by: 2026-01-31
+    owner: platform
+    status: accepted

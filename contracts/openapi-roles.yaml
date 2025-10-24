@@ -1,0 +1,449 @@
+openapi: 3.1.0
+info:
+  title: Role Management API (FR-122)
+  version: 1.0.0
+  description: |
+    Role management endpoints for V1.0.
+    
+    **Features**:
+    - CRUD operations for custom tenant roles
+    - System role immutability (superadmin, tenant_admin, user)
+    - Permission-based RBAC with wildcard support
+    - Tenant isolation enforcement
+    - Role assignment/revocation
+
+paths:
+  /api/v1/admin/roles:
+    get:
+      tags:
+        - roles
+      summary: List roles
+      description: |
+        List all roles (system + tenant custom roles).
+        
+        **RBAC**: Requires superadmin or tenant_admin role
+        - superadmin: Sees all roles (system + all tenant custom roles)
+        - tenant_admin: Sees system roles + own tenant's custom roles
+      operationId: list_roles_api_v1_admin_roles_get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: include_system
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+            title: Include System
+            description: Include system roles (superadmin, tenant_admin, user)
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleResponse'
+        '403':
+          description: Forbidden - Admin access required
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    
+    post:
+      tags:
+        - roles
+      summary: Create custom role
+      description: |
+        Create a custom tenant role.
+        
+        **RBAC**: Requires tenant_admin or superadmin role
+        **Rules**:
+        - System roles cannot be created via API (pre-seeded only)
+        - Custom roles scoped to tenant
+        - No privilege escalation (cannot create roles with wildcard permissions)
+      operationId: create_role_api_v1_admin_roles_post
+      security:
+        - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+        '400':
+          description: Bad Request - Invalid permissions
+        '403':
+          description: Forbidden - Privilege escalation attempt
+        '409':
+          description: Conflict - Duplicate role name
+        '422':
+          description: Validation Error
+
+  /api/v1/admin/roles/{role_id}:
+    get:
+      tags:
+        - roles
+      summary: Get role details
+      description: |
+        Get role details by ID.
+        
+        **RBAC**: Requires tenant_admin or superadmin role
+        **Tenant Isolation**: tenant_admin can only view system roles + own tenant roles
+      operationId: get_role_api_v1_admin_roles__role_id__get
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Role Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+        '403':
+          description: Forbidden - Tenant isolation violation
+        '404':
+          description: Not Found
+        '422':
+          description: Validation Error
+    
+    put:
+      tags:
+        - roles
+      summary: Update custom role
+      description: |
+        Update a custom tenant role.
+        
+        **RBAC**: Requires tenant_admin or superadmin role
+        **Rules**:
+        - System roles cannot be updated (immutable)
+        - tenant_admin can only update own tenant's roles
+        - Cannot escalate to wildcard permissions
+      operationId: update_role_api_v1_admin_roles__role_id__put
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Role Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+        '403':
+          description: Forbidden - System role immutable or tenant isolation violation
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict - Duplicate role name
+        '422':
+          description: Validation Error
+    
+    delete:
+      tags:
+        - roles
+      summary: Delete custom role
+      description: |
+        Delete a custom tenant role.
+        
+        **RBAC**: Requires tenant_admin or superadmin role
+        **Rules**:
+        - System roles cannot be deleted (immutable)
+        - tenant_admin can only delete own tenant's roles
+        - Cannot delete role if assigned to users (cascade delete not allowed)
+      operationId: delete_role_api_v1_admin_roles__role_id__delete
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Role Id
+      responses:
+        '204':
+          description: No Content - Successfully deleted
+        '403':
+          description: Forbidden - System role immutable or tenant isolation violation
+        '404':
+          description: Not Found
+        '409':
+          description: Conflict - Role still assigned to users
+        '422':
+          description: Validation Error
+
+  /api/v1/admin/users/{user_id}/roles/{role_id}:
+    post:
+      tags:
+        - roles
+      summary: Assign role to user
+      description: |
+        Assign a role to a user.
+        
+        **RBAC**: Requires tenant_admin or superadmin role
+        **Rules**:
+        - tenant_admin can only assign roles to users in same tenant
+        - Cannot assign superadmin role (privilege escalation prevention)
+        - Idempotent (re-assigning same role returns 200)
+      operationId: assign_role_to_user_api_v1_admin_users__user_id__roles__role_id__post
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: User Id
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Role Id
+      responses:
+        '201':
+          description: Created - Role assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleAssignmentResponse'
+        '200':
+          description: OK - Already assigned (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleAssignmentResponse'
+        '403':
+          description: Forbidden - Tenant isolation violation or privilege escalation
+        '404':
+          description: Not Found - User or role not found
+        '422':
+          description: Validation Error
+    
+    delete:
+      tags:
+        - roles
+      summary: Revoke role from user
+      description: |
+        Revoke a role from a user.
+        
+        **RBAC**: Requires tenant_admin or superadmin role
+        **Rules**:
+        - tenant_admin can only revoke roles from users in same tenant
+        - Idempotent (revoking non-existent assignment returns 204)
+      operationId: revoke_role_from_user_api_v1_admin_users__user_id__roles__role_id__delete
+      security:
+        - HTTPBearer: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: User Id
+        - name: role_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            title: Role Id
+      responses:
+        '204':
+          description: No Content - Successfully revoked
+        '403':
+          description: Forbidden - Tenant isolation violation
+        '404':
+          description: Not Found - User or role not found
+        '422':
+          description: Validation Error
+
+components:
+  schemas:
+    RoleResponse:
+      type: object
+      required:
+        - id
+        - name
+        - is_system
+        - permissions
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        tenant_id:
+          type: string
+          format: uuid
+          nullable: true
+          title: Tenant Id
+          description: NULL for system roles, tenant UUID for custom roles
+        is_system:
+          type: boolean
+          title: Is System
+          description: True for immutable system roles (superadmin, tenant_admin, user)
+        permissions:
+          type: array
+          items:
+            type: string
+          title: Permissions
+          description: List of permissions (e.g., ['users:read', 'users:create'])
+        description:
+          type: string
+          nullable: true
+          title: Description
+      title: RoleResponse
+      description: Role response schema.
+    
+    CreateRoleRequest:
+      type: object
+      required:
+        - name
+        - permissions
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          title: Name
+          description: Role name (unique within tenant)
+        permissions:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          title: Permissions
+          description: List of permissions (e.g., ['users:read', 'users:create'])
+          example:
+            - "users:read"
+            - "users:create"
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+          title: Description
+      title: CreateRoleRequest
+      description: Create custom role request schema.
+    
+    UpdateRoleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          nullable: true
+          title: Name
+        permissions:
+          type: array
+          items:
+            type: string
+          nullable: true
+          title: Permissions
+        description:
+          type: string
+          nullable: true
+          maxLength: 500
+          title: Description
+      title: UpdateRoleRequest
+      description: Update custom role request schema.
+    
+    RoleAssignmentResponse:
+      type: object
+      required:
+        - user_id
+        - role_id
+        - message
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+        role_id:
+          type: string
+          format: uuid
+          title: Role Id
+        message:
+          type: string
+          title: Message
+          example: "Role assigned successfully"
+      title: RoleAssignmentResponse
+      description: Role assignment response schema.
+    
+    HTTPValidationError:
+      type: object
+      properties:
+        detail:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          title: Detail
+      title: HTTPValidationError
+    
+    ValidationError:
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      properties:
+        loc:
+          type: array
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      title: ValidationError
+
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer

@@ -1,0 +1,16 @@
+token_replay_records
+schema_version
+key_rotation_records
+audit_events
+alembic_version
+user_roles
+user_details
+user_mfa
+policy_evaluation_logs
+password_reset_requests
+invitations
+feature_flags
+roles
+policies
+users
+tenants

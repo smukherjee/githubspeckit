@@ -72,4 +72,15 @@ specs/
   - Endpoints: GET/PUT /users/{id}/profile, POST/DELETE /users/{id}/profile/photo
   - Tenant isolation: Inherited from users.tenant_id JOIN
   - RBAC: Users edit own, admins view tenant, superadmin view all
+- **✅ COMPLETE**: FR-122 Role Management & Hierarchy (V1.0 Phase 3.3.1)
+  - Roles table: id (UUID), name, tenant_id (nullable for system roles), is_system, permissions (JSONB)
+  - System roles: superadmin, tenant_admin, user (immutable, fixed UUIDs)
+  - Permissions: 40+ constants (*, tenant:*, users:*, roles:*, policies:*, profile:update_own)
+  - Domain layer: Role entity, 6 exceptions, permission validation, has_permission() with wildcard
+  - Persistence layer: RoleModel, UserRoleModel (UUID role_id), SQLAlchemyRoleRepository (11 methods)
+  - API layer: 7 endpoints in src/adapters/api/routers/admin/roles.py (GET/POST/PUT/DELETE roles, POST/DELETE assignments)
+  - TenantContext pattern: All endpoints use get_tenant_context() from request.state (not User model)
+  - RBAC enforcement: check_admin_access(), check_tenant_isolation(), system role immutability
+  - Testing: 20 contract tests (test_role_management.py), 11 integration tests (test_role_api.py)
+  - Tasks T076-T090 complete: Database → Domain → Persistence → API → Testing
 <!-- END COPILOT CONTEXT -->

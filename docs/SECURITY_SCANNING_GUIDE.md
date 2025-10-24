@@ -657,7 +657,7 @@ Health check failed: curl: (7) Failed to connect
 **Solution**:
 ```bash
 # Check if application is running
-curl http://localhost:8000/api/v1/health
+curl http://localhost:8000/health
 
 # Start application if needed
 source .venv/bin/activate && python -m src.adapters.api.app

@@ -1,0 +1,2539 @@
+openapi: 3.1.0
+info:
+  title: Modern Backend V1.0
+  description: "\n## Modern Multi-Tenant Backend - V1.0 Production Release\n\nEnterprise-grade\
+    \ FastAPI backend with hexagonal architecture, multi-tenancy, \nRBAC, policy engine,\
+    \ and comprehensive observability.\n\n### \U0001F6A8 Breaking Changes in V1.0\n\
+    \n**Database Support**:\n- ❌ SQLite support **removed** - PostgreSQL only\n- ✅\
+    \ Per-tenant email uniqueness enforced (same email allowed across tenants)\n-\
+    \ ✅ Consolidated migrations with schema versioning\n\n**Authentication & Authorization**:\n\
+    - ✅ Argon2id password hashing (mandatory)\n- ✅ JWT with replay protection placeholders\n\
+    - ✅ Superadmin isolation via dedicated `/admin` routes\n\n**API Changes**:\n-\
+    \ ✅ Admin routes: `/api/v1/admin/tenants`, `/api/v1/admin/users`\n- ✅ Tenant-scoped\
+    \ routes require proper tenant context\n- ✅ Email uniqueness enforced per-tenant\
+    \ (409 Conflict on duplicates)\n\n**Observability**:\n- ✅ OpenTelemetry tracing\
+    \ (FastAPI + SQLAlchemy)\n- ✅ Structured JSON logging with redaction\n- ✅ Metrics\
+    \ snapshots with regression detection\n\n### \U0001F4DA Key Features\n\n- **Multi-Tenancy**:\
+    \ Full tenant isolation with superadmin override\n- **RBAC + Policy Engine**:\
+    \ Tri-state evaluation (ALLOW/DENY/ABSTAIN)\n- **Security**: OWASP best practices,\
+    \ rate limiting (optional), security headers\n- **Audit Trail**: Comprehensive\
+    \ audit events with metadata\n- **Observability**: Tracing, metrics, structured\
+    \ logging\n- **Configuration**: Single YAML descriptor with hash validation\n\
+    - **Quality Gates**: Complexity, duplication, security scans\n\n### \U0001F517\
+    \ Documentation\n\n- [Migration Guide](https://github.com/yourusername/project/docs/MIGRATION-TO-V1.0.md)\n\
+    - [Changelog](https://github.com/yourusername/project/docs/CHANGELOG-V1.0.md)\n\
+    - [Database Schema](https://github.com/yourusername/project/docs/database-schema-v1.0.md)\n\
+    \n### \U0001F3D7️ Architecture\n\n**Hexagonal Design**:\n- Domain: Pure business\
+    \ logic (tenants, users, policies, audit)\n- Adapters: API (FastAPI), Persistence\
+    \ (SQLAlchemy), Observability\n- Services: Application orchestration layer\n\n\
+    **Tech Stack**:\n- Python 3.13, FastAPI 0.104+, SQLAlchemy 2.x (async)\n- PostgreSQL\
+    \ 14+, Alembic migrations\n- OpenTelemetry 0.58b0, pytest 8.4.2\n"
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      tags:
+      - system
+      summary: Health
+      description: Simple health check - indicates server is up. V1.0 baseline.
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  type: string
+                type: object
+                title: Response Health Health Get
+  /api/v1/config:
+    get:
+      tags:
+      - system
+      summary: Export Config
+      operationId: export_config_api_v1_config_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Export Config Api V1 Config Get
+  /api/v1/config/errors:
+    get:
+      tags:
+      - system
+      summary: Config Errors
+      operationId: config_errors_api_v1_config_errors_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  items:
+                    type: string
+                  type: array
+                type: object
+                title: Response Config Errors Api V1 Config Errors Get
+  /api/v1/invitations/{invitation_id}/accept:
+    post:
+      tags:
+      - invitations
+      summary: Accept Invitation
+      description: 'Accept an invitation (Phase 3: database-backed).
+
+
+        Uses SQLAlchemyInvitationRepository directly for async database operations.'
+      operationId: accept_invitation_api_v1_invitations__invitation_id__accept_post
+      parameters:
+      - name: invitation_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Invitation Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvitationAcceptResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users:
+    post:
+      tags:
+      - users
+      summary: Create User
+      description: 'Create user with RBAC enforcement (FR-019).
+
+
+        **V1.0 Note**: Rate limiting disabled for intranet deployment (see ADR-004).
+
+
+        **Authorization**:
+
+        Only tenant_admin (within own tenant) or superadmin can create users.
+
+
+        **V1.0 Email Uniqueness** (FR-116):
+
+        Email addresses must be unique within a tenant (same email allowed across
+        tenants).'
+      operationId: create_user_api_v1_users_post
+      security:
+      - HTTPBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/adapters__api__routers__users__UserCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/adapters__api__routers__users__UserResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - users
+      summary: List Users
+      description: 'List users (FR-087: supports include_deleted parameter). Defaults
+        to current user''s tenant unless tenant_id specified (superadmin only).'
+      operationId: list_users_api_v1_users_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: tenant_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tenant Id
+      - name: include_deleted
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Include Deleted
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/adapters__api__routers__users__UserListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/me:
+    get:
+      tags:
+      - users
+      summary: Get current user profile
+      description: "Retrieves the authenticated user's profile (SELF-SERVICE route).\n\
+        \    \n    **Authorization**: Any authenticated user\n    **Tenant Context**:\
+        \ Automatically scoped to user's tenant from JWT\n    \n    **Implementation\
+        \ Note**: Uses effective_tenant_id from tenant_context\n    to handle superadmin\
+        \ session switching. When a superadmin switches tenants,\n    this endpoint\
+        \ will return their profile scoped to the session tenant.\n    \n    **Migration\
+        \ Note**: Part of FR-004 tenant security refactor.\n    Tenant ID extracted\
+        \ from JWT (not query parameter)."
+      operationId: get_current_user_api_v1_users_me_get
+      parameters:
+      - name: user_id
+        in: query
+        required: true
+        schema:
+          type: string
+          title: User Id
+      - name: tenant_id
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
+      - name: email
+        in: query
+        required: true
+        schema:
+          type: string
+          title: Email
+      - name: status
+        in: query
+        required: true
+        schema:
+          $ref: '#/components/schemas/UserStatus'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: string
+              title: Roles
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/adapters__api__routers__users__UserResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/{user_id}:
+    get:
+      tags:
+      - users
+      summary: Get User
+      description: Get a user by ID with tenant isolation.
+      operationId: get_user_api_v1_users__user_id__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/adapters__api__routers__users__UserResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - users
+      summary: Update User
+      description: 'Update user profile with RBAC enforcement.
+
+
+        Authorization rules (frontend-agnostic, enforced at API layer):
+
+        - Superadmins: Can update ANY user across all tenants (email, roles, status)
+
+        - Tenant admins: Can update ANY user within their own tenant only (email,
+        roles, status)
+
+        - Regular users: Can update ONLY their own profile (email only - no roles/status
+        changes)
+
+
+        Role escalation prevention:
+
+        - Non-superadmins cannot assign ''superadmin'' role
+
+        - Users cannot change their own roles or status
+
+        - Non-superadmins cannot modify superadmin users
+
+
+        Note: Extended profile fields (full_name, job_title, department, phone, timezone,
+        language)
+
+        are stored in the user_details table (feature 003-user-profile-details) and
+        should be
+
+        updated via the /users/{user_id}/profile endpoint.'
+      operationId: update_user_api_v1_users__user_id__put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/adapters__api__routers__users__UserResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - users
+      summary: Disable User
+      description: Disable a user (soft delete) - Phase 3 database-backed.
+      operationId: disable_user_api_v1_users__user_id__delete
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/{user_id}/restore:
+    post:
+      tags:
+      - users
+      summary: Restore User
+      description: Restore a disabled user (Phase 3 database-backed).
+      operationId: restore_user_api_v1_users__user_id__restore_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Restore User Api V1 Users  User Id  Restore Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/{user_id}/reset-password:
+    post:
+      tags:
+      - users
+      summary: Reset User Password
+      description: 'Reset a user''s password (admin-initiated).
+
+
+        RBAC enforcement:
+
+        - tenant_admin can reset passwords for users in their own tenant
+
+        - superadmin can reset passwords for any user
+
+
+        This is different from self-service password reset (/auth/password/reset).'
+      operationId: reset_user_password_api_v1_users__user_id__reset_password_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: User Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordResetRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                title: Response Reset User Password Api V1 Users  User Id  Reset Password
+                  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/import:
+    post:
+      tags:
+      - users
+      summary: Import Users Csv
+      description: 'Bulk import users from CSV file (FR-088, T008).
+
+
+        **CSV Format**:
+
+        ```csv
+
+        email,roles,tenant_id,full_name,job_title
+
+        user@example.com,user,tenant-123,John Doe,Engineer
+
+        admin@example.com,"tenant_admin,developer",tenant-123,Jane Smith,Manager
+
+        ```
+
+
+        **Required Fields**: email, roles, tenant_id
+
+        **Optional Fields**: full_name, job_title
+
+
+        **Validation**:
+
+        - Email format (regex)
+
+        - Valid roles (7 allowed: superadmin, tenant_admin, developer, analyst, user,
+        service_account, support_readonly)
+
+        - Tenant isolation (non-superadmin restricted to own tenant)
+
+        - Duplicate email detection
+
+
+        **RBAC**:
+
+        - Superadmin: Can import to any tenant
+
+        - Tenant_admin: Restricted to own tenant
+
+        - Other roles: Forbidden (403)
+
+
+        **Dry Run**: Set `dry_run=true` to preview results without creating users.
+
+
+        **Response**: Import summary with success_count, error_count, errors[], preview[]
+        (if dry_run).'
+      operationId: import_users_csv_api_v1_users_import_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: dry_run
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Preview import without creating users
+          default: false
+          title: Dry Run
+        description: Preview import without creating users
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_import_users_csv_api_v1_users_import_post'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/login:
+    post:
+      tags:
+      - auth
+      summary: Login
+      description: 'Authenticate user with email and password.
+
+
+        Changed from user_id to email for standard login flow (Phase 3 API-database
+        integration).'
+      operationId: login_api_v1_auth_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/auth/revoke:
+    post:
+      tags:
+      - auth
+      summary: Revoke
+      description: "Revoke authentication token (FR-033).\n\nImplements token replay\
+        \ detection by storing JWT ID (jti) in database.\nClears any active Redis\
+        \ session for the user (tenant switching state).\nSubsequent use of the same\
+        \ token will be rejected by the authentication middleware.\n\nArgs:\n    request:\
+        \ FastAPI request (for session cookie access)\n    authorization: Bearer token\
+        \ in format \"Bearer <token>\"\n    session: Database session for replay store\n\
+        \    jwt_service: JWT service for token validation\n    audit: Audit service\
+        \ for logging revocation event\n    redis_client: Redis client for session\
+        \ clearing\n\nReturns:\n    Success status with revoked jti\n\nRaises:\n \
+        \   HTTPException(401): If token is invalid or missing\n    HTTPException(400):\
+        \ If authorization header format is wrong"
+      operationId: revoke_api_v1_auth_revoke_post
+      parameters:
+      - name: authorization
+        in: header
+        required: true
+        schema:
+          type: string
+          description: Bearer token to revoke
+          title: Authorization
+        description: Bearer token to revoke
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                title: Response Revoke Api V1 Auth Revoke Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/embed/exchange:
+    post:
+      tags:
+      - Embed
+      summary: Exchange
+      description: 'Exchange embed token for session (FR-054: full cryptographic verification).'
+      operationId: exchange_api_v1_embed_exchange_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbedExchangeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EmbedSession'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/audit/events:
+    get:
+      tags:
+      - audit
+      summary: List Events
+      description: 'List audit events with filtering (FR-027, FR-004 tenant security
+        refactor).
+
+
+        **V1.0 Behavior**: Tenant context extracted from JWT (or session for superadmin).
+
+        Cross-tenant access requires superadmin session switching (POST /admin/context/tenant).
+
+
+        **Authorization**: Middleware enforces tenant isolation
+
+
+        Supports filtering by action, since, until timestamps.
+
+        Filters are applied in SQL for efficiency.'
+      operationId: list_events_api_v1_audit_events_get
+      parameters:
+      - name: action
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Action
+      - name: since
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: ISO8601 lower bound (inclusive)
+          title: Since
+        description: ISO8601 lower bound (inclusive)
+      - name: until
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: ISO8601 upper bound (exclusive)
+          title: Until
+        description: ISO8601 upper bound (exclusive)
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 500
+          minimum: 1
+          default: 50
+          title: Limit
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          default: 0
+          title: Offset
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response List Events Api V1 Audit Events Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tenants:
+    post:
+      tags:
+      - tenants
+      summary: Create Tenant
+      description: 'Create tenant with duplicate detection (Phase 3 database-backed).
+
+
+        RBAC: Only superadmins can create tenants (FR-019).'
+      operationId: create_tenant_api_v1_tenants_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: X-Actor-ID
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Actor-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/adapters__api__routers__tenants_crud__TenantCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/adapters__api__routers__tenants_crud__TenantResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+      - tenants
+      summary: List Tenants
+      description: 'List all tenants (FR-087: supports include_deleted parameter).
+        Phase 3 database-backed.'
+      operationId: list_tenants_api_v1_tenants_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: include_deleted
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+          title: Include Deleted
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tenants/{tenant_id}:
+    delete:
+      tags:
+      - tenants
+      summary: Soft Delete Tenant
+      description: Soft-delete a tenant (Phase 3 database-backed).
+      operationId: soft_delete_tenant_api_v1_tenants__tenant_id__delete
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tenants/{tenant_id}/restore:
+    post:
+      tags:
+      - tenants
+      summary: Restore Tenant
+      description: Restore a soft-deleted tenant (Phase 3 database-backed).
+      operationId: restore_tenant_api_v1_tenants__tenant_id__restore_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Tenant Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: string
+                title: Response Restore Tenant Api V1 Tenants  Tenant Id  Restore
+                  Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/{user_id}/profile:
+    get:
+      tags:
+      - profiles
+      summary: Get Profile
+      description: "Get user profile details (GET /api/v1/users/{user_id}/profile).\n\
+        \nRBAC:\n- Users can view own profile\n- Tenant admins can view profiles in\
+        \ same tenant\n- Superadmin can view all profiles\n\nReturns:\n    UserProfileResponse:\
+        \ Profile details with photo URLs\n    \nRaises:\n    HTTPException 403: If\
+        \ user not authorized to view profile\n    HTTPException 404: If profile not\
+        \ found"
+      operationId: get_profile_api_v1_users__user_id__profile_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - profiles
+      summary: Update Profile
+      description: "Create or update user profile details (PUT /api/v1/users/{user_id}/profile).\n\
+        \nRBAC:\n- Users can edit own profile\n- Tenant admins can edit profiles in\
+        \ same tenant\n\nArgs:\n    user_id: Target user ID\n    update_request: Profile\
+        \ update data\n    \nReturns:\n    UserProfileResponse: Updated profile\n\
+        \    \nRaises:\n    HTTPException 403: If user not authorized to edit profile\n\
+        \    HTTPException 422: If validation fails"
+      operationId: update_profile_api_v1_users__user_id__profile_put
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserProfileUpdateRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/users/{user_id}/profile/photo:
+    post:
+      tags:
+      - profiles
+      summary: Upload Profile Photo
+      description: "Upload user profile photo (POST /api/v1/users/{user_id}/profile/photo).\n\
+        \nAccepts multipart/form-data with 'photo' field.\nProcesses photo in background\
+        \ to generate 3 variants:\n- Display: 640x640px\n- Thumbnail: 96x96px\n- Avatar:\
+        \ 48x48px\n\nRBAC:\n- Users can upload photo for own profile\n- Tenant admins\
+        \ can upload for profiles in same tenant\n\nArgs:\n    user_id: Target user\
+        \ ID\n    photo: Image file (JPEG, PNG, WebP, GIF)\n    \nReturns:\n    PhotoUploadResponse:\
+        \ 202 Accepted with processing status\n    \nRaises:\n    HTTPException 403:\
+        \ If user not authorized to upload photo\n    HTTPException 400: If file type\
+        \ invalid\n    HTTPException 413: If file size exceeds limit"
+      operationId: upload_profile_photo_api_v1_users__user_id__profile_photo_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_upload_profile_photo_api_v1_users__user_id__profile_photo_post'
+      responses:
+        '202':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhotoUploadResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - profiles
+      summary: Delete Profile Photo
+      description: "Delete user profile photo (DELETE /api/v1/users/{user_id}/profile/photo).\n\
+        \nSets all photo URLs to NULL.\n\nRBAC:\n- Users can delete own photo\n- Tenant\
+        \ admins can delete photo for profiles in same tenant\n\nArgs:\n    user_id:\
+        \ Target user ID\n    \nReturns:\n    204 No Content\n    \nRaises:\n    HTTPException\
+        \ 403: If user not authorized to delete photo"
+      operationId: delete_profile_photo_api_v1_users__user_id__profile_photo_delete
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/roles:
+    get:
+      tags:
+      - admin-roles
+      summary: List Roles
+      description: 'List all roles (system + tenant custom roles).
+
+
+        **RBAC**: Requires superadmin or tenant_admin role
+
+        - superadmin: Sees all roles (system + all tenant custom roles)
+
+        - tenant_admin: Sees system roles + own tenant''s custom roles'
+      operationId: list_roles_api_v1_admin_roles_get
+      parameters:
+      - name: include_system
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+          title: Include System
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RoleResponse'
+                title: Response List Roles Api V1 Admin Roles Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - admin-roles
+      summary: Create Role
+      description: 'Create a custom tenant role.
+
+
+        **RBAC**: Requires tenant_admin or superadmin role
+
+        **Rules**:
+
+        - System roles cannot be created via API (pre-seeded only)
+
+        - Custom roles scoped to tenant
+
+        - No privilege escalation (cannot create roles with permissions user doesn''t
+        have)'
+      operationId: create_role_api_v1_admin_roles_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/roles/{role_id}:
+    get:
+      tags:
+      - admin-roles
+      summary: Get Role
+      description: 'Get role details by ID.
+
+
+        **RBAC**: Requires tenant_admin or superadmin role
+
+        **Tenant Isolation**: tenant_admin can only view system roles + own tenant
+        roles'
+      operationId: get_role_api_v1_admin_roles__role_id__get
+      parameters:
+      - name: role_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Role Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    put:
+      tags:
+      - admin-roles
+      summary: Update Role
+      description: 'Update a custom role.
+
+
+        **RBAC**: Requires tenant_admin or superadmin role
+
+        **Rules**:
+
+        - System roles are immutable (cannot be updated)
+
+        - tenant_admin can only update roles in their own tenant'
+      operationId: update_role_api_v1_admin_roles__role_id__put
+      parameters:
+      - name: role_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Role Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - admin-roles
+      summary: Delete Role
+      description: 'Delete a custom role.
+
+
+        **RBAC**: Requires tenant_admin or superadmin role
+
+        **Rules**:
+
+        - System roles are immutable (cannot be deleted)
+
+        - tenant_admin can only delete roles in their own tenant
+
+        - CASCADE: Role assignments (user_roles) are automatically removed'
+      operationId: delete_role_api_v1_admin_roles__role_id__delete
+      parameters:
+      - name: role_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Role Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/users/{user_id}/roles/{role_id}:
+    post:
+      tags:
+      - admin-roles
+      summary: Assign Role To User
+      description: 'Assign a role to a user.
+
+
+        **RBAC**: Requires tenant_admin or superadmin role
+
+        **Rules**:
+
+        - tenant_admin can only assign roles to users in their own tenant
+
+        - Cannot assign roles that escalate privileges beyond current user
+
+        - Idempotent: assigning an already-assigned role succeeds'
+      operationId: assign_role_to_user_api_v1_admin_users__user_id__roles__role_id__post
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      - name: role_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Role Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleAssignmentResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+      - admin-roles
+      summary: Revoke Role From User
+      description: 'Revoke a role from a user.
+
+
+        **RBAC**: Requires tenant_admin or superadmin role
+
+        **Rules**:
+
+        - tenant_admin can only revoke roles from users in their own tenant
+
+        - Idempotent: revoking an unassigned role succeeds'
+      operationId: revoke_role_from_user_api_v1_admin_users__user_id__roles__role_id__delete
+      parameters:
+      - name: user_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: User Id
+      - name: role_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Role Id
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/context/tenant:
+    post:
+      tags:
+      - admin
+      summary: Switch active tenant context
+      description: "Switch the active tenant context for the current session (superadmin\
+        \ only).\n    \n    **Authorization**: Requires superadmin role (is_superadmin=true\
+        \ in JWT)\n    \n    **Behavior**:\n    1. Validates user is superadmin (403\
+        \ if not)\n    2. Validates target tenant exists (404 if not)\n    3. Creates/updates\
+        \ Redis session with new tenant_id\n    4. Returns tenant information\n  \
+        \  5. Logs audit event\n    \n    **Subsequent Requests**: Will use session\
+        \ tenant_id instead of JWT tenant_id\n    \n    **Session Persistence**: Until\
+        \ logout, session expiration, or another switch"
+      operationId: switch_tenant_api_v1_admin_context_tenant_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TenantSwitchRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TenantSwitchResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/tenants:
+    get:
+      tags:
+      - admin
+      summary: List all tenants (superadmin only)
+      description: "Retrieves all tenants in the platform.\n    \n    **Authorization**:\n\
+        \    - Superadmin: Full access\n    - All other roles: 403 Forbidden\n   \
+        \ \n    **V1.0 API**: Admin-level tenant listing under /admin namespace."
+      operationId: list_all_tenants_api_v1_admin_tenants_get
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          description: Page number (1-indexed)
+          default: 1
+          title: Page
+        description: Page number (1-indexed)
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Items per page
+          default: 25
+          title: Per Page
+        description: Items per page
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/adapters__api__routers__admin__tenants__TenantResponse'
+                title: Response List All Tenants Api V1 Admin Tenants Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - admin
+      summary: Create a new tenant (superadmin only)
+      description: "Creates a new tenant in the platform.\n    \n    **Authorization**:\n\
+        \    - Superadmin: Full access\n    - All other roles: 403 Forbidden\n   \
+        \ \n    **V1.0 API**: Admin-level tenant creation under /admin namespace."
+      operationId: create_tenant_api_v1_admin_tenants_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/adapters__api__routers__admin__tenants__TenantCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/adapters__api__routers__admin__tenants__TenantResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/admin/users:
+    get:
+      tags:
+      - admin
+      summary: List all users across tenants (superadmin only)
+      description: "Retrieves all users across all tenants in the platform.\n    \n\
+        \    **Authorization**:\n    - Superadmin: Full access to all users\n    -\
+        \ All other roles: 403 Forbidden\n    \n    **V1.0 API**: Admin-level user\
+        \ listing under /admin namespace."
+      operationId: list_all_users_api_v1_admin_users_get
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          description: Page number (1-indexed)
+          default: 1
+          title: Page
+        description: Page number (1-indexed)
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Items per page
+          default: 25
+          title: Per Page
+        description: Items per page
+      - name: tenant_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          description: 'Optional: filter by tenant'
+          title: Tenant Id
+        description: 'Optional: filter by tenant'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/adapters__api__routers__admin__users__UserResponse'
+                title: Response List All Users Api V1 Admin Users Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    post:
+      tags:
+      - admin
+      summary: Create a new user (superadmin only)
+      description: "Creates a new user in the specified tenant.\n    \n    **Authorization**:\n\
+        \    - Superadmin: Full access\n    - All other roles: 403 Forbidden\n   \
+        \ \n    **V1.0 API**: Admin-level user creation under /admin namespace.\n\
+        \    Email uniqueness is per-tenant (same email can exist in different tenants)."
+      operationId: create_user_api_v1_admin_users_post
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/adapters__api__routers__admin__users__UserCreateRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/adapters__api__routers__admin__users__UserResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tenants/{tenant_id}/users:
+    get:
+      tags:
+      - tenant-scoped
+      summary: List users in specific tenant
+      description: "Retrieves all users belonging to the specified tenant.\n    \n\
+        \    **Authorization**:\n    - Superadmin: Can access any tenant\n    - Tenant\
+        \ Admin: Can access own tenant only (tenant_id == JWT tenant_id)\n    - Other\
+        \ roles: 403 Forbidden\n    \n    **V1.0 API**: Tenant-scoped user listing\
+        \ via path parameter.\n    \n    **Tenant Context**: The tenant_id in the\
+        \ path is validated by AuthorizationMiddleware\n    against the JWT tenant_id.\
+        \ Cross-tenant access is denied unless user is superadmin.\n    \n    **Pagination**:\
+        \ Uses page/per_page query parameters"
+      operationId: list_tenant_users_api_v1_tenants__tenant_id__users_get
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Tenant Id
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          description: Page number (1-indexed)
+          default: 1
+          title: Page
+        description: Page number (1-indexed)
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Items per page
+          default: 25
+          title: Per Page
+        description: Items per page
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/adapters__api__routers__tenants__users__UserListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/v1/tenants/{tenant_id}/audit:
+    get:
+      tags:
+      - tenant-scoped
+      summary: List audit events for specific tenant
+      description: "Retrieves audit log events for the specified tenant.\n    \n \
+        \   **Authorization**:\n    - Superadmin: Can access any tenant's audit logs\n\
+        \    - Tenant Admin: Can access own tenant's audit logs only\n    - Other\
+        \ roles: 403 Forbidden\n    \n    **V1.0 Behavior**: Tenant context extracted\
+        \ from JWT."
+      operationId: list_tenant_audit_events_api_v1_tenants__tenant_id__audit_get
+      parameters:
+      - name: tenant_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+          title: Tenant Id
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          description: Page number (1-indexed)
+          default: 1
+          title: Page
+        description: Page number (1-indexed)
+      - name: per_page
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Items per page
+          default: 25
+          title: Per Page
+        description: Items per page
+      - name: action
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by action type
+          title: Action
+        description: Filter by action type
+      - name: resource_type
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filter by resource type
+          title: Resource Type
+        description: Filter by resource type
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AuditEventResponse'
+                title: Response List Tenant Audit Events Api V1 Tenants  Tenant Id  Audit
+                  Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /metrics:
+    get:
+      tags:
+      - system
+      summary: Metrics Prometheus
+      operationId: metrics_prometheus_metrics_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /api/v1/metrics/snapshot:
+    get:
+      tags:
+      - system
+      summary: Metrics Snapshot
+      operationId: metrics_snapshot_api_v1_metrics_snapshot_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties:
+                  items:
+                    type: string
+                  type: array
+                type: object
+                title: Response Metrics Snapshot Api V1 Metrics Snapshot Get
+  /api/v1/logs/export:
+    get:
+      tags:
+      - system
+      summary: Export Logs
+      description: "Export logs with filtering and redaction (FR-016, FR-072, FR-073).\n\
+        \n**RBAC Enforcement**:\n- Superadmin: Can export logs from any tenant (or\
+        \ all if tenant_id not specified)\n- Tenant Admin: Can ONLY export logs from\
+        \ their own tenant (tenant_id forced to match JWT)\n- Regular Users: Access\
+        \ denied (403 Forbidden)\n\nQuery Parameters:\n    limit: Maximum records\
+        \ to return (default 100, max 10000)\n    tenant_id: Filter by tenant ID (forced\
+        \ to match JWT for non-superadmin)\n    category: Filter by log level/category\
+        \ (info, warning, error)\n    correlation_id: Filter by correlation ID\n \
+        \   since: ISO8601 timestamp lower bound (inclusive)\n    until: ISO8601 timestamp\
+        \ upper bound (exclusive)\n    \nReturns:\n    JSON with records (redacted),\
+        \ truncated flag, total_available count,\n    and optional reason for truncation."
+      operationId: export_logs_api_v1_logs_export_get
+      parameters:
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 100
+          title: Limit
+      - name: tenant_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tenant Id
+      - name: category
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Category
+      - name: correlation_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Correlation Id
+      - name: since
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Since
+      - name: until
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Until
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  anyOf:
+                  - type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  - type: boolean
+                  - type: integer
+                  - type: string
+                  - type: 'null'
+                title: Response Export Logs Api V1 Logs Export Get
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    AuditEventResponse:
+      properties:
+        id:
+          type: string
+          title: Id
+        tenant_id:
+          type: string
+          title: Tenant Id
+        user_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Id
+        action:
+          type: string
+          title: Action
+        resource_type:
+          type: string
+          title: Resource Type
+        resource_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Resource Id
+        timestamp:
+          type: string
+          title: Timestamp
+        metadata:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Metadata
+      type: object
+      required:
+      - id
+      - tenant_id
+      - user_id
+      - action
+      - resource_type
+      - resource_id
+      - timestamp
+      title: AuditEventResponse
+      description: Audit event response model (tenant-scoped).
+    Body_import_users_csv_api_v1_users_import_post:
+      properties:
+        file:
+          type: string
+          format: binary
+          title: File
+          description: CSV file with user data (email, roles, tenant_id, full_name,
+            job_title)
+      type: object
+      required:
+      - file
+      title: Body_import_users_csv_api_v1_users_import_post
+    Body_upload_profile_photo_api_v1_users__user_id__profile_photo_post:
+      properties:
+        photo:
+          type: string
+          format: binary
+          title: Photo
+      type: object
+      required:
+      - photo
+      title: Body_upload_profile_photo_api_v1_users__user_id__profile_photo_post
+    CreateRoleRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 100
+          minLength: 1
+          title: Name
+          description: Role name (unique within tenant)
+        permissions:
+          items:
+            type: string
+          type: array
+          title: Permissions
+          description: List of permissions (e.g., ['users:read', 'users:create'])
+        description:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Description
+          description: Role description
+      type: object
+      required:
+      - name
+      - permissions
+      title: CreateRoleRequest
+      description: Create custom role request schema.
+    EmbedExchangeRequest:
+      properties:
+        embed_token:
+          type: string
+          title: Embed Token
+        origin:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Origin
+        user_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Id
+      type: object
+      required:
+      - embed_token
+      title: EmbedExchangeRequest
+    EmbedSession:
+      properties:
+        session_id:
+          type: string
+          title: Session Id
+        tenant_id:
+          type: string
+          title: Tenant Id
+        user_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: User Id
+        roles:
+          items:
+            type: string
+          type: array
+          title: Roles
+          default: []
+        expires_at:
+          type: string
+          format: date-time
+          title: Expires At
+        issued_at:
+          type: string
+          format: date-time
+          title: Issued At
+      type: object
+      required:
+      - session_id
+      - tenant_id
+      - expires_at
+      - issued_at
+      title: EmbedSession
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    InvitationAcceptResponse:
+      properties:
+        invitation_id:
+          type: string
+          title: Invitation Id
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - invitation_id
+      - status
+      title: InvitationAcceptResponse
+    LoginRequest:
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email
+        password:
+          type: string
+          title: Password
+        mfa_code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Mfa Code
+      type: object
+      required:
+      - email
+      - password
+      title: LoginRequest
+    LoginResponse:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        token_type:
+          type: string
+          title: Token Type
+          default: bearer
+        expires_in:
+          type: integer
+          title: Expires In
+        user:
+          $ref: '#/components/schemas/UserInfo'
+      type: object
+      required:
+      - access_token
+      - expires_in
+      - user
+      title: LoginResponse
+    PasswordResetRequest:
+      properties:
+        new_password:
+          type: string
+          title: New Password
+      type: object
+      required:
+      - new_password
+      title: PasswordResetRequest
+      description: Request body for admin-initiated password reset.
+    PhotoUploadResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+          default: processing
+        message:
+          type: string
+          title: Message
+          default: Photo upload accepted and processing in background
+      type: object
+      title: PhotoUploadResponse
+      description: Response model for photo upload (POST /api/v1/users/{user_id}/profile/photo).
+    RoleAssignmentResponse:
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+        role_id:
+          type: string
+          format: uuid
+          title: Role Id
+        message:
+          type: string
+          title: Message
+      type: object
+      required:
+      - user_id
+      - role_id
+      - message
+      title: RoleAssignmentResponse
+      description: Role assignment response schema.
+    RoleResponse:
+      properties:
+        id:
+          type: string
+          format: uuid
+          title: Id
+        name:
+          type: string
+          title: Name
+        tenant_id:
+          anyOf:
+          - type: string
+            format: uuid
+          - type: 'null'
+          title: Tenant Id
+        is_system:
+          type: boolean
+          title: Is System
+        permissions:
+          items:
+            type: string
+          type: array
+          title: Permissions
+        description:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Description
+      type: object
+      required:
+      - id
+      - name
+      - tenant_id
+      - is_system
+      - permissions
+      - description
+      title: RoleResponse
+      description: Role response schema.
+    TenantListResponse:
+      properties:
+        tenants:
+          items:
+            $ref: '#/components/schemas/adapters__api__routers__tenants_crud__TenantResponse'
+          type: array
+          title: Tenants
+      type: object
+      required:
+      - tenants
+      title: TenantListResponse
+    TenantSwitchRequest:
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+          title: Tenant Id
+          description: The tenant ID to switch to
+      type: object
+      required:
+      - tenant_id
+      title: TenantSwitchRequest
+      description: Request to switch active tenant (superadmin only).
+    TenantSwitchResponse:
+      properties:
+        active_tenant_id:
+          type: string
+          format: uuid
+          title: Active Tenant Id
+          description: The tenant ID now active in the session
+        tenant_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tenant Name
+          description: Display name of the tenant (if available)
+        switched_at:
+          type: string
+          format: date-time
+          title: Switched At
+          description: Timestamp when the switch occurred
+      type: object
+      required:
+      - active_tenant_id
+      - switched_at
+      title: TenantSwitchResponse
+      description: Response after successful tenant switch.
+    UpdateRoleRequest:
+      properties:
+        name:
+          anyOf:
+          - type: string
+            maxLength: 100
+            minLength: 1
+          - type: 'null'
+          title: Name
+        permissions:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Permissions
+        description:
+          anyOf:
+          - type: string
+            maxLength: 500
+          - type: 'null'
+          title: Description
+      type: object
+      title: UpdateRoleRequest
+      description: Update custom role request schema.
+    UserInfo:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        email:
+          type: string
+          title: Email
+        tenant_id:
+          type: string
+          title: Tenant Id
+        roles:
+          items:
+            type: string
+          type: array
+          title: Roles
+        status:
+          type: string
+          title: Status
+      type: object
+      required:
+      - user_id
+      - email
+      - tenant_id
+      - roles
+      - status
+      title: UserInfo
+      description: User information returned in login response
+    UserProfileResponse:
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          title: User Id
+        full_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Full Name
+        phone:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Phone
+        address:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Address
+        photo_display_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Photo Display Url
+        photo_thumbnail_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Photo Thumbnail Url
+        photo_avatar_url:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Photo Avatar Url
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+        updated_at:
+          type: string
+          format: date-time
+          title: Updated At
+      type: object
+      required:
+      - user_id
+      - created_at
+      - updated_at
+      title: UserProfileResponse
+      description: Response model for user profile (GET /api/v1/users/{user_id}/profile).
+    UserProfileUpdateRequest:
+      properties:
+        full_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Full Name
+        phone:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Phone
+        address:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Address
+      type: object
+      title: UserProfileUpdateRequest
+      description: Request model for updating user profile (PUT /api/v1/users/{user_id}/profile).
+    UserStatus:
+      type: string
+      enum:
+      - invited
+      - active
+      - disabled
+      title: UserStatus
+    UserUpdateRequest:
+      properties:
+        email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+          title: Email
+        roles:
+          anyOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+          title: Roles
+        is_disabled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Is Disabled
+      type: object
+      title: UserUpdateRequest
+      description: 'Request body for updating user core fields.
+
+
+        Note: Extended profile fields (full_name, job_title, department, phone, timezone,
+        language)
+
+        are managed via the /users/{user_id}/profile endpoint (feature 003-user-profile-details).
+
+        This endpoint handles core user fields only: email, roles, and status.'
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    adapters__api__routers__admin__tenants__TenantCreateRequest:
+      properties:
+        name:
+          type: string
+          maxLength: 255
+          minLength: 1
+          title: Name
+          description: Tenant display name
+        slug:
+          anyOf:
+          - type: string
+            pattern: ^[a-z0-9-]+$
+          - type: 'null'
+          title: Slug
+          description: URL-safe slug (auto-generated if omitted)
+        owner_email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+          title: Owner Email
+          description: Owner email (optional)
+      type: object
+      required:
+      - name
+      title: TenantCreateRequest
+      description: Request model for creating a tenant (admin).
+    adapters__api__routers__admin__tenants__TenantResponse:
+      properties:
+        tenant_id:
+          type: string
+          title: Tenant Id
+        name:
+          type: string
+          title: Name
+        slug:
+          type: string
+          title: Slug
+        owner_email:
+          anyOf:
+          - type: string
+            format: email
+          - type: 'null'
+          title: Owner Email
+        status:
+          type: string
+          title: Status
+        created_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created At
+      type: object
+      required:
+      - tenant_id
+      - name
+      - slug
+      - status
+      title: TenantResponse
+      description: Tenant response model (admin).
+    adapters__api__routers__admin__users__UserCreateRequest:
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email
+          description: User email address
+        password:
+          type: string
+          minLength: 8
+          title: Password
+          description: User password
+        tenant_id:
+          type: string
+          title: Tenant Id
+          description: Tenant ID to assign user to
+        roles:
+          items:
+            type: string
+          type: array
+          title: Roles
+          description: User roles (optional)
+      type: object
+      required:
+      - email
+      - password
+      - tenant_id
+      title: UserCreateRequest
+      description: Request model for creating a user (admin).
+    adapters__api__routers__admin__users__UserResponse:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        tenant_id:
+          type: string
+          title: Tenant Id
+        email:
+          type: string
+          format: email
+          title: Email
+        status:
+          type: string
+          title: Status
+        roles:
+          items:
+            type: string
+          type: array
+          title: Roles
+        created_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created At
+      type: object
+      required:
+      - user_id
+      - tenant_id
+      - email
+      - status
+      - roles
+      title: UserResponse
+      description: User response model (admin - cross-tenant).
+    adapters__api__routers__tenants__users__UserListResponse:
+      properties:
+        users:
+          items:
+            $ref: '#/components/schemas/adapters__api__routers__tenants__users__UserResponse'
+          type: array
+          title: Users
+        pagination:
+          additionalProperties: true
+          type: object
+          title: Pagination
+      type: object
+      required:
+      - users
+      - pagination
+      title: UserListResponse
+      description: Paginated user list response.
+    adapters__api__routers__tenants__users__UserResponse:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        tenant_id:
+          type: string
+          title: Tenant Id
+        email:
+          type: string
+          format: email
+          title: Email
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        roles:
+          items:
+            type: string
+          type: array
+          title: Roles
+        created_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Updated At
+      type: object
+      required:
+      - user_id
+      - tenant_id
+      - email
+      - status
+      - roles
+      title: UserResponse
+      description: User response model (tenant-scoped).
+    adapters__api__routers__tenants_crud__TenantCreateRequest:
+      properties:
+        name:
+          type: string
+          title: Name
+        config_version:
+          type: integer
+          title: Config Version
+          default: 1
+        tenant_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tenant Id
+      type: object
+      required:
+      - name
+      title: TenantCreateRequest
+    adapters__api__routers__tenants_crud__TenantResponse:
+      properties:
+        tenant_id:
+          type: string
+          title: Tenant Id
+        name:
+          type: string
+          title: Name
+        status:
+          type: string
+          title: Status
+        config_version:
+          type: integer
+          title: Config Version
+          default: 1
+        created_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Updated At
+        idempotent:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Idempotent
+      type: object
+      required:
+      - tenant_id
+      - name
+      - status
+      title: TenantResponse
+    adapters__api__routers__users__UserCreateRequest:
+      properties:
+        tenant_id:
+          type: string
+          title: Tenant Id
+        email:
+          type: string
+          format: email
+          title: Email
+        roles:
+          items:
+            type: string
+          type: array
+          title: Roles
+          default: []
+        password:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Password
+      type: object
+      required:
+      - tenant_id
+      - email
+      title: UserCreateRequest
+    adapters__api__routers__users__UserListResponse:
+      properties:
+        users:
+          items:
+            $ref: '#/components/schemas/adapters__api__routers__users__UserResponse'
+          type: array
+          title: Users
+      type: object
+      required:
+      - users
+      title: UserListResponse
+    adapters__api__routers__users__UserResponse:
+      properties:
+        user_id:
+          type: string
+          title: User Id
+        tenant_id:
+          type: string
+          title: Tenant Id
+        email:
+          type: string
+          format: email
+          title: Email
+        status:
+          $ref: '#/components/schemas/UserStatus'
+        roles:
+          items:
+            type: string
+          type: array
+          title: Roles
+        created_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Created At
+        updated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Updated At
+      type: object
+      required:
+      - user_id
+      - tenant_id
+      - email
+      - status
+      - roles
+      title: UserResponse
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer

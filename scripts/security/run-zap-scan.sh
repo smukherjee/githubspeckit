@@ -210,8 +210,8 @@ validate_prerequisites() {
     
     # Check target accessibility
     log_verbose "Checking target URL accessibility: $TARGET_URL"
-    if ! curl -s -f -o /dev/null --max-time 5 "${TARGET_URL}/api/v1/health" 2>/dev/null; then
-        log_warning "Target URL health check failed: ${TARGET_URL}/api/v1/health"
+    if ! curl -s -f -o /dev/null --max-time 5 "${TARGET_URL}/health" 2>/dev/null; then
+        log_warning "Target URL health check failed: ${TARGET_URL}/health"
         log_warning "Scans may fail if the server is not running."
         read -p "Continue anyway? (y/N) " -n 1 -r
         echo
@@ -226,6 +226,13 @@ validate_prerequisites() {
 # Setup output directory
 setup_output_dir() {
     log_info "Setting up output directory: $OUTPUT_DIR"
+    
+    # Convert to absolute path if relative
+    if [[ ! "$OUTPUT_DIR" = /* ]]; then
+        OUTPUT_DIR="$(cd "$REPO_ROOT" && pwd)/$OUTPUT_DIR"
+    fi
+    
+    log_verbose "Absolute output path: $OUTPUT_DIR"
     
     # Create output directory if it doesn't exist
     mkdir -p "$OUTPUT_DIR"
@@ -269,7 +276,9 @@ prepare_openapi_spec() {
 # Generate report file paths
 generate_report_paths() {
     local scan_name="$1"
-    local base_name="${RUN_DIR}/${scan_name}-report"
+    # Use relative path for Docker container (relative to /zap/wrk mount point)
+    local run_dirname=$(basename "$RUN_DIR")
+    local base_name="${run_dirname}/${scan_name}-report"
     
     REPORT_ARGS=""
     
@@ -517,7 +526,7 @@ env:
           scriptEngine: "Oracle Nashorn"
         verification:
           method: "response"
-          pollUrl: "${TARGET_URL}/api/v1/users/me"
+          pollUrl: "${TARGET_URL}/health"
           pollData: ""
           pollFrequency: 60
           loggedInRegex: "\\\\Q200\\\\E"

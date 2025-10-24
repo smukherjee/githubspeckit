@@ -212,8 +212,9 @@ async def switch_tenant(
         pass
     
     # Return success response
+    # Note: tenant_id_db is already a UUID object from asyncpg, no need to wrap in UUID()
     return TenantSwitchResponse(
-        active_tenant_id=UUID(tenant_id_db),
+        active_tenant_id=tenant_id_db if isinstance(tenant_id_db, UUID) else UUID(tenant_id_db),
         tenant_name=tenant_name,
         switched_at=switched_at,
     )

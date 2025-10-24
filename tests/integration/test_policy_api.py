@@ -13,10 +13,15 @@ RBAC Enforcement:
 - Superadmin: Can register and list policies for any tenant
 - Tenant Admin: Can register and list policies for own tenant only
 - Standard User: Cannot access policy endpoints
+
+DEFERRED TO PHASE 2: All policy tests marked as skipped (spec 017)
 """
 import pytest
 from httpx import AsyncClient
 from uuid import uuid4
+
+
+pytestmark = pytest.mark.skip(reason="Deferred to Phase 2: Tenant policies - spec 017")
 
 
 @pytest.mark.asyncio

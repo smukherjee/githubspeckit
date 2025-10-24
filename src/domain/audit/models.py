@@ -14,6 +14,7 @@ class AuditEvent:
     target_id: Optional[str]
     metadata: Dict[str, Any] = field(default_factory=dict)
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    version: str = "1.0.0"  # API version for tracking schema changes
 
 class AuditAppender:
     def append(self, event: AuditEvent) -> None:  # pragma: no cover - interface only

@@ -27,6 +27,10 @@ This is a **breaking change release** that removes all deprecated features and e
 - Q: What rate limiting threshold should be applied to user creation attempts to prevent email enumeration? → A: Configurable via environment variable with default of 100 attempts/hour/IP
 - Q: Is blue-green deployment strategy implementation in-scope for V1.0, or just documentation? → A: Out of scope - Remove from NFR-026, focus on code cleanup only
 - Q: Should log export endpoint integrate with Prometheus/Grafana for real-time dashboards? → A: V1.0 implementation provides detailed JSON logs for debugging/forensics only. V2.0 will add Grafana Loki integration for real-time log dashboards. Current `/metrics` endpoint already Prometheus-compatible for metrics visualization.
+- Q: Is the read-only `/api/v1/admin/roles` GET endpoint intentional, or should V1.0 include full CRUD operations for role management? → A: Hybrid - System roles (superadmin, tenant_admin, user) are pre-seeded and read-only, but allow custom role creation at hierarchy levels below tenant_admin
+- Q: How should role assignment work in V1.0? → A: Hybrid - Support both user creation/update with role_id field AND dedicated assignment endpoints (POST/DELETE /api/v1/admin/users/{user_id}/roles/{role_id}) for flexibility
+- Q: Does V1.0 support hierarchical role inheritance? → A: Permission-based - No inheritance, each role explicitly defines its permission set (most flexible, clearest security model)
+- Q: How are system roles created and managed? → A: Script seeded via scripts/seed_infysight.py for initial setup, then automatically seeded (superadmin, tenant_admin, user) on each new tenant creation
 
 ---
 
@@ -100,7 +104,7 @@ app.add_middleware(DeprecationMiddleware)
 **Acceptance Criteria**:
 - ✅ All admin routes use prefix `/api/v1/admin/*`
 - ✅ Tenant-scoped resource routes use `/api/v1/tenants/{tenant_id}/*` pattern
-- ✅ Public routes (auth, health) remain at `/api/v1/auth/*`, `/api/v1/health`
+- ✅ Public routes (auth, health) remain at `/api/v1/auth/*`, `/health`
 - ✅ Legacy flat route `/api/*` completely removed
 - ✅ Router includes updated in `app.py`
 - ✅ OpenAPI spec reflects new structure
@@ -127,7 +131,7 @@ app.add_middleware(DeprecationMiddleware)
 | `/api/v1/auth/login` | POST | Public | None (unauthenticated) | N/A |
 | `/api/v1/auth/refresh` | POST | Public | None (unauthenticated) | N/A |
 | `/api/v1/auth/revoke` | POST | Authenticated | Any authenticated user | N/A |
-| `/api/v1/health` | GET | Public | None (unauthenticated) | N/A |
+| `/health` | GET | Public | None (unauthenticated) | N/A |
 | `/api/v1/config` | GET | Public | None (unauthenticated) | N/A |
 | `/api/v1/embed/exchange` | POST | Public | None (unauthenticated) | N/A |
 | `/metrics` | GET | Public | None (monitoring) | N/A |
@@ -137,7 +141,11 @@ app.add_middleware(DeprecationMiddleware)
 | `/api/v1/admin/users/{id}` | GET, PUT, DELETE | Admin | superadmin, tenant_admin (same tenant) | Tenant-filtered |
 | `/api/v1/admin/policies` | GET, POST | Admin | superadmin, tenant_admin | Tenant-scoped |
 | `/api/v1/admin/policies/{id}` | GET, PUT, DELETE | Admin | superadmin, tenant_admin (same tenant) | Tenant-filtered |
-| `/api/v1/admin/roles` | GET | Admin | superadmin, tenant_admin | Global (read-only) |
+| `/api/v1/admin/roles` | GET | Admin | superadmin, tenant_admin | System roles (read-only: superadmin, tenant_admin, user) |
+| `/api/v1/admin/roles` | POST | Admin | tenant_admin, superadmin | Create custom roles below tenant_admin hierarchy |
+| `/api/v1/admin/roles/{id}` | GET, PUT, DELETE | Admin | tenant_admin (own tenant), superadmin | Custom role management (system roles immutable) |
+| `/api/v1/admin/users/{user_id}/roles/{role_id}` | POST | Admin | tenant_admin (same tenant), superadmin | Assign role to user (dedicated endpoint) |
+| `/api/v1/admin/users/{user_id}/roles/{role_id}` | DELETE | Admin | tenant_admin (same tenant), superadmin | Revoke role from user |
 | `/api/v1/admin/feature-flags` | GET, POST | Admin | superadmin, tenant_admin | Tenant-scoped |
 | `/api/v1/admin/context/tenant` | POST | Admin | superadmin, tenant_admin | Cross-tenant switch (superadmin only) |
 | `/api/v1/tenants/{tenant_id}/users` | GET | Tenant-Scoped | Any authenticated user in tenant | Tenant-filtered by path param |
@@ -391,8 +399,111 @@ servers:
 
 3. **Tests**: Update test fixtures and assertions
 
-4. **Verify**: Run health check at `/api/v1/health` confirms V1.0
+4. **Verify**: Run health check at `/health` confirms V1.0
 ```
+
+### FR-122: Role Management & Hierarchy Implementation
+
+**User Story**: As a platform administrator, I want a complete role management system with system roles (read-only) and custom role creation capabilities, so I can implement flexible RBAC across tenants.
+
+**Acceptance Criteria**:
+- ✅ **Roles table** created with schema:
+  - `id` (UUID, PK)
+  - `name` (VARCHAR, NOT NULL)
+  - `tenant_id` (UUID, FK to tenants, NULL for system roles)
+  - `is_system` (BOOLEAN, default FALSE)
+  - `permissions` (JSONB, array of permission strings)
+  - `created_at`, `updated_at`, `created_by`, `updated_by` (audit fields)
+  - **Constraint**: `UNIQUE(name, tenant_id)` (tenant-scoped role names)
+- ✅ **System roles pre-seeded** via migration/seed script:
+  - `superadmin` (tenant_id=NULL, is_system=TRUE): Cross-tenant access, all permissions
+  - `tenant_admin` (tenant_id=NULL, is_system=TRUE): Tenant-scoped admin, manage users/roles/policies within tenant
+  - `user` (tenant_id=NULL, is_system=TRUE): Basic authenticated user, read-only access to own resources
+- ✅ **Role hierarchy enforced**:
+  - Permission-based (no inheritance): Each role explicitly defines its permission set
+  - Custom roles can only be created at hierarchy levels BELOW tenant_admin (no privilege escalation)
+  - System roles (`is_system=TRUE`) are immutable (cannot be modified or deleted)
+- ✅ **Role assignment**:
+  - `user_roles` junction table: `user_id`, `role_id`, `assigned_at`, `assigned_by`
+  - Users have exactly ONE role per tenant (enforced at application layer)
+  - Support both user creation with `role_id` AND dedicated assignment endpoints
+- ✅ **API endpoints** (all under `/api/v1/admin/roles`):
+  - `GET /api/v1/admin/roles` - List all roles (system + tenant custom roles)
+  - `POST /api/v1/admin/roles` - Create custom role (tenant_admin only, below hierarchy)
+  - `GET /api/v1/admin/roles/{id}` - Get role details
+  - `PUT /api/v1/admin/roles/{id}` - Update custom role (system roles rejected)
+  - `DELETE /api/v1/admin/roles/{id}` - Delete custom role (system roles rejected)
+  - `POST /api/v1/admin/users/{user_id}/roles/{role_id}` - Assign role to user
+  - `DELETE /api/v1/admin/users/{user_id}/roles/{role_id}` - Revoke role from user
+- ✅ **Schema documentation**:
+  - Roles table DDL in `docs/database-schema-v1.0.sql`
+  - User-role relationship documented in ERD (`docs/database-erd-v1.0.png`)
+  - Permission model documented (list of available permissions)
+- ✅ **RBAC enforcement**:
+  - System roles: Only superadmin can view/assign system roles
+  - Custom roles: tenant_admin can create/manage within their tenant
+  - Tenant isolation: Custom roles scoped to `tenant_id`, not visible to other tenants
+
+**Database Schema**:
+```sql
+-- Roles table
+CREATE TABLE roles (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    tenant_id UUID REFERENCES tenants(id) ON DELETE CASCADE,  -- NULL for system roles
+    is_system BOOLEAN NOT NULL DEFAULT FALSE,
+    permissions JSONB NOT NULL DEFAULT '[]'::jsonb,  -- Array of permission strings
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    CONSTRAINT unique_role_name_per_tenant UNIQUE(name, tenant_id)
+);
+
+-- User-Role junction table
+CREATE TABLE user_roles (
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+    assigned_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    assigned_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    PRIMARY KEY (user_id, role_id)
+);
+
+-- Seed system roles (via migration or seed script)
+INSERT INTO roles (id, name, tenant_id, is_system, permissions, description) VALUES
+(gen_random_uuid(), 'superadmin', NULL, TRUE, 
+ '["*"]'::jsonb,  -- All permissions
+ 'System administrator with cross-tenant access'),
+(gen_random_uuid(), 'tenant_admin', NULL, TRUE,
+ '["tenant:*", "users:*", "roles:create", "roles:update", "roles:delete", "policies:*"]'::jsonb,
+ 'Tenant administrator with full control within tenant scope'),
+(gen_random_uuid(), 'user', NULL, TRUE,
+ '["users:read_own", "profile:update_own"]'::jsonb,
+ 'Standard authenticated user with read-only access to own resources');
+
+-- Indexes
+CREATE INDEX idx_roles_tenant ON roles(tenant_id);
+CREATE INDEX idx_roles_system ON roles(is_system) WHERE is_system = TRUE;
+CREATE INDEX idx_user_roles_user ON user_roles(user_id);
+CREATE INDEX idx_user_roles_role ON user_roles(role_id);
+```
+
+**Permission Model** (initial set, extensible):
+- `*` - All permissions (superadmin only)
+- `tenant:read`, `tenant:update`, `tenant:delete` - Tenant management
+- `users:create`, `users:read`, `users:update`, `users:delete`, `users:read_own` - User management
+- `roles:create`, `roles:read`, `roles:update`, `roles:delete` - Role management
+- `policies:create`, `policies:read`, `policies:update`, `policies:delete` - Policy management
+- `profile:update_own` - User profile updates
+
+**Testing**:
+- Test: Create custom role as tenant_admin → success
+- Test: Create custom role with superadmin permissions → 403 Forbidden (hierarchy violation)
+- Test: Modify system role → 400 Bad Request (immutable)
+- Test: Assign role across tenants → 403 Forbidden (tenant isolation)
+- Test: User with custom role can perform permitted actions
+- Test: System role seeding is idempotent (safe to run multiple times)
 
 ---
 
@@ -528,6 +639,67 @@ curl -X POST http://localhost:8000/api/v1/auth/token \
 - [ ] Version bumped to `v1.0.0` in `pyproject.toml` and `__version__`
 - [ ] CHANGELOG.md includes V1.0 release notes with breaking changes highlighted
 - [ ] GitHub release created with binaries/wheels (if applicable)
+
+---
+
+## Scope Boundaries
+
+### ✅ Included in V1.0 (This Phase)
+
+**Core Cleanup**:
+- Remove all deprecated middleware and backward compatibility code
+- Unified route prefix structure (`/api/v1/admin/*`)
+- Per-tenant email uniqueness enforcement
+- Database schema V1.0 finalization with full documentation
+
+**Role Management** (FR-122):
+- Complete role management system with CRUD operations
+- System roles (superadmin, tenant_admin, user) pre-seeded and immutable
+- Custom role creation for tenant admins
+- Role assignment endpoints
+- Permission-based hierarchy (no inheritance)
+- Roles table schema documentation in ERD
+
+**Developer Experience**:
+- Complete Makefile automation (`make bootstrap`, `make dev`, `make test`)
+- Docker Compose turnkey environment (PostgreSQL, Redis, pgAdmin, API)
+- Comprehensive documentation (README, CONTRIBUTING, migration guide)
+- Database ERD generation via SchemaSpy
+
+**Observability**:
+- Basic metrics endpoint (`/metrics` - Prometheus-compatible)
+- Log export endpoint (`/api/v1/logs/export` - JSON forensics)
+- Structured logging with redaction
+
+### 🔄 Deferred to Phase 2 (Future Specs)
+
+**Policy Engine Enhancements** (Spec 017 - Planned):
+- Advanced policy evaluation engine (tri-state: ALLOW/DENY/ABSTAIN)
+- Policy inheritance and composition
+- Policy audit trail and versioning
+- Dynamic policy updates without restart
+
+**Advanced Rate Limiting** (Spec 018 - Planned):
+- Tiered rate limiting (per-tenant, per-user, per-endpoint)
+- Distributed rate limiting across multiple API instances
+- Rate limit bypass tokens for integrations
+- Configurable rate limit strategies (sliding window, token bucket)
+
+**Feature Flags System** (Spec 018 - Planned):
+- Feature flag CRUD operations
+- Tenant-specific feature enablement
+- A/B testing support
+- Feature flag analytics and usage tracking
+
+**Advanced Observability** (Spec 019 - Planned):
+- Grafana Loki integration for real-time log dashboards
+- Distributed tracing with Jaeger/Zipkin
+- Custom metrics dashboards
+- Alerting rules and notification channels
+
+**Multi-Database Support** (Future):
+- MySQL/MariaDB adapter
+- Database migration tooling for cross-platform moves
 
 ---
 
@@ -675,40 +847,61 @@ CREATE UNIQUE INDEX idx_users_email_tenant ON users (email, tenant_id);
 ## Implementation Plan
 
 ### Phase 1: Preparation & Audit (Day 1)
+
 - ✅ Audit all deprecated code locations
 - ✅ Create V1.0 cleanup checklist
 - ✅ Set up staging environment for testing
 - ✅ Backup production database schema
 
 ### Phase 2: Database Schema (Day 2)
+
 - ✅ Create Alembic migration for email constraint
-- ✅ Test migration on staging database
-- ✅ Generate V1.0 schema documentation
+- ✅ Create roles table migration with system role seeding
+- ✅ Create user_roles junction table migration
+- ✅ Test migrations on staging database
+- ✅ Generate V1.0 schema documentation (including roles ERD)
 - ✅ Create schema metadata table
 
-### Phase 3: Route Structure (Days 3-4)
+### Phase 3: Role Management Implementation (Days 3-4)
+
+- ✅ Implement roles domain model and repository
+- ✅ Create role CRUD API endpoints (`/api/v1/admin/roles/*`)
+- ✅ Implement role assignment endpoints (`/api/v1/admin/users/{user_id}/roles/{role_id}`)
+- ✅ Add permission-based authorization middleware
+- ✅ Implement role hierarchy validation (prevent privilege escalation)
+- ✅ Seed system roles (superadmin, tenant_admin, user)
+- ✅ Add role management tests (unit + integration)
+- ✅ Document permission model
+
+### Phase 4: Route Structure Migration (Day 5)
+
 - ✅ Update all admin routers to use `/api/v1/admin` prefix
 - ✅ Update app.py router includes
 - ✅ Update all test files with new routes
 - ✅ Regenerate OpenAPI spec
 
-### Phase 4: Remove Deprecated Code (Day 5)
+### Phase 5: Remove Deprecated Code (Day 6)
+
 - ✅ Delete deprecation middleware files
 - ✅ Remove deprecation middleware from app.py
 - ✅ Clean up deprecation comments and TODOs
 - ✅ Remove backward compatibility branches
 
-### Phase 5: Testing & Validation (Day 6)
+### Phase 6: Testing & Validation (Day 7)
+
 - ✅ Run full test suite
 - ✅ Contract tests against new OpenAPI spec
 - ✅ Performance benchmarks
-- ✅ Security regression tests
+- ✅ Security regression tests (RBAC with roles)
 
-### Phase 6: Documentation (Day 7)
+### Phase 7: Documentation (Day 8)
+
 - ✅ Write CHANGELOG-V1.0.md
 - ✅ Write MIGRATION-TO-V1.0.md
 - ✅ Update README and quickstart guide
 - ✅ Publish OpenAPI spec
+- ✅ Document role management and permission model
+- ✅ Create SchemaSpy ERD with roles relationships
 
 ---
 

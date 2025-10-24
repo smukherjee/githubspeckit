@@ -161,12 +161,15 @@ async def list_tenant_users(
         result = await db.execute(query)
         user_models = result.scalars().all()
         
-        # For each user, fetch their roles from user_roles table
+        # For each user, fetch their role names from user_roles JOIN roles
         users = []
         for user in user_models:
-            # Fetch roles
-            roles_query = select(UserRoleModel.role_id).where(
-                UserRoleModel.user_id == user.user_id
+            # Fetch role names by joining user_roles with roles table
+            from adapters.persistence.models import RoleModel
+            roles_query = (
+                select(RoleModel.name)
+                .join(UserRoleModel, RoleModel.id == UserRoleModel.role_id)
+                .where(UserRoleModel.user_id == user.user_id)
             )
             roles_result = await db.execute(roles_query)
             roles = [row[0] for row in roles_result.fetchall()]

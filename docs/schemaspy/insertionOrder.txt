@@ -1,0 +1,16 @@
+tenants
+users
+policies
+roles
+feature_flags
+invitations
+password_reset_requests
+policy_evaluation_logs
+user_mfa
+user_details
+user_roles
+alembic_version
+audit_events
+key_rotation_records
+schema_version
+token_replay_records

@@ -15,6 +15,7 @@ from uuid import uuid4
 
 @pytest.mark.asyncio
 @pytest.mark.integration
+@pytest.mark.skip(reason="Deferred to Phase 2: Feature flags - spec 017")
 async def test_feature_flag_management(
     client: AsyncClient,
     superadmin_headers,

@@ -26,6 +26,7 @@ from domain.tenants.models import Tenant, TenantStatus
 from domain.users.models import User, UserStatus
 from domain.policy.models import Policy, Decision, PolicyRule
 from domain.featureflags.models import FeatureFlag, FlagState
+from domain.roles.entities import SYSTEM_ROLE_IDS
 
 
 @pytest.mark.db
@@ -73,7 +74,7 @@ class TestTenantIsolation:
             tenant_id=tenant_a_id,
             email="user1@tenant-a.com",
             password_hash="hash",
-            roles=["admin"],
+            roles=[str(SYSTEM_ROLE_IDS["tenant_admin"])],
             status=UserStatus.active,
             created_at=datetime.now(UTC),
         )
@@ -82,7 +83,7 @@ class TestTenantIsolation:
             tenant_id=tenant_a_id,
             email="user2@tenant-a.com",
             password_hash="hash",
-            roles=["user"],
+            roles=[str(SYSTEM_ROLE_IDS["user"])],
             status=UserStatus.active,
             created_at=datetime.now(UTC),
         )
@@ -91,7 +92,7 @@ class TestTenantIsolation:
             tenant_id=tenant_b_id,
             email="user1@tenant-b.com",
             password_hash="hash",
-            roles=["admin"],
+            roles=[str(SYSTEM_ROLE_IDS["tenant_admin"])],
             status=UserStatus.active,
             created_at=datetime.now(UTC),
         )
@@ -352,7 +353,7 @@ class TestSoftDeleteEnforcement:
             tenant_id=tenant_id,
             email="active@test.com",
             password_hash="hash",
-            roles=["user"],
+            roles=[str(SYSTEM_ROLE_IDS["user"])],
             status=UserStatus.active,
             created_at=datetime.now(UTC),
         )
@@ -361,7 +362,7 @@ class TestSoftDeleteEnforcement:
             tenant_id=tenant_id,
             email="deleted@test.com",
             password_hash="hash",
-            roles=["user"],
+            roles=[str(SYSTEM_ROLE_IDS["user"])],
             status=UserStatus.active,  # Initially active
             created_at=datetime.now(UTC),
         )

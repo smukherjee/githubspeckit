@@ -6,6 +6,9 @@ import pytest
 from fastapi.testclient import TestClient
 from adapters.api.app import create_app
 
+# V1.0: Policy engine deferred to Phase 2 (spec 014)
+pytestmark = pytest.mark.skip(reason="Deferred to Phase 2: Policy engine - spec 014")
+
 
 @pytest.mark.contract
 def test_policy_dry_run_success_allows_basic_shape(superadmin_headers):

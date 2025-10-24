@@ -1,0 +1,85 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.venv/
+venv/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.hypothesis/
+coverage.xml
+*.cover
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Data files
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Reports
+reports/
+
+# Logs
+*.log
+logs/
+
+# Environment files (use docker-compose environment instead)
+.env
+.env.*
+env.*
+
+# Test files
+tests/
+pytest.ini
+.coveragerc
+
+# Tools
+tools/
+scripts/
+mark_tests_skipped.py
+debug_openapi.py
+
+# CI/CD
+.github/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Contracts (not needed in runtime)
+contracts/
+specs/
+
+# Quality reports
+quality_justifications.yaml
+coverage_critical_paths.yml

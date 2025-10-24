@@ -8,11 +8,53 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from adapters.api.deps import get_db_session, get_jwt_service
-from adapters.persistence.repositories import SQLAlchemyUserRepository
+from adapters.persistence.repositories import SQLAlchemyUserRepository, SQLAlchemyRoleRepository
 from domain.users.models import User, UserStatus
+from domain.roles.entities import SYSTEM_ROLE_IDS
+from uuid import UUID
 
 
 security = HTTPBearer(auto_error=False)
+
+
+async def _convert_role_uuids_to_names(role_uuids: List[str], session: AsyncSession) -> List[str]:
+    """
+    Convert role UUIDs to role names for authentication context.
+    
+    This ensures AuthenticatedUser.roles contains names (e.g., "superadmin")
+    not UUIDs (e.g., "00000000-0000-0000-0000-000000000001").
+    
+    Args:
+        role_uuids: List of role UUID strings
+        session: Database session
+        
+    Returns:
+        List of role names
+    """
+    # Build reverse lookup for system roles
+    system_uuid_to_name = {str(uuid): name for name, uuid in SYSTEM_ROLE_IDS.items()}
+    
+    role_names = []
+    role_repo = SQLAlchemyRoleRepository(session)
+    
+    for role_uuid in role_uuids:
+        # Check system roles first
+        if role_uuid in system_uuid_to_name:
+            role_names.append(system_uuid_to_name[role_uuid])
+        else:
+            # Look up custom role by ID
+            try:
+                custom_role = await role_repo.get_by_id(UUID(role_uuid))
+                if custom_role:
+                    role_names.append(custom_role.name)
+                else:
+                    # Role not found - skip it
+                    pass
+            except ValueError:
+                # Invalid UUID format - skip it
+                pass
+    
+    return role_names
 
 
 class AuthenticatedUser:
@@ -98,7 +140,7 @@ async def get_current_user(
         return AuthenticatedUser(
             user_id=user.user_id,
             tenant_id=user.tenant_id,
-            roles=user.roles,
+            roles=user.roles,  # Already role names from repository
             email=user.email,
             status=user.status
         )

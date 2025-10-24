@@ -100,6 +100,15 @@ async def seed_database(
             tenant_repo = SQLAlchemyTenantRepository(session)
             user_repo = SQLAlchemyUserRepository(session)
             
+            # Get system role UUID for tenant_admin (FR-122)
+            from sqlalchemy import text
+            role_query = text("SELECT id FROM roles WHERE is_system = true AND name = 'tenant_admin'")
+            role_result = await session.execute(role_query)
+            role_row = role_result.first()
+            if not role_row:
+                raise RuntimeError("System role 'tenant_admin' not found in database. Run migrations first.")
+            tenant_admin_role_id = str(role_row[0])
+            
             # Check and create tenant
             existing_tenant = await tenant_repo.get(tenant_id)
             if existing_tenant:
@@ -128,7 +137,7 @@ async def seed_database(
                     tenant_id=tenant_id,
                     email=admin_email.lower(),
                     status=UserStatus.active,
-                    roles=["tenant_admin"],
+                    roles=[tenant_admin_role_id],  # UUID not name (FR-122)
                     password_hash=None,  # Must be set via password reset
                     last_login_at=None,
                     created_at=datetime.now(timezone.utc),

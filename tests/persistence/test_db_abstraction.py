@@ -42,9 +42,10 @@ class TestDatabaseConfigDetection:
             config = DatabaseConfig.from_url(url)
             assert config.dialect == DatabaseDialect.POSTGRESQL
             assert config.is_postgres
-            assert not config.is_sqlite
+            # V1.0: SQLite support removed, is_sqlite property no longer exists
             assert not config.is_mysql
     
+    @pytest.mark.skip(reason="V1.0: SQLite support disabled - PostgreSQL only")
     def test_detect_sqlite_url(self):
         """SQLite URLs should be detected correctly."""
         urls = [
@@ -71,7 +72,7 @@ class TestDatabaseConfigDetection:
             assert config.dialect == DatabaseDialect.MYSQL
             assert config.is_mysql
             assert not config.is_postgres
-            assert not config.is_sqlite
+            # V1.0: SQLite support removed, is_sqlite property no longer exists
     
     def test_unsupported_database_raises_error(self):
         """Unsupported database schemes should raise ValueError."""
@@ -90,6 +91,7 @@ class TestDatabaseFeatureDetection:
         assert config.supports_json is True
         assert config.supports_arrays is True
     
+    @pytest.mark.skip(reason="V1.0: SQLite support disabled - PostgreSQL only")
     def test_sqlite_features(self):
         """SQLite supports JSON but not native UUID or arrays."""
         config = DatabaseConfig.from_url("sqlite:///./test.db")
@@ -122,6 +124,7 @@ class TestEngineCreation:
         assert engine is not None
         # Connection pooling should be configured (can't easily test without connecting)
     
+    @pytest.mark.skip(reason="V1.0: SQLite support disabled - PostgreSQL only")
     def test_sqlite_engine_settings(self):
         """SQLite engine should have minimal pooling."""
         config = DatabaseConfig.from_url("sqlite+aiosqlite:///./test.db")
@@ -213,7 +216,7 @@ class TestDatabaseURLHelper:
         
         Constitution VII compliance: get_database_url() uses centralized config:
         1. DATABASE_URL env var (if set)
-        2. descriptor.toml default (SQLite)
+        2. descriptor.toml default (PostgreSQL for V1.0)
         3. Never raises error (always has a default)
         """
         import os
@@ -223,10 +226,10 @@ class TestDatabaseURLHelper:
             url = get_database_url(default=None)
             assert url == os.environ["DATABASE_URL"]
         else:
-            # When env var not set, should get descriptor.toml default (SQLite)
+            # V1.0: PostgreSQL required, no SQLite fallback
             url = get_database_url(default=None)
             assert url is not None
-            assert "sqlite" in url.lower(), f"Expected SQLite default when DATABASE_URL not set, got: {url}"
+            assert "postgresql" in url.lower(), f"Expected PostgreSQL URL from config, got: {url}"
 
 
 class TestConstitutionCompliance:
@@ -241,6 +244,7 @@ class TestConstitutionCompliance:
         engine = config.create_engine()
         assert engine is not None
     
+    @pytest.mark.skip(reason="V1.0: SQLite support disabled - PostgreSQL only for production readiness")
     def test_supports_sqlite_local_dev(self):
         """SQLite must be supported for local development."""
         config = DatabaseConfig.from_url("sqlite+aiosqlite:///./dev.db")

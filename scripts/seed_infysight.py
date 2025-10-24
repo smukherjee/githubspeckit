@@ -79,36 +79,56 @@ async def seed_infysight():
     standard_user_password = default_hasher.hash("infysightuser123")
     logger.info("passwords_hashed")
     
-    # Define all 3 test users
-    users_to_create = [
-        {
-            "user_id": superadmin_id,
-            "email": "infysightsa@infysight.com",
-            "roles": ["superadmin"],
-            "password_hash": superadmin_password,
-            "full_name": "InfySight Superadmin"
-        },
-        {
-            "user_id": tenant_admin_id,
-            "email": "infysightadmin@infysight.com",
-            "roles": ["tenant_admin"],
-            "password_hash": tenant_admin_password,
-            "full_name": "InfySight Tenant Admin"
-        },
-        {
-            "user_id": standard_user_id,
-            "email": "infysightuser@infysight.com",
-            "roles": ["user"],
-            "password_hash": standard_user_password,
-            "full_name": "InfySight Standard User"
-        }
-    ]
-    
     async with async_session_maker() as session:
         async with session.begin():
             # Initialize repositories
             tenant_repo = SQLAlchemyTenantRepository(session)
             user_repo = SQLAlchemyUserRepository(session)
+            
+            # Get system role UUIDs by name (FR-122)
+            from sqlalchemy import text
+            role_uuid_query = text("""
+                SELECT id, name FROM roles 
+                WHERE is_system = true AND name IN ('superadmin', 'tenant_admin', 'user')
+            """)
+            role_result = await session.execute(role_uuid_query)
+            role_uuid_map = {row[1]: str(row[0]) for row in role_result.all()}
+            
+            if len(role_uuid_map) != 3:
+                logger.error("missing_system_roles", 
+                           found=list(role_uuid_map.keys()),
+                           expected=["superadmin", "tenant_admin", "user"])
+                raise RuntimeError(f"Expected 3 system roles, found {len(role_uuid_map)}")
+            
+            logger.info("system_roles_loaded", roles=role_uuid_map)
+            
+            # Define all 3 test users (NOW USING ROLE UUIDs)
+            users_to_create = [
+                {
+                    "user_id": superadmin_id,
+                    "email": "infysightsa@infysight.com",
+                    "roles": [role_uuid_map["superadmin"]],  # UUID not name
+                    "role_names": ["superadmin"],  # For logging
+                    "password_hash": superadmin_password,
+                    "full_name": "InfySight Superadmin"
+                },
+                {
+                    "user_id": tenant_admin_id,
+                    "email": "infysightadmin@infysight.com",
+                    "roles": [role_uuid_map["tenant_admin"]],  # UUID not name
+                    "role_names": ["tenant_admin"],  # For logging
+                    "password_hash": tenant_admin_password,
+                    "full_name": "InfySight Tenant Admin"
+                },
+                {
+                    "user_id": standard_user_id,
+                    "email": "infysightuser@infysight.com",
+                    "roles": [role_uuid_map["user"]],  # UUID not name
+                    "role_names": ["user"],  # For logging
+                    "password_hash": standard_user_password,
+                    "full_name": "InfySight Standard User"
+                }
+            ]
             
             # Check and create tenant
             existing_tenant = await tenant_repo.get(tenant_id)
@@ -133,10 +153,11 @@ async def seed_infysight():
                 existing_user = await user_repo.get(user_data["user_id"])
                 if existing_user:
                     logger.warning("user_exists", user_id=user_data["user_id"], email=user_data["email"])
-                    # Update password if user exists
+                    # Update password AND roles if user exists (fix for role UUID migration)
                     existing_user.password_hash = user_data["password_hash"]
+                    existing_user.roles = user_data["roles"]  # Update roles to UUIDs
                     await user_repo.upsert(existing_user)
-                    logger.info("password_updated", user_id=user_data["user_id"])
+                    logger.info("user_updated", user_id=user_data["user_id"], roles=user_data["role_names"])
                 else:
                     user = User(
                         user_id=user_data["user_id"],
@@ -155,7 +176,7 @@ async def seed_infysight():
                     logger.success("user_created", 
                                  user_id=user_data["user_id"], 
                                  email=user_data["email"], 
-                                 roles=user_data["roles"])
+                                 roles=user_data["role_names"])
             
             # Create user_details for all users (FR-003-user-profile-details)
             # Use raw SQL since domain models aren't implemented yet (T016-T019)
